@@ -65,7 +65,7 @@ class Rain(enum.Enum):
         Get the interpolated PSD for a given Rain level noise value between 0 and 4.
 
         Args:
-            value (float): Sea state value between 0 and 4.
+            value (float): Rain level value between 0 and 4.
 
         Returns:
             Tuple[np.ndarray, np.ndarray]:
@@ -196,7 +196,7 @@ class Shipping(enum.Enum):
         Get the interpolated PSD for a given Shipping level noise value between 0 and 7.
 
         Args:
-            value (float): Sea state value between 0 and 7.
+            value (float): Shipping level value between 0 and 7.
 
         Returns:
             Tuple[np.ndarray, np.ndarray]:
@@ -227,16 +227,25 @@ class Background():
     def __init__(self,
                  rain_value: typing.Union[float, Rain],
                  sea_value: typing.Union[float, Sea],
-                 shipping_value: typing.Union[float, Shipping],
-                 fs: float = 48000) -> None:
-        self.fs = fs
+                 shipping_value: typing.Union[float, Shipping]) -> None:
+        """
+        Args:
+            rain_value (typing.Union[float, Rain]): Rain level value between 0 and 4.
+            sea_value (typing.Union[float, Sea]): Sea state value between 0 and 6.
+            shipping_value (typing.Union[float, Shipping]): Shipping level value between 0 and 7.
+        """
         self.rain_value = rain_value.value if isinstance(rain_value, Rain) else rain_value
         self.sea_value = sea_value.value if isinstance(rain_value, Sea) else sea_value
         self.shipping_value = shipping_value.value if isinstance(rain_value, Shipping) \
                                                         else shipping_value
 
+    def __str__(self) -> str:
+        return f'Rain[{self.rain_value:.1f}], ' \
+                'Sea[{self.sea_value:.1f}], ' \
+                'Shipping[{self.shipping_value:.1f}]'
+
     @classmethod
-    def random(cls) -> 'Background':
+    def random(cls, ) -> 'Background':
         """
         Generate a sorted Background.
 
@@ -249,7 +258,7 @@ class Background():
             shipping_value=random.uniform(Shipping.NONE.value, Shipping.LEVEL_7.value)
         )
 
-    def to_psd(self) -> np.array:
+    def to_psd(self) -> typing.Tuple[np.array, np.array]:
         """
         Calculate the background PSD.
 
@@ -263,10 +272,6 @@ class Background():
         frequencies3, spectrum3 = Shipping.get_interpolated_psd(self.shipping_value)
 
         all_frequencies = np.unique(np.concatenate([frequencies1, frequencies2, frequencies3]))
-
-        index = np.argmax(all_frequencies > (self.fs/2.0))
-        if index > 0:
-            all_frequencies = all_frequencies[:index]
 
         interpolated_spectrum1 = np.interp(all_frequencies, frequencies1, spectrum1,
                                                 left=0, right=0)
@@ -282,23 +287,26 @@ class Background():
 
         return all_frequencies, interpolated_spectrum
 
-    def generate_bg_noise(self, n_samples: int = 1024) -> np.array:
+    def generate_bg_noise(self, n_samples: int = 1024, fs: float = 48000) -> np.array:
         """
         Calculate a block sample of noise for this background.
+
+        Args:
+            n_samples (int, optional): Number of samples. Defaults to 1024.
+            fs (float, optional): Sample frequency. Defaults to 48 kHz.
 
         Returns:
             np.array: Generated broadband noise in μPa.
         """
-
         freq_rain, psd_rain = Rain.get_interpolated_psd(self.rain_value)
         freq_sea, psd_sea = Sea.get_interpolated_psd(self.sea_value)
         freq_shipping, psd_shipping = Shipping.get_interpolated_psd(self.shipping_value)
 
         rain_noise = lps.generate(frequencies = freq_rain, psd_db = psd_rain,
-                                    n_samples=n_samples, fs = self.fs)
+                                    n_samples=n_samples, fs = fs)
         sea_noise = lps.generate(frequencies = freq_sea, psd_db = psd_sea,
-                                    n_samples=n_samples, fs = self.fs)
+                                    n_samples=n_samples, fs = fs)
         shipping_noise = lps.generate(frequencies = freq_shipping, psd_db = psd_shipping,
-                                    n_samples=n_samples, fs = self.fs)
+                                    n_samples=n_samples, fs = fs)
 
         return rain_noise + sea_noise + shipping_noise
