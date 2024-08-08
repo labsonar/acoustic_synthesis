@@ -1,5 +1,5 @@
 ## Introduction
-This project provides a basic template for developing Python libraries that promote uniformity and centralization within the LabSonar/LPS environment.
+This project is a basic Python library to promote uniformity and centralization within the LabSonar/LPS for acoustical signal synthesis. 
 
 ## Authors
 - **Developer**: [Fábio Oliveira](https://github.com/obs-fabio)
@@ -11,6 +11,7 @@ The following directory structure is recommended for library development:
 
 - **src/**: Contains the core Python code that forms the pip package.
 - **unit_test/**: Contains simple scripts for unit testing, enabling focused validation of individual features within the package.
+- **example/**: Contains simple example of use or a simple test that do not reach unity_test maturity.
 - **apps/**: Contains more complex scripts that leverage one or more features from the package. These scripts can be designed as command-line applications for practical use.
 - **notebooks/**: If desired, this directory can be added to include Jupyter Notebooks to showcase demonstrations, tutorials, and interactive code examples.
 
@@ -41,6 +42,11 @@ To generate the pip package as a .tar.gz file, navigate to the `src` directory a
 ```bash
 python setup.py sdist bdist_wheel
 ```
+
+### LPS Libraries Dependence
+This library depends on:
+- [Utils](https://github.com/labsonar/utils)
+- [Signal_processing](https://github.com/labsonar/signal_processing)
 
 ## License
 
