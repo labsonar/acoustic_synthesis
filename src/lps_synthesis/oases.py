@@ -24,9 +24,12 @@ def _ssp_to_str_list(ssp: lps_prop.SSP) -> typing.List[str]:
 
     return ret
 
-
 def _seabed_str(channel: lps_prop.AcousticalChannel) -> typing.List[str]:
-    return f"{channel.ssp.depths[-1].get_m():.6f} {channel.bottom.get_speed(channel.interpolation).get_m_s():.6f} 0.000000 0.000000 0.000000 {channel.bottom.get_density(channel.interpolation).get_g_cm3():.6f} 0.000000"
+    return (f"{channel.ssp.depths[-1].get_m():.6f} "
+           f"{channel.bottom.get_speed(channel.interpolation).get_m_s():.6f} "
+           "0.000000 0.000000 0.000000 "
+           f"{channel.bottom.get_density(channel.interpolation).get_g_cm3():.6f} "
+           "0.000000")
 
 
 class Sweep():
@@ -43,9 +46,16 @@ class Sweep():
 
     def get_end(self):
         return self.start + self.step * (self.n_steps - 1)
-    
+
+    def get_step_value(self, step_i: int):
+        return self.start + self.step * (step_i)
+
     def get_n_steps(self):
         return self.n_steps
+
+    def get_all(self):
+        return list([self.get_step_value(n) for n in range(self.n_steps)])
+
 
 
 def export_dat_file(channel: lps_prop.AcousticalChannel,
@@ -175,10 +185,6 @@ def trf_reader(filename):
         # Initialize output array
         nf = len(f)
         out = np.zeros((num_z, nr, nf), dtype=np.complex_)
-
-        print(nf)
-        print(nr)
-        print(num_z)
 
         # Read complex transfer function data
         for j in range(nf):

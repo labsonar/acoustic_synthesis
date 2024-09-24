@@ -84,8 +84,21 @@ class SoundSpeedProfile:
             ret = f"{ret}[{depth}]: {speed}\n"
         return ret[:-1]
 
-    def print(self, filename: str) -> None:
+    def get_ordered_ssp(self) \
+        -> typing.Tuple[typing.List[lps_qty.Distance], typing.List[lps_qty.Speed]]:
 
+        paired_list = list(zip(self.depths, self.speeds))
+        sort_idx = sorted(paired_list, key=lambda x: x[0].get_m())
+        depths, speeds = zip(*sort_idx)
+        depths = list(depths)
+        speeds = list(speeds)
+        return depths, speeds
+
+    def get_max_depths(self) -> lps_qty.Distance:
+        depths, _ = self.get_ordered_ssp()
+        return depths[-1]
+
+    def print(self, filename: str) -> None:
         depths = []
         speeds = []
         for depth, speed in zip(self.depths, self.speeds):
@@ -100,12 +113,12 @@ class SoundSpeedProfile:
 class AcousticalChannel():
     def __init__(self,
                  ssp: SoundSpeedProfile,
-                 bottom: SeabedType) -> None:
+                 bottom: SeabedType,
+                 bottom_depth: lps_qty.Distance = None) -> None:
         self.ssp = ssp
         self.bottom = bottom
         self.interpolation: float = random.random()
-
-
+        self.bottom_depth = bottom_depth if bottom_depth is not None else ssp.get_max_depths()
 
 
 #alternative alias
