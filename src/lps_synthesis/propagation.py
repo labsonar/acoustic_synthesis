@@ -8,61 +8,83 @@ import lps_utils.quantities as lps_qty
 
 
 class SeabedType(enum.Enum):
-    SILT = 1
-    SAND = 2
-    GRAVEL = 3
-    MUD = 4
-    ROCK = 5
-    CORAL = 6
-    CALCAREOUS_OOZE = 7
-    GLACIAL_TILL = 8
+    #Table 1.3 - Computational Ocean Acoustics, Jensen
+    CLAY = 1
+    SILT = 2
+    SAND = 3
+    GRAVEL = 4
+    MORAINE = 5
+    CHALK = 6
+    LIMESTONE = 7
+    BASALT = 8
 
+    def __str__(self) -> str:
+        return self.name.lower()
 
-    def get_speed(self, interpolation: float = random.random()):
-        min_speed = {
-            SeabedType.SILT: 1450,
-            SeabedType.SAND: 1600,
-            SeabedType.GRAVEL: 1800,
-            SeabedType.MUD: 1450,
-            SeabedType.ROCK: 3000,
-            SeabedType.CORAL: 1700,
-            SeabedType.CALCAREOUS_OOZE: 1450,
-            SeabedType.GLACIAL_TILL: 1700,
+    def get_compressional_speed(self) -> lps_qty.Speed:
+        speed = { # cp/cw
+            SeabedType.CLAY: 1,
+            SeabedType.SILT: 1.05,
+            SeabedType.SAND: 1.1,
+            SeabedType.GRAVEL: 1.2,
+            SeabedType.MORAINE: 1.3,
+            SeabedType.CHALK: 1.6,
+            SeabedType.LIMESTONE: 2,
+            SeabedType.BASALT: 3.5,
         }
-        max_speed = {
-            SeabedType.SILT: 1550,
-            SeabedType.SAND: 1800,
-            SeabedType.GRAVEL: 2000,
-            SeabedType.MUD: 1550,
-            SeabedType.ROCK: 5000,
-            SeabedType.CORAL: 2300,
-            SeabedType.CALCAREOUS_OOZE: 1550,
-            SeabedType.GLACIAL_TILL: 2100,
-        }
-        return lps_qty.Speed.m_s(min_speed[self] * (1-interpolation) + max_speed[self] * interpolation)
+        return lps_qty.Speed.m_s(1500) * speed[self]
 
-    def get_density(self, interpolation: float = random.random()):
-        min_density = {
-            SeabedType.SILT: 1.3,
-            SeabedType.SAND: 1.8,
-            SeabedType.GRAVEL: 2.0,
-            SeabedType.MUD: 1.5,
-            SeabedType.ROCK: 2.5,
-            SeabedType.CORAL: 2.0,
-            SeabedType.CALCAREOUS_OOZE: 1.4,
-            SeabedType.GLACIAL_TILL: 2.1,
+    def get_shear_speed(self) -> lps_qty.Speed:
+        speed = { # cs (m/s)
+            SeabedType.CLAY: 50,
+            SeabedType.SILT: 80,
+            SeabedType.SAND: 110,
+            SeabedType.GRAVEL: 180,
+            SeabedType.MORAINE: 600,
+            SeabedType.CHALK: 1000,
+            SeabedType.LIMESTONE: 1500,
+            SeabedType.BASALT: 2500,
         }
-        max_density = {
+        return lps_qty.Speed.m_s(speed[self])
+
+    def get_compressional_attenuation(self) -> float:
+        att = { # αp (dB/λ)
+            SeabedType.CLAY: 0.2,
+            SeabedType.SILT: 1.0,
+            SeabedType.SAND: 0.8,
+            SeabedType.GRAVEL: 0.6,
+            SeabedType.MORAINE: 0.4,
+            SeabedType.CHALK: 0.2,
+            SeabedType.LIMESTONE: 0.1,
+            SeabedType.BASALT: 0.1,
+        }
+        return att[self]
+
+    def get_shear_attenuation(self) -> float:
+        att = { # αs (dB/λ)
+            SeabedType.CLAY: 1.0,
+            SeabedType.SILT: 1.5,
+            SeabedType.SAND: 2.5,
+            SeabedType.GRAVEL: 1.5,
+            SeabedType.MORAINE: 1.0,
+            SeabedType.CHALK: 0.5,
+            SeabedType.LIMESTONE: 0.2,
+            SeabedType.BASALT: 0.2,
+        }
+        return att[self]
+
+    def get_density(self) -> lps_qty.Density:
+        density = { # ρb/pw
+            SeabedType.CLAY: 1.5,
             SeabedType.SILT: 1.7,
-            SeabedType.SAND: 2.1,
-            SeabedType.GRAVEL: 2.3,
-            SeabedType.MUD: 1.7,
-            SeabedType.ROCK: 2.7,
-            SeabedType.CORAL: 2.4,
-            SeabedType.CALCAREOUS_OOZE: 1.6,
-            SeabedType.GLACIAL_TILL: 2.4,
+            SeabedType.SAND: 1.9,
+            SeabedType.GRAVEL: 2.0,
+            SeabedType.MORAINE: 2.1,
+            SeabedType.CHALK: 2.2,
+            SeabedType.LIMESTONE: 2.4,
+            SeabedType.BASALT: 2.7,
         }
-        return lps_qty.Density.g_cm3(min_density[self] * (1-interpolation) + max_density[self] * interpolation)
+        return lps_qty.Density.g_cm3(1) * density[self]
 
 class SoundSpeedProfile:
     def __init__(self,

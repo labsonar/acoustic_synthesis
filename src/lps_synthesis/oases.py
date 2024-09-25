@@ -25,11 +25,13 @@ def _ssp_to_str_list(ssp: lps_prop.SSP) -> typing.List[str]:
     return ret
 
 def _seabed_str(channel: lps_prop.AcousticalChannel) -> typing.List[str]:
-    return (f"{channel.ssp.depths[-1].get_m():.6f} "
-           f"{channel.bottom.get_speed(channel.interpolation).get_m_s():.6f} "
-           "0.000000 0.000000 0.000000 "
-           f"{channel.bottom.get_density(channel.interpolation).get_g_cm3():.6f} "
-           "0.000000")
+    return (f"{channel.bottom_depth.get_m():.6f} "
+            f"{channel.bottom.get_compressional_speed().get_m_s():6f} "
+            f"{channel.bottom.get_shear_speed().get_m_s():6f} "
+            f"{channel.bottom.get_compressional_attenuation():6f} "
+            f"{channel.bottom.get_shear_attenuation():6f} "
+            f"{channel.bottom.get_density().get_g_cm3():6f} "
+            "0.00")
 
 
 class Sweep():
