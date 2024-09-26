@@ -11,44 +11,60 @@ import lps_synthesis.propagation as lps_prop
 import lps_synthesis.oases as oases
 
 
-depths = oases.Sweep(start=lps_qty.Distance.m(0), step=lps_qty.Distance.m(25), n_steps=20)
-ranges = oases.Sweep(start=lps_qty.Distance.m(10), step=lps_qty.Distance.m(10), n_steps=40)
-
 filename="./result/test.dat"
+
+ssp = lps_prop.SSP()
+ssp.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1534))
+# ssp.add(lps_qty.Distance.m(5), lps_qty.Speed.m_s(1536))
+# ssp.add(lps_qty.Distance.m(50), lps_qty.Speed.m_s(1536))
+# ssp.add(lps_qty.Distance.m(80), lps_qty.Speed.m_s(1530))
+# ssp.add(lps_qty.Distance.m(100), lps_qty.Speed.m_s(1528))
+
+ssp.print('./result/ssp.png')
+
+
+channel  = lps_prop.AcousticalChannel(ssp, lps_prop.BottomType.BASALT, lps_qty.Distance.m(25))
 
 start_time = time.time()
 
-ssp = lps_prop.SSP()
-ssp.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
+h_f, h_t, ranges, t, frequencies = oases.estimate_transfer_function(
+                channel = channel,
+                source_depth = lps_qty.Distance.m(5),
+                sensor_depth = lps_qty.Distance.m(20),
+                max_distance = lps_qty.Distance.m(200),
+                distance_points = 128,
+                sample_frequency = lps_qty.Frequency.khz(16),
+                n_fft = 128,
+                filename = filename)
 
-for bottom in lps_prop.BottomType:
 
-    channel  = lps_prop.AcousticalChannel(ssp, bottom, lps_qty.Distance.m(400))
+plt.imshow(abs(h_t).T, extent=[
+                         0,
+                         len(t),
+                         ranges[-1].get_m(),
+                         ranges[0].get_m()
+                        ], aspect='auto', cmap='jet')
 
-    oases.export_dat_file(channel=channel,
-                        frequency=lps_qty.Frequency.hz(150),
-                        source_depth = lps_qty.Distance.m(0),
-                        sensor_depth = depths,
-                        distance = ranges,
-                        filename=filename)
+plt.savefig('./result/h_t.png')
+plt.tight_layout()
+plt.close()
 
-    comando = f"oasp {filename[:-4]}"
-    resultado = subprocess.run(comando, shell=True, capture_output=True, text=True, check=True)
 
-    end_time = time.time()
-    print(f"Tempo decorrido: {(end_time - start_time):.4f} segundos")
+plt.imshow(abs(h_f), extent=[ranges[0].get_m(),
+                         ranges[-1].get_m(),
+                         frequencies[0].get_hz(),
+                         frequencies[-1].get_hz()], aspect='auto', cmap='jet')
 
-    outs_1, sd, z, range_, f, fc, omegim, dt = oases.trf_reader(filename)
-    print(outs_1.shape)
-    print('z: ', z)
-    print('range_: ', range_)
 
-    plt.imshow(20*np.log10(np.abs(outs_1)),
-            extent=[range_[0] * 1e3,
-                        range_[-1] * 1e3,
-                        z[-1],
-                        z[0]],
-                aspect='auto', cmap='jet')
+plt.savefig('./result/h_s.png')
+plt.tight_layout()
+plt.close()
 
-    plt.savefig(f"./result/test_{bottom}.png")
-    plt.close()
+labels = []
+for r_i in range(0, len(ranges), 16):
+    plt.plot(t, abs(h_t[:,r_i]))
+    labels.append(str(ranges[r_i]))
+
+plt.legend(labels)
+plt.savefig('./result/h_t_plot.png')
+plt.close()

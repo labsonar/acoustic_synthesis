@@ -2,12 +2,15 @@ import typing
 import numpy as np
 import struct
 import os
+import tqdm
+import subprocess
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation as lps_prop
 
 def _ssp_to_str_list(ssp: lps_prop.SSP) -> typing.List[str]:
     ret = []
+    ret.append(f"0 0 0 0 0 0 0") # water surface
 
     paired_list = list(zip(ssp.depths, ssp.speeds))
     sort_idx = sorted(paired_list, key=lambda x: x[0].get_m())
@@ -33,7 +36,6 @@ def _seabed_str(channel: lps_prop.AcousticalChannel) -> typing.List[str]:
             f"{channel.bottom.get_density().get_g_cm3():6f} "
             "0.00")
 
-
 class Sweep():
     def __init__(self, start, step, n_steps) -> None:
         self.start = start
@@ -57,8 +59,6 @@ class Sweep():
 
     def get_all(self):
         return list([self.get_step_value(n) for n in range(self.n_steps)])
-
-
 
 def export_dat_file(channel: lps_prop.AcousticalChannel,
                     source_depth: lps_qty.Distance,
@@ -94,16 +94,13 @@ def export_dat_file(channel: lps_prop.AcousticalChannel,
     file_content += "300.000000 1.000000e+08\n"
     file_content += "-1 0 0 0\n"
 
-    n_samples = 1024
-    time_inc = ((1.5*distance.get_end())/channel.ssp.speeds[0])/n_samples
-    min_time_inc = lps_qty.Time.ms(5)
-    if time_inc < min_time_inc:
-        time_inc = min_time_inc
+    time_inc = 0.5/frequency
+    n_samples = int(np.ceil(((1.5*distance.get_end())/channel.ssp.speeds[0])/time_inc))
+
     file_content += f"{n_samples} {frequency.get_hz():.6f} {frequency.get_hz():.6f} {time_inc.get_s():.6f} {distance.get_start().get_km():.6f} {distance.get_step().get_km():.6f} {distance.get_n_steps():.0f}"
 
     with open(filename, 'w', encoding="utf-8") as file:
         file.write(file_content)
-
 
 def trf_reader(filename):
 
@@ -201,3 +198,59 @@ def trf_reader(filename):
                 out[:, jj, j] = temp_complex[:num_z]
 
     return out, sd, z, range_, f, fc, omegim, dt
+
+def estimate_transfer_function(channel: lps_prop.AcousticalChannel,
+                    source_depth: lps_qty.Distance,
+                    sensor_depth: lps_qty.Distance,
+                    max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
+                    distance_points: int = 128,
+                    sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
+                    n_fft: int = 128,
+                    filename: str = "test.dat"):
+
+    freq_step = (sample_frequency/2)/n_fft
+
+    frequencies = Sweep(start=freq_step, step=freq_step, n_steps=n_fft)
+    depths = Sweep(start=sensor_depth, step=lps_qty.Distance.m(1), n_steps=1)
+    ranges = Sweep(start=lps_qty.Distance.m(0), step=max_distance/(distance_points+1), n_steps=distance_points+1)
+
+    h_f = np.zeros((frequencies.get_n_steps(), ranges.get_n_steps()), dtype=np.complex_)
+
+    for f_i, frequency in enumerate(tqdm.tqdm(frequencies.get_all())):
+
+        export_dat_file(channel=channel,
+                frequency=frequency,
+                source_depth = source_depth,
+                sensor_depth = depths,
+                distance = ranges,
+                filename=filename)
+
+        comando = f"oasp {filename[:-4]}"
+        resultado_str = subprocess.run(comando, shell=True, capture_output=True, text=True, check=True)
+
+        out, _, _, _, _, _, _, _ = trf_reader(filename)
+        out = out.ravel()
+
+        if len(out) != h_f.shape[1]:
+            print("####################")
+            print(resultado_str.stdout)
+            print("####################")
+            print("Error on frequency: ", frequency)
+            print("Len: ", len(out), "\texpected len: ", h_f.shape[1])
+            raise UnboundLocalError("Error in Oases simulation")
+
+        h_f[f_i, :] = out
+
+
+    Ts = 1/frequencies.get_end()
+    t = np.arange(0, frequencies.get_n_steps() * Ts.get_s(), Ts.get_s())
+
+    h_t = np.zeros((len(t), ranges.get_n_steps()), dtype=np.complex_)
+
+    for r_i, _ in enumerate(ranges.get_all()):
+        # h_t[:,r_i] = np.fft.ifft(h_f[:, r_i], len(t))
+        h_t[:,r_i] = (len(t) / np.sqrt(2)) * (np.fft.ifft(h_f[:, r_i], len(t)) * np.exp(-1j * 2 * np.pi * freq_step.get_hz() * t))
+
+    #TODO remove .dat and .trf file
+
+    return h_f, h_t, ranges.get_all(), t, frequencies.get_all()
