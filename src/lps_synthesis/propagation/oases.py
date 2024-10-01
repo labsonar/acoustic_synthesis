@@ -6,7 +6,7 @@ import tqdm
 import subprocess
 
 import lps_utils.quantities as lps_qty
-import lps_synthesis.propagation as lps_prop
+import lps_synthesis.propagation.acoustical_channel as lps_prop
 
 def _ssp_to_str_list(ssp: lps_prop.SSP) -> typing.List[str]:
     ret = []
@@ -27,7 +27,7 @@ def _ssp_to_str_list(ssp: lps_prop.SSP) -> typing.List[str]:
 
     return ret
 
-def _seabed_str(channel: lps_prop.AcousticalChannel) -> typing.List[str]:
+def _seabed_str(channel: lps_prop.Description) -> typing.List[str]:
     return (f"{channel.bottom_depth.get_m():.6f} "
             f"{channel.bottom.get_compressional_speed().get_m_s():6f} "
             f"{channel.bottom.get_shear_speed().get_m_s():6f} "
@@ -60,7 +60,7 @@ class Sweep():
     def get_all(self):
         return list([self.get_step_value(n) for n in range(self.n_steps)])
 
-def export_dat_file(channel: lps_prop.AcousticalChannel,
+def export_dat_file(channel: lps_prop.Description,
                     source_depth: lps_qty.Distance,
                     sensor_depth: Sweep,
                     distance: Sweep,
@@ -199,7 +199,7 @@ def trf_reader(filename):
 
     return out, sd, z, range_, f, fc, omegim, dt
 
-def estimate_transfer_function(channel: lps_prop.AcousticalChannel,
+def estimate_transfer_function(channel: lps_prop.Description,
                     source_depth: lps_qty.Distance,
                     sensor_depth: lps_qty.Distance,
                     max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
