@@ -2,39 +2,12 @@ import typing
 import numpy as np
 import struct
 import os
+import glob
 import tqdm
 import subprocess
 
 import lps_utils.quantities as lps_qty
-import lps_synthesis.propagation.acoustical_channel as lps_prop
-
-def _ssp_to_str_list(ssp: lps_prop.SSP) -> typing.List[str]:
-    ret = []
-    ret.append(f"0 0 0 0 0 0 0") # water surface
-
-    paired_list = list(zip(ssp.depths, ssp.speeds))
-    sort_idx = sorted(paired_list, key=lambda x: x[0].get_m())
-    depths, speeds = zip(*sort_idx)
-    depths = list(depths)
-    speeds = list(speeds)
-
-    if depths[0].get_m() != 0:
-        depths.insert(0, lps_qty.Distance.m(0))
-        speeds.insert(0, speeds[0])
-
-    for depth, speed in zip(depths, speeds):
-        ret.append(f"{depth.get_m():.6f} {speed.get_m_s():.6f} 0.000000 0.000000 0.000000 1.000000 0.000000")
-
-    return ret
-
-def _seabed_str(channel: lps_prop.Description) -> typing.List[str]:
-    return (f"{channel.bottom_depth.get_m():.6f} "
-            f"{channel.bottom.get_compressional_speed().get_m_s():6f} "
-            f"{channel.bottom.get_shear_speed().get_m_s():6f} "
-            f"{channel.bottom.get_compressional_attenuation():6f} "
-            f"{channel.bottom.get_shear_attenuation():6f} "
-            f"{channel.bottom.get_density().get_g_cm3():6f} "
-            "0.00")
+import lps_synthesis.propagation.acoustical_channel as lps_channel
 
 class Sweep():
     def __init__(self, start, step, n_steps) -> None:
@@ -60,7 +33,7 @@ class Sweep():
     def get_all(self):
         return list([self.get_step_value(n) for n in range(self.n_steps)])
 
-def export_dat_file(channel: lps_prop.Description,
+def export_dat_file(description: lps_channel.Description,
                     source_depth: lps_qty.Distance,
                     sensor_depth: Sweep,
                     distance: Sweep,
@@ -71,31 +44,16 @@ def export_dat_file(channel: lps_prop.Description,
     file_content += "N J f\n"
     file_content += f"{frequency.get_hz()} 0\n"
 
-    ssp_list = _ssp_to_str_list(channel.ssp)
-
-    n_layers = len(ssp_list) + (1 if channel.bottom is not None else 0)
-
-    if n_layers == 1:
-        ssp_list.append(ssp_list[0])
-        n_layers+=1
-
-    file_content += f"{n_layers}\n"
-    for layer in ssp_list:
-        file_content += f"{layer}\n"
-
-    if channel.bottom is not None:
-        file_content += f"{_seabed_str(channel)}\n"
-
+    file_content += f"{description.to_oases_format()}\n"
 
     file_content += f"{source_depth.get_m():.0f}\n"
-
     file_content += f"{sensor_depth.get_start().get_m():.0f} {sensor_depth.get_end().get_m():.0f} {sensor_depth.get_n_steps()}\n"
 
     file_content += "300.000000 1.000000e+08\n"
     file_content += "-1 0 0 0\n"
 
     time_inc = 0.5/frequency
-    n_samples = int(np.ceil(((1.5*distance.get_end())/channel.ssp.speeds[0])/time_inc))
+    n_samples = int(np.ceil(((1.5*distance.get_end())/description.get_base_speed())/time_inc))
 
     file_content += f"{n_samples} {frequency.get_hz():.6f} {frequency.get_hz():.6f} {time_inc.get_s():.6f} {distance.get_start().get_km():.6f} {distance.get_step().get_km():.6f} {distance.get_n_steps():.0f}"
 
@@ -199,7 +157,7 @@ def trf_reader(filename):
 
     return out, sd, z, range_, f, fc, omegim, dt
 
-def estimate_transfer_function(channel: lps_prop.Description,
+def estimate_transfer_function(description: lps_channel.Description,
                     source_depth: lps_qty.Distance,
                     sensor_depth: lps_qty.Distance,
                     max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
@@ -207,25 +165,29 @@ def estimate_transfer_function(channel: lps_prop.Description,
                     sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
                     n_fft: int = 128,
                     filename: str = "test.dat"):
+    
+    file_without_extension = os.path.splitext(filename)[0]
 
     freq_step = (sample_frequency/2)/n_fft
 
     frequencies = Sweep(start=freq_step, step=freq_step, n_steps=n_fft)
     depths = Sweep(start=sensor_depth, step=lps_qty.Distance.m(1), n_steps=1)
-    ranges = Sweep(start=lps_qty.Distance.m(0), step=max_distance/(distance_points+1), n_steps=distance_points+1)
+    ranges = Sweep(start=lps_qty.Distance.m(0),
+                   step=max_distance/(distance_points),
+                   n_steps=distance_points)
 
     h_f = np.zeros((frequencies.get_n_steps(), ranges.get_n_steps()), dtype=np.complex_)
 
     for f_i, frequency in enumerate(tqdm.tqdm(frequencies.get_all())):
 
-        export_dat_file(channel=channel,
+        export_dat_file(description=description,
                 frequency=frequency,
                 source_depth = source_depth,
                 sensor_depth = depths,
                 distance = ranges,
                 filename=filename)
 
-        comando = f"oasp {filename[:-4]}"
+        comando = f"oasp {file_without_extension}"
         resultado_str = subprocess.run(comando, shell=True, capture_output=True, text=True, check=True)
 
         out, _, _, _, _, _, _, _ = trf_reader(filename)
@@ -251,6 +213,8 @@ def estimate_transfer_function(channel: lps_prop.Description,
         # h_t[:,r_i] = np.fft.ifft(h_f[:, r_i], len(t))
         h_t[:,r_i] = (len(t) / np.sqrt(2)) * (np.fft.ifft(h_f[:, r_i], len(t)) * np.exp(-1j * 2 * np.pi * freq_step.get_hz() * t))
 
-    #TODO remove .dat and .trf file
+    for file in glob.glob(f"{file_without_extension}.*"):
+        os.remove(file)
+        print(f"Removido: {file}")
 
     return h_f, h_t, ranges.get_all(), t, frequencies.get_all()

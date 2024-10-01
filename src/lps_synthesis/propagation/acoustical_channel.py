@@ -1,7 +1,11 @@
+import os
 import enum
 import typing
 import abc, overrides
 import random
+import json
+import hashlib
+import pickle
 
 import matplotlib.pyplot as plt
 
@@ -15,7 +19,10 @@ class Description():
         self.layers = {}
 
     def to_oases_format(self) -> str:
-        ret = ""
+        if len(self.layers) == 0:
+            raise UnboundLocalError("Should not export an empty channel")
+
+        ret = f"{len(self.layers) + 1}\n"
         for depth, layer in self:
             ret += f"{depth.get_m():6f} {layer.to_oases_format()}\n"
         return ret[:-1]
@@ -54,5 +61,129 @@ class Description():
         plt.xlabel("Speed (m/s)")
         plt.ylabel("Depth (m)")
         plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
+
+    def get_base_speed(self) -> lps_qty.Speed:
+        skip_air = True
+        for _, layer in self:
+            if skip_air:
+                continue
+            return layer.get_compressional_speed()
+
+        return lps_qty.Speed.m_s(1500)
+
+
+class Channel():
+
+    def __init__(self,
+                 description: Description,
+                 source_depth: lps_qty.Distance,
+                 sensor_depth: lps_qty.Distance,
+                 max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
+                 distance_points: int = 128,
+                 sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
+                 n_fft: int = 128,
+                 temp_dir: str = "."):
+
+        os.makedirs(temp_dir, exist_ok=True)
+
+        self.description = description
+        self.source_depth = source_depth
+        self.sensor_depth = sensor_depth
+        self.max_distance = max_distance
+        self.distance_points = distance_points
+        self.sample_frequency = sample_frequency
+        self.n_fft = n_fft
+        self.temp_dir = temp_dir
+
+        self.h_f = None
+        self.h_t = None
+        self.ranges = None
+        self.times = None
+        self.frequencies = None
+
+        if not self._load():
+            self._calc()
+
+
+    def _filename(self) -> str:
+        return os.path.join(self.temp_dir, f"{self._get_hash()}.pkl")
+
+    def _load(self) -> bool:
+        if os.path.exists(self._filename()):
+            with open(self._filename(), 'rb') as file:
+                self.h_f, self.h_t, self.ranges, self.times, self.frequencies = pickle.load(file)
+                return True
+        return False
+
+    def _calc(self) -> None:
+
+        from lps_synthesis.propagation.oases import estimate_transfer_function
+
+        self.h_f, self.h_t, self.ranges, self.times, self.frequencies = estimate_transfer_function(
+                description = self.description,
+                source_depth = self.source_depth,
+                sensor_depth = self.sensor_depth,
+                max_distance = self.max_distance,
+                distance_points = self.distance_points,
+                sample_frequency = self.sample_frequency,
+                n_fft = self.n_fft,
+                filename = os.path.join(self.temp_dir, "test.dat"))
+
+        with open(self._filename(), 'wb') as file:
+            pickle.dump((self.h_f, self.h_t, self.ranges, self.times, self.frequencies), file)
+
+    def _get_hash(self) -> str:
+        hash_dict = {
+            'description': self.description.to_oases_format(),
+            'source_depth': self.source_depth.get_m(),
+            'sensor_depth': self.sensor_depth.get_m(),
+            'max_distance': self.max_distance.get_m(),
+            'distance_points': self.distance_points,
+            'sample_frequency': self.sample_frequency.get_hz(),
+            'n_fft': self.n_fft
+        }
+        converted = json.dumps(hash_dict, sort_keys=True)
+        hash_obj = hashlib.md5(converted.encode())
+        return hash_obj.hexdigest()
+
+    def export_h_f(self, filename):
+
+        plt.imshow(abs(self.h_f), extent=[self.ranges[0].get_m(),
+                                self.ranges[-1].get_m(),
+                                self.frequencies[0].get_hz(),
+                                self.frequencies[-1].get_hz()], aspect='auto', cmap='jet')
+
+        plt.xlabel("Distance (m)")
+        plt.ylabel("Frequency (Hz)")
+        plt.colorbar()
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
+
+    def export_h_t_fig(self, filename):
+
+        plt.imshow(abs(self.h_t).T, extent=[
+                                0,
+                                len(self.times),
+                                self.ranges[-1].get_m(),
+                                self.ranges[0].get_m()], aspect='auto', cmap='jet')
+
+        plt.xlabel("Time (s)")
+        plt.ylabel("Distance (m)")
+        plt.colorbar()
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
+
+    def export_h_t_plots(self, filename, n_plots = 16):
+
+        labels = []
+        for r_i in range(0, len(self.ranges), n_plots):
+            plt.plot(self.times, abs(self.h_t[:,r_i]))
+            labels.append(str(self.ranges[r_i]))
+
+        plt.legend(labels)
         plt.savefig(filename)
         plt.close()
