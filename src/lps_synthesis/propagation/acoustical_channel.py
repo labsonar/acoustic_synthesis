@@ -1,8 +1,13 @@
+"""
+This module provides classes for modeling and simulating acoustic wave propagation in underwater
+environments.
+
+Classes:
+    Description: Handles the layers of an acoustic channel and their properties.
+    Channel: Manages the computation and storage of transfer functions using the channel description
+"""
 import os
-import enum
 import typing
-import abc, overrides
-import random
 import json
 import hashlib
 import pickle
@@ -13,12 +18,26 @@ import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.layers as lps_layer
 
 class Description():
+    """
+    Represents the structure of an acoustic channel, including different layers
+    (e.g., air, water, seabed) and the corresponding depths. The layers can be converted to a format
+    compatible with the OASES software for further processing.
+    """
 
     def __init__(self) -> None:
         self.air_sea = lps_layer.Air()
         self.layers = {}
 
     def to_oases_format(self) -> str:
+        """
+        Converts the acoustic channel description to OASES format, used for acoustic simulations.
+
+        Returns:
+            A string formatted according to the OASES input file format.
+        
+        Raises:
+            UnboundLocalError: If the channel contains no layers.
+        """
         if len(self.layers) == 0:
             raise UnboundLocalError("Should not export an empty channel")
 
@@ -33,7 +52,21 @@ class Description():
             ret += f"At {depth.get_m()}: {layer}\n"
         return ret[:-1]
 
-    def add(self, depth: lps_qty.Distance, layer: typing.Union[lps_qty.Speed, lps_layer.AcousticalLayer]):
+    def __iter__(self) -> \
+        typing.Iterator[typing.Tuple[lps_qty.Distance, lps_layer.AcousticalLayer]]:
+        all_layers = [(lps_qty.Distance.m(0), self.air_sea)]
+        all_layers += sorted(self.layers.items())        
+        return iter(all_layers)
+
+    def add(self, depth: lps_qty.Distance,
+            layer: typing.Union[lps_qty.Speed, lps_layer.AcousticalLayer]) -> None:
+        """
+        Adds a new layer to the channel description at a specific depth.
+
+        Args:
+            depth: The depth at which the new layer should be added.
+            layer: The acoustical layer or sound speed to add at the given depth.
+        """
 
         if isinstance(layer, lps_qty.Speed):
             self.add(depth=depth, layer=lps_layer.Water(sound_speed=layer))
@@ -43,12 +76,13 @@ class Description():
             raise ValueError(("For add in AcousticalChannel, use lps_qty.Speed"
                              " or lps_layer.AcousticalLayer"))
 
-    def __iter__(self):
-        all_layers = [(lps_qty.Distance.m(0), self.air_sea)]
-        all_layers += sorted(self.layers.items())        
-        return iter(all_layers)
-
     def export_ssp(self, filename: str) -> None:
+        """
+        Exports a sound speed profile plot (speed vs depth) based on the water layers.
+
+        Args:
+            filename: The file path where the plot should be saved.
+        """
         depths = []
         speeds = []
         for depth, layer in self:
@@ -65,6 +99,13 @@ class Description():
         plt.close()
 
     def get_base_speed(self) -> lps_qty.Speed:
+        """
+        Retrieves the compressional speed of the first water layer (skipping air).
+
+        Returns:
+            The compressional speed of the first water layer, or a default of 1500 m/s if no water
+            layer is present.
+        """
         skip_air = True
         for _, layer in self:
             if skip_air:
@@ -73,8 +114,10 @@ class Description():
 
         return lps_qty.Speed.m_s(1500)
 
-
 class Channel():
+    """
+    Represents an acoustic channel that computes transfer functions and handles data storage.
+    """
 
     def __init__(self,
                  description: Description,
@@ -105,7 +148,6 @@ class Channel():
 
         if not self._load():
             self._calc()
-
 
     def _filename(self) -> str:
         return os.path.join(self.temp_dir, f"{self._get_hash()}.pkl")
@@ -148,8 +190,13 @@ class Channel():
         hash_obj = hashlib.md5(converted.encode())
         return hash_obj.hexdigest()
 
-    def export_h_f(self, filename):
+    def export_h_f(self, filename: str) -> None:
+        """
+        Exports the transfer function H(f) as an image, with distance and frequency axes.
 
+        Args:
+            filename: The file path where the image should be saved.
+        """
         plt.imshow(abs(self.h_f), extent=[self.ranges[0].get_m(),
                                 self.ranges[-1].get_m(),
                                 self.frequencies[0].get_hz(),
@@ -162,7 +209,13 @@ class Channel():
         plt.savefig(filename)
         plt.close()
 
-    def export_h_t_fig(self, filename):
+    def export_h_t_fig(self, filename: str) -> None:
+        """
+        Exports the transfer function h(t) as an image, with distance and time axes.
+
+        Args:
+            filename: The file path where the image should be saved.
+        """
 
         plt.imshow(abs(self.h_t).T, extent=[
                                 0,
@@ -177,7 +230,14 @@ class Channel():
         plt.savefig(filename)
         plt.close()
 
-    def export_h_t_plots(self, filename, n_plots = 16):
+    def export_h_t_plots(self, filename: str, n_plots: int = 16) -> None:
+        """
+        Exports the transfer function h(t) as an image, with intensity and time axes.
+
+        Args:
+            filename: The file path where the image should be saved.
+            n_plots: number of plots equally separated in ranges.
+        """
 
         labels = []
         for r_i in range(0, len(self.ranges), n_plots):

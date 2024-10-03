@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-import lps_synthesis.background as lps
+import lps_synthesis.environment.background as lps
 
 def plot_psd(values: np.ndarray, get_psd_func, title: str) -> None:
     """
