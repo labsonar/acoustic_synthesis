@@ -7,6 +7,7 @@ Classes:
     Channel: Manages the computation and storage of transfer functions using the channel description
 """
 import os
+import numpy as np
 import typing
 import json
 import hashlib
