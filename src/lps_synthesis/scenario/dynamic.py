@@ -139,7 +139,7 @@ class Vector(typing.Generic[U]):
 
 Displacement = Vector[lps_qty.Distance]
 Velocity = Vector[lps_qty.Speed]
-
+Acceleration = Vector[lps_qty.Acceleration]
 
 class Point():
     """ Class to represent a point in the globe. """
@@ -175,7 +175,6 @@ class Point():
 
     def __radd__(self, other: Displacement) -> Displacement:
         return self + other
-
 
 
 def global_distance(p2: Point, p1: Point) -> Displacement:
@@ -297,3 +296,68 @@ def global_displacement(p: Point, d: Displacement) -> Point:
     _l2 = _l + p.longitude.get_rad()
 
     return Point.rad(phi2,_l2)
+
+
+class State():
+    """ Class to represent any element dynamic state in the simulation """
+
+    def __init__(self,
+                position: Displacement,
+                velocity: Velocity,
+                acceleration: Acceleration = Acceleration(lps_qty.Acceleration.m_s2(0),
+                                                          lps_qty.Acceleration.m_s2(0))) -> None:
+        self.position = position
+        self.velocity = velocity
+        self.acceleration = acceleration
+
+    def estimate(self, dt: lps_qty.Time) -> 'State':
+        """ Estimate state after a delta time """
+        return State(
+            position=self.position + self.velocity*dt + 0.5*self.acceleration*dt*dt,
+            velocity = self.velocity + self.acceleration*dt,
+            acceleration=self.acceleration)
+
+    def __str__(self) -> str:
+        return  f"[{self.position}], [{self.velocity}], [{self.acceleration}]"
+
+class Element():
+    """ Class to represent any element that moves in the simulation """
+
+    def __init__(self,
+                time: lps_qty.Timestamp = lps_qty.Timestamp(),
+                initial_state: State = State(
+                        position = Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0)),
+                        velocity = Velocity(lps_qty.Speed.m_s(0), lps_qty.Speed.m_s(0)),
+                        acceleration = Acceleration(lps_qty.Acceleration.m_s2(0),
+                                                    lps_qty.Acceleration.m_s2(0))),
+                anchor: typing.Optional['Element'] = None) -> None:
+        self.current_time = time
+        self.state_map = {}
+        self.anchor = anchor
+
+        self.state_map[self.current_time] = initial_state
+
+    def move(self, ref_time: typing.Union[lps_qty.Timestamp, typing.List[lps_qty.Timestamp]]) -> \
+                             typing.Union[State, typing.Dict[lps_qty.Timestamp, State]]:
+        """Update the element state to ref_time, based on its dynicamic
+
+        Args:
+            ref_time (lps_qty.Timestamp or typing.List[lps_qty.Timestamp]): Time reference
+
+        Returns:
+            State: Final state or typing.Dict[lps_qty.Timestamp, State]
+        """
+
+        if isinstance(ref_time, list):
+            move_map = {}
+            for time in ref_time:
+                move_map[time] = self.move(time)
+            return move_map
+
+        new_state = self.state_map[self.current_time].estimate(ref_time - self.current_time)
+        self.state_map[ref_time] = new_state
+        self.current_time = ref_time
+        return new_state
+
+    def __str__(self) -> str:
+        return str(self.state_map[self.current_time])
