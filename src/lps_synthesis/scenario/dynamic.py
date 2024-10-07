@@ -13,9 +13,9 @@ class Vector(typing.Generic[U]):
     """ Vector representation for space of a quantity. """
 
     def __init__(self, x: U, y: U, z: typing.Optional[U] = None) -> None:
-        self._x = x
-        self._y = y
-        self._z = z
+        self.x = x
+        self.y = y
+        self.z = z
 
     @classmethod
     def polar3d(cls, magnitude: U, azimuth: lps_qty.Angle, elevation: lps_qty.Angle) -> 'Vector[U]':
@@ -48,35 +48,35 @@ class Vector(typing.Generic[U]):
 
     def get_magnitude(self) -> U:
         """ Get magnitude of the vector. """
-        if self._z is None:
-            return (self._x**2 + self._y**2)**0.5
-        return (self._x**2 + self._y**2 + self._z**2)**0.5
+        if self.z is None:
+            return (self.x**2 + self.y**2)**0.5
+        return (self.x**2 + self.y**2 + self.z**2)**0.5
 
     def get_azimuth(self) -> lps_qty.Angle:
         """ Get azimuth of the vector (angle in XY plane). """
-        if self._x.magnitude == 0 and self._y.magnitude == 0:
-            return 0.0
-        return lps_qty.Angle.rad(math.atan2(self._y.get(self._x.unity, self._x.prefix),
-                                    self._x.get(self._x.unity, self._x.prefix)))
+        if self.x.magnitude == 0 and self.y.magnitude == 0:
+            return lps_qty.Angle.rad(0)
+        return lps_qty.Angle.rad(math.atan2(self.y.get(self.x.unity, self.x.prefix),
+                                    self.x.get(self.x.unity, self.x.prefix)))
 
     def get_elevation(self) -> lps_qty.Angle:
         """ Get elevation of the vector (angle in Z axis). """
-        if self._z is None:
+        if self.z is None:
             return lps_qty.Angle.deg(0)
 
         magnitude = self.get_magnitude()
-        return lps_qty.Angle.rad(math.asin(self._z / magnitude))
+        return lps_qty.Angle.rad(math.asin(self.z / magnitude))
 
     def __repr__(self) -> str:
         return self.__str__()
 
     def __str__(self) -> str:
-        if self._z is None:
-            return f"{self._x}, {self._y}"
-        return f"{self._x}, {self._y}, {self._z}"
+        if self.z is None:
+            return f"{self.x}, {self.y}"
+        return f"{self.x}, {self.y}, {self.z}"
 
     def __eq__(self, other: 'Vector[U]') -> bool:
-        return self._x == other._x and self._y == other._y and self._z == other._z
+        return self.x == other.x and self.y == other.y and self.z == other.z
 
     def __ne__(self, other: 'Vector[U]') -> bool:
         return not self == other
@@ -95,33 +95,33 @@ class Vector(typing.Generic[U]):
 
     def __add__(self, other: 'Vector[U]') -> 'Vector[U]':
         z = None
-        if self._z is not None and other._z is not None:
-            z = self._z + other._z
-        elif self._z is not None:
-            z = self._z
-        elif other._z is not None:
-            z = other._z
+        if self.z is not None and other.z is not None:
+            z = self.z + other.z
+        elif self.z is not None:
+            z = self.z
+        elif other.z is not None:
+            z = other.z
 
-        return Vector(self._x + other._x, self._y + other._y, z)
+        return Vector(self.x + other.x, self.y + other.y, z)
 
     def __sub__(self, other: 'Vector[U]') -> 'Vector[U]':
         z = None
-        if self._z is not None and other._z is not None:
-            z = self._z - other._z
-        elif self._z is not None:
-            z = self._z
-        elif other._z is not None:
-            z = other._z
+        if self.z is not None and other.z is not None:
+            z = self.z - other.z
+        elif self.z is not None:
+            z = self.z
+        elif other.z is not None:
+            z = other.z
 
-        return Vector(self._x - other._x, self._y - other._y, z)
+        return Vector(self.x - other.x, self.y - other.y, z)
 
     def __mul__(self, other: typing.Union[float, lps_qty.Time]) -> 'Vector[U]':
         if isinstance(other, (int, float)):
-            return Vector(self._x * other, self._y * other,
-                          self._z * other if self._z is not None else None)
+            return Vector(self.x * other, self.y * other,
+                          self.z * other if self.z is not None else None)
         if isinstance(other, lps_qty.Time):
-            return Vector(self._x * other, self._y * other,
-                          self._z * other if self._z is not None else None)
+            return Vector(self.x * other, self.y * other,
+                          self.z * other if self.z is not None else None)
         raise TypeError("Invalid operand type for multiplication")
 
     def __rmul__(self, other: typing.Union[float, lps_qty.Time]) -> 'Vector[U]':
@@ -129,11 +129,11 @@ class Vector(typing.Generic[U]):
 
     def __truediv__(self, other: typing.Union[float, lps_qty.Time]) -> 'Vector[U]':
         if isinstance(other, (int, float)):
-            return Vector(self._x / other, self._y / other,
-                          self._z / other if self._z is not None else None)
+            return Vector(self.x / other, self.y / other,
+                          self.z / other if self.z is not None else None)
         if isinstance(other, lps_qty.Time):
-            return Vector(self._x / other, self._y / other,
-                          self._z / other if self._z is not None else None)
+            return Vector(self.x / other, self.y / other,
+                          self.z / other if self.z is not None else None)
         else:
             raise TypeError("Invalid operand type for division")
 
@@ -302,8 +302,10 @@ class State():
     """ Class to represent any element dynamic state in the simulation """
 
     def __init__(self,
-                position: Displacement,
-                velocity: Velocity,
+                position = Displacement(lps_qty.Distance.m(0),
+                                        lps_qty.Distance.m(0),
+                                        lps_qty.Distance.m(0)),
+                velocity = Velocity(lps_qty.Speed.m_s(0), lps_qty.Speed.m_s(0)),
                 acceleration: Acceleration = Acceleration(lps_qty.Acceleration.m_s2(0),
                                                           lps_qty.Acceleration.m_s2(0))) -> None:
         self.position = position
@@ -320,20 +322,16 @@ class State():
     def __str__(self) -> str:
         return  f"[{self.position}], [{self.velocity}], [{self.acceleration}]"
 
+
+
 class Element():
     """ Class to represent any element that moves in the simulation """
 
     def __init__(self,
                 time: lps_qty.Timestamp = lps_qty.Timestamp(),
-                initial_state: State = State(
-                        position = Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0)),
-                        velocity = Velocity(lps_qty.Speed.m_s(0), lps_qty.Speed.m_s(0)),
-                        acceleration = Acceleration(lps_qty.Acceleration.m_s2(0),
-                                                    lps_qty.Acceleration.m_s2(0))),
-                anchor: typing.Optional['Element'] = None) -> None:
+                initial_state: State = State()) -> None:
         self.current_time = time
         self.state_map = {}
-        self.anchor = anchor
 
         self.state_map[self.current_time] = initial_state
 
@@ -361,3 +359,6 @@ class Element():
 
     def __str__(self) -> str:
         return str(self.state_map[self.current_time])
+
+    def __getitem__(self, timestamp: lps_qty.Timestamp):
+        return self.state_map[timestamp]

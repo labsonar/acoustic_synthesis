@@ -20,6 +20,7 @@ class AcousticalLayer():
     """ Abstract class to represent an acoustical layer for channel modeling."""
 
     def to_oases_format(self) -> str:
+        """ Layer in oasp description format. """
         return (f"{self.get_compressional_speed().get_m_s():6f} "
             f"{self.get_shear_speed().get_m_s():6f} "
             f"{self.get_compressional_attenuation():6f} "
@@ -145,7 +146,7 @@ class SeabedType(AcousticalLayer, enum.Enum):
 
     def __str__(self) -> str:
         return f"{self.name} layer with speed {str(self.get_compressional_speed())}"
-    
+
     @overrides.overrides
     def get_compressional_speed(self) -> lps_qty.Speed:
         """

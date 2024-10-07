@@ -1,3 +1,5 @@
+""" Example of use of propagation module
+"""
 import time
 
 import lps_utils.quantities as lps_qty
@@ -24,4 +26,4 @@ channel = lps_channel.Channel(
 end_time = time.time()
 print("elapsed_time: ", end_time-start_time)
 
-channel.export_h_f(f'./result/h_f_.png')
+channel.export_h_f('./result/h_f_.png')

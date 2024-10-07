@@ -1,3 +1,5 @@
+""" Example of use of background module
+"""
 import os
 import numpy as np
 import matplotlib.pyplot as plt

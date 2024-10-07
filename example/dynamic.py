@@ -1,4 +1,4 @@
-""" Test for dynamic module
+""" Example of use of dynamic module
 """
 import numpy as np
 

@@ -1,36 +1,46 @@
-import typing
-import numpy as np
+""" Module to acess the oases for getting impulse response of a channel
+"""
 import struct
 import os
 import glob
-import tqdm
 import subprocess
+
+import tqdm
+import numpy as np
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.acoustical_channel as lps_channel
 
 class Sweep():
+    """ Class to represent a sweep. """
+
     def __init__(self, start, step, n_steps) -> None:
         self.start = start
         self.step = step
         self.n_steps = n_steps
 
     def get_start(self):
+        """ Get start of the sweep. """
         return self.start
 
     def get_step(self):
+        """ Get step of the sweep. """
         return self.step
 
     def get_end(self):
+        """ Get end of the sweep. """
         return self.start + self.step * (self.n_steps - 1)
 
     def get_step_value(self, step_i: int):
+        """ Getting value of step_i step of the sweep . """
         return self.start + self.step * (step_i)
 
     def get_n_steps(self):
+        """ Get number of step on the sweep. """
         return self.n_steps
 
     def get_all(self):
+        """ Get all values on the sweep. """
         return list([self.get_step_value(n) for n in range(self.n_steps)])
 
 def export_dat_file(description: lps_channel.Description,
@@ -39,6 +49,7 @@ def export_dat_file(description: lps_channel.Description,
                     distance: Sweep,
                     frequency: lps_qty.Frequency,
                     filename: str):
+    """ Function to export a .dat file to call oasp """
 
     file_content = "LPS Syhnthesis Propagation File\n"
     file_content += "N J f\n"
@@ -47,7 +58,8 @@ def export_dat_file(description: lps_channel.Description,
     file_content += f"{description.to_oases_format()}\n"
 
     file_content += f"{source_depth.get_m():.0f}\n"
-    file_content += f"{sensor_depth.get_start().get_m():.0f} {sensor_depth.get_end().get_m():.0f} {sensor_depth.get_n_steps()}\n"
+    file_content += (f"{sensor_depth.get_start().get_m():.0f} {sensor_depth.get_end().get_m():.0f}"
+                    f" {sensor_depth.get_n_steps()}\n")
 
     file_content += "300.000000 1.000000e+08\n"
     file_content += "-1 0 0 0\n"
@@ -55,12 +67,15 @@ def export_dat_file(description: lps_channel.Description,
     time_inc = 0.5/frequency
     n_samples = int(np.ceil(((1.5*distance.get_end())/description.get_base_speed())/time_inc))
 
-    file_content += f"{n_samples} {frequency.get_hz():.6f} {frequency.get_hz():.6f} {time_inc.get_s():.6f} {distance.get_start().get_km():.6f} {distance.get_step().get_km():.6f} {distance.get_n_steps():.0f}"
+    file_content += (f"{n_samples} {frequency.get_hz():.6f} {frequency.get_hz():.6f}"
+                    f"{time_inc.get_s():.6f} {distance.get_start().get_km():.6f}"
+                    f"{distance.get_step().get_km():.6f} {distance.get_n_steps():.0f}")
 
     with open(filename, 'w', encoding="utf-8") as file:
         file.write(file_content)
 
 def trf_reader(filename):
+    """ Function to read the .trf file output of a oasp """
 
     # check corret extension
     root, ext = os.path.splitext(filename)
@@ -109,7 +124,7 @@ def trf_reader(filename):
         f = f[bin_low:bin_high + 1]  # Keep only the bins between bin_low and bin_high
 
         fid.read(8)
-        icdr = struct.unpack('i', fid.read(4))[0]  # Skip icdr
+        _ = struct.unpack('i', fid.read(4))[0]  # Skip icdr
 
         fid.read(8)
         omegim = struct.unpack('f', fid.read(4))[0]  # Imaginary part of the radian frequency
@@ -118,15 +133,15 @@ def trf_reader(filename):
 
         # Read and skip various data
         fid.read(8)  # Skips
-        msuft = struct.unpack('i', fid.read(4))[0]
+        _ = struct.unpack('i', fid.read(4))[0]
         fid.read(8)
-        isrow = struct.unpack('i', fid.read(4))[0]
+        _ = struct.unpack('i', fid.read(4))[0]
         fid.read(8)
-        inttyp = struct.unpack('i', fid.read(4))[0]
+        _ = struct.unpack('i', fid.read(4))[0]
         fid.read(8)
-        idummy1 = struct.unpack('i', fid.read(4))[0]
+        _ = struct.unpack('i', fid.read(4))[0]
         fid.read(8)
-        idummy2 = struct.unpack('i', fid.read(4))[0]
+        _ = struct.unpack('i', fid.read(4))[0]
         fid.read(8)
         dummy1 = struct.unpack('i', fid.read(4))[0]
         fid.read(8)
@@ -165,7 +180,8 @@ def estimate_transfer_function(description: lps_channel.Description,
                     sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
                     n_fft: int = 128,
                     filename: str = "test.dat"):
-    
+    """ Function to estimate a transfer function """
+
     file_without_extension = os.path.splitext(filename)[0]
 
     freq_step = (sample_frequency/2)/n_fft
@@ -188,7 +204,11 @@ def estimate_transfer_function(description: lps_channel.Description,
                 filename=filename)
 
         comando = f"oasp {file_without_extension}"
-        resultado_str = subprocess.run(comando, shell=True, capture_output=True, text=True, check=True)
+        resultado_str = subprocess.run(comando,
+                                        shell=True,
+                                        capture_output=True,
+                                        text=True,
+                                        check=True)
 
         out, _, _, _, _, _, _, _ = trf_reader(filename)
         out = out.ravel()
@@ -204,14 +224,15 @@ def estimate_transfer_function(description: lps_channel.Description,
         h_f[f_i, :] = out
 
 
-    Ts = 1/frequencies.get_end()
-    t = np.arange(0, frequencies.get_n_steps() * Ts.get_s(), Ts.get_s())
+    ts = 1/frequencies.get_end()
+    t = np.arange(0, frequencies.get_n_steps() * ts.get_s(), ts.get_s())
 
     h_t = np.zeros((len(t), ranges.get_n_steps()), dtype=np.complex_)
 
     for r_i, _ in enumerate(ranges.get_all()):
         # h_t[:,r_i] = np.fft.ifft(h_f[:, r_i], len(t))
-        h_t[:,r_i] = (len(t) / np.sqrt(2)) * (np.fft.ifft(h_f[:, r_i], len(t)) * np.exp(-1j * 2 * np.pi * freq_step.get_hz() * t))
+        h_t[:,r_i] = (len(t) / np.sqrt(2)) * (np.fft.ifft(h_f[:, r_i], len(t)) * \
+                                              np.exp(-1j * 2 * np.pi * freq_step.get_hz() * t))
 
     for file in glob.glob(f"{file_without_extension}.*"):
         os.remove(file)

@@ -7,7 +7,6 @@ Classes:
     Channel: Manages the computation and storage of transfer functions using the channel description
 """
 import os
-import numpy as np
 import typing
 import json
 import hashlib
@@ -56,7 +55,7 @@ class Description():
     def __iter__(self) -> \
         typing.Iterator[typing.Tuple[lps_qty.Distance, lps_layer.AcousticalLayer]]:
         all_layers = [(lps_qty.Distance.m(0), self.air_sea)]
-        all_layers += sorted(self.layers.items())        
+        all_layers += sorted(self.layers.items())
         return iter(all_layers)
 
     def add(self, depth: lps_qty.Distance,
