@@ -121,12 +121,12 @@ class Channel():
 
     def __init__(self,
                  description: Description,
-                 source_depth: lps_qty.Distance,
+                 source_depth: typing.List[lps_qty.Distance],
                  sensor_depth: lps_qty.Distance,
                  max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
-                 distance_points: int = 128,
+                 max_distance_points: int = 128,
                  sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
-                 n_fft: int = 128,
+                 frequency_range: typing.Tuple[lps_qty.Frequency] = None,
                  temp_dir: str = "."):
 
         os.makedirs(temp_dir, exist_ok=True)
@@ -135,13 +135,14 @@ class Channel():
         self.source_depth = source_depth
         self.sensor_depth = sensor_depth
         self.max_distance = max_distance
-        self.distance_points = distance_points
+        self.max_distance_points = max_distance_points
         self.sample_frequency = sample_frequency
-        self.n_fft = n_fft
+        self.frequency_range = frequency_range
         self.temp_dir = temp_dir
 
         self.h_f = None
         self.h_t = None
+        self.depths = None
         self.ranges = None
         self.times = None
         self.frequencies = None
@@ -155,7 +156,7 @@ class Channel():
     def _load(self) -> bool:
         if os.path.exists(self._filename()):
             with open(self._filename(), 'rb') as file:
-                self.h_f, self.h_t, self.ranges, self.times, self.frequencies = pickle.load(file)
+                self.h_f, self.h_t, self.depths, self.ranges, self.times, self.frequencies = pickle.load(file)
                 return True
         return False
 
@@ -163,53 +164,55 @@ class Channel():
 
         from lps_synthesis.propagation.oases import estimate_transfer_function
 
-        self.h_f, self.h_t, self.ranges, self.times, self.frequencies = estimate_transfer_function(
+        self.h_f, self.h_t, self.depths, self.ranges, self.frequencies, self.times = estimate_transfer_function(
                 description = self.description,
                 source_depth = self.source_depth,
                 sensor_depth = self.sensor_depth,
                 max_distance = self.max_distance,
-                distance_points = self.distance_points,
+                max_distance_points = self.max_distance_points,
                 sample_frequency = self.sample_frequency,
-                n_fft = self.n_fft,
+                frequency_range = self.frequency_range,
                 filename = os.path.join(self.temp_dir, "test.dat"))
 
         with open(self._filename(), 'wb') as file:
-            pickle.dump((self.h_f, self.h_t, self.ranges, self.times, self.frequencies), file)
+            pickle.dump((self.h_f, self.h_t, self.depths, self.ranges, self.times, self.frequencies), file)
 
     def _get_hash(self) -> str:
         hash_dict = {
             'description': self.description.to_oases_format(),
-            'source_depth': self.source_depth.get_m(),
+            'source_depths': [d.get_m() for d in self.source_depth],
             'sensor_depth': self.sensor_depth.get_m(),
             'max_distance': self.max_distance.get_m(),
-            'distance_points': self.distance_points,
+            'distance_points': self.max_distance_points,
             'sample_frequency': self.sample_frequency.get_hz(),
-            'n_fft': self.n_fft
+            'frequency_range': "None" if self.frequency_range is None else [f.get_hz() for f in self.frequency_range]
         }
         converted = json.dumps(hash_dict, sort_keys=True)
         hash_obj = hashlib.md5(converted.encode())
         return hash_obj.hexdigest()
 
-    def export_h_f(self, filename: str) -> None:
+    def export_h_f(self, filename: str, source_id: int = 0) -> None:
         """
         Exports the transfer function H(f) as an image, with distance and frequency axes.
 
         Args:
             filename: The file path where the image should be saved.
         """
-        plt.imshow(abs(self.h_f), extent=[self.ranges[0].get_m(),
-                                self.ranges[-1].get_m(),
-                                self.frequencies[0].get_hz(),
-                                self.frequencies[-1].get_hz()], aspect='auto', cmap='jet')
+        plt.imshow(abs(self.h_f[source_id,:,:self.h_f.shape[2]//2]), aspect='auto', cmap='jet',
+                extent=[self.frequencies[0].get_khz(),
+                        self.frequencies[len(self.frequencies)//2].get_khz(),
+                        self.ranges[0].get_km(),
+                        self.ranges[-1].get_km()]
+        )
 
-        plt.xlabel("Distance (m)")
-        plt.ylabel("Frequency (Hz)")
+        plt.xlabel("Frequency (kHz)")
+        plt.ylabel("Distance (km)")
         plt.colorbar()
         plt.tight_layout()
         plt.savefig(filename)
         plt.close()
 
-    def export_h_t_fig(self, filename: str) -> None:
+    def export_h_t_tau(self, filename: str, source_id: int = 0) -> None:
         """
         Exports the transfer function h(t) as an image, with distance and time axes.
 
@@ -217,20 +220,23 @@ class Channel():
             filename: The file path where the image should be saved.
         """
 
-        plt.imshow(abs(self.h_t).T, extent=[
-                                0,
-                                len(self.times),
+        plt.imshow(abs(self.h_t[source_id,:,:]), aspect='auto', cmap='jet', interpolation='none',
+                extent=[
+                                self.times[0].get_s(),
+                                self.times[-1].get_s(),
                                 self.ranges[-1].get_m(),
-                                self.ranges[0].get_m()], aspect='auto', cmap='jet')
+                                self.ranges[0].get_m()]
+                )
 
         plt.xlabel("Time (s)")
         plt.ylabel("Distance (m)")
+
         plt.colorbar()
         plt.tight_layout()
         plt.savefig(filename)
         plt.close()
 
-    def export_h_t_plots(self, filename: str, n_plots: int = 16) -> None:
+    def export_h_t_plots(self, filename: str, n_plots: int = 16, source_id: int = 0) -> None:
         """
         Exports the transfer function h(t) as an image, with intensity and time axes.
 
@@ -239,9 +245,10 @@ class Channel():
             n_plots: number of plots equally separated in ranges.
         """
 
+        times = [t.get_s() for t in self.times]
         labels = []
-        for r_i in range(0, len(self.ranges), n_plots):
-            plt.plot(self.times, abs(self.h_t[:,r_i]))
+        for r_i in range(0, len(self.ranges), len(self.ranges)//n_plots):
+            plt.plot(times, abs(self.h_t[source_id,r_i,:]))
             labels.append(str(self.ranges[r_i]))
 
         plt.legend(labels)

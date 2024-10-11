@@ -1,10 +1,12 @@
 """ Module to acess the oases for getting impulse response of a channel
 """
 import struct
+import typing
 import os
 import glob
 import subprocess
-
+import math
+import functools
 import tqdm
 import numpy as np
 
@@ -44,33 +46,46 @@ class Sweep():
         return list([self.get_step_value(n) for n in range(self.n_steps)])
 
 def export_dat_file(description: lps_channel.Description,
-                    source_depth: lps_qty.Distance,
-                    sensor_depth: Sweep,
+                    source_depths: Sweep,
+                    sensor_depth: lps_qty.Distance,
                     distance: Sweep,
-                    frequency: lps_qty.Frequency,
-                    filename: str):
+                    sample_frequency: lps_qty.Frequency,
+                    filename: str,
+                    frequency_range: typing.Tuple[lps_qty.Frequency] = None):
     """ Function to export a .dat file to call oasp """
+
+    if frequency_range is not None:
+        lower_freq = frequency_range[0]
+        upper_freq = frequency_range[1]
+        middle_freq = (frequency_range[0] + frequency_range[1])/2
+    else:
+        lower_freq = lps_qty.Frequency.hz(10)
+        upper_freq = sample_frequency/2
+        middle_freq = sample_frequency/4
 
     file_content = "LPS Syhnthesis Propagation File\n"
     file_content += "N J f\n"
-    file_content += f"{frequency.get_hz()} 0\n"
+    file_content += f"{middle_freq.get_hz():.0f} 0\n"
 
     file_content += f"{description.to_oases_format()}\n"
 
-    file_content += f"{source_depth.get_m():.0f}\n"
-    file_content += (f"{sensor_depth.get_start().get_m():.0f} {sensor_depth.get_end().get_m():.0f}"
-                    f" {sensor_depth.get_n_steps()}\n")
+    file_content += f"{sensor_depth.get_m():.0f}\n"
+    file_content += (f"{source_depths.get_start().get_m():.0f} {source_depths.get_end().get_m():.0f}"
+                    f" {source_depths.get_n_steps()}\n")
 
     file_content += "300.000000 1.000000e+08\n"
     file_content += "-1 0 0 0\n"
 
-    time_inc = 0.5/frequency
-    n_samples = int(np.ceil(((1.5*distance.get_end())/description.get_base_speed())/time_inc))
+    time_step = 1/sample_frequency
+    n_samples = int(np.ceil(((1.5*distance.get_end())/description.get_base_speed())/time_step))
+    n_samples = 2 ** math.ceil(math.log2(n_samples))
 
-    file_content += (f"{n_samples} {frequency.get_hz():.6f} {frequency.get_hz():.6f}"
-                    f"{time_inc.get_s():.6f} {distance.get_start().get_km():.6f}"
+
+    file_content += (f"{n_samples} {lower_freq.get_hz():.6f} {upper_freq.get_hz():.6f} "
+                    f"{time_step.get_s():.8f} {distance.get_start().get_km():.6f} "
                     f"{distance.get_step().get_km():.6f} {distance.get_n_steps():.0f}")
 
+    # print(file_content)
     with open(filename, 'w', encoding="utf-8") as file:
         file.write(file_content)
 
@@ -98,16 +113,16 @@ def trf_reader(filename):
 
         # Skip next 2 floats and read center frequency
         fid.read(8)
-        fc = struct.unpack('f', fid.read(4))[0]
+        _ = struct.unpack('f', fid.read(4))[0]
 
         fid.read(8)
-        sd = struct.unpack('f', fid.read(4))[0]  # Source depth
+        _ = struct.unpack('f', fid.read(4))[0]  # Source depth
 
         fid.read(8)
         z1 = struct.unpack('f', fid.read(4))[0]  # First receiver depth
         z2 = struct.unpack('f', fid.read(4))[0]  # Last receiver depth
         num_z = struct.unpack('i', fid.read(4))[0]  # Number of receiver depths
-        z = np.linspace(z1, z2, num_z)  # Generate depths array
+        _ = np.linspace(z1, z2, num_z)  # Generate depths array
 
         fid.read(8)
         r1 = struct.unpack('f', fid.read(4))[0]  # First receiver range
@@ -127,9 +142,9 @@ def trf_reader(filename):
         _ = struct.unpack('i', fid.read(4))[0]  # Skip icdr
 
         fid.read(8)
-        omegim = struct.unpack('f', fid.read(4))[0]  # Imaginary part of the radian frequency
+        _ = struct.unpack('f', fid.read(4))[0]  # Imaginary part of the radian frequency
 
-        range_ = np.arange(r1, r1 + dr * nr, dr)  # Range values
+        _ = np.arange(r1, r1 + dr * nr, dr)  # Range values
 
         # Read and skip various data
         fid.read(8)  # Skips
@@ -156,7 +171,7 @@ def trf_reader(filename):
 
         # Initialize output array
         nf = len(f)
-        out = np.zeros((num_z, nr, nf), dtype=np.complex_)
+        h_f = np.zeros((num_z, nr, nf), dtype=np.complex_)
 
         # Read complex transfer function data
         for j in range(nf):
@@ -168,74 +183,89 @@ def trf_reader(filename):
                 temp_complex = real_part + 1j * imag_part  # Combine into complex numbers
                 temp_complex = temp_complex[0::2]
                 fid.read(4)  # Skip
-                out[:, jj, j] = temp_complex[:num_z]
+                h_f[:, jj, j] = temp_complex[:num_z]
 
-    return out, sd, z, range_, f, fc, omegim, dt
+    return h_f, f, dt
 
 def estimate_transfer_function(description: lps_channel.Description,
-                    source_depth: lps_qty.Distance,
+                    source_depth: typing.List[lps_qty.Distance],
                     sensor_depth: lps_qty.Distance,
                     max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
-                    distance_points: int = 128,
+                    max_distance_points: int = 128,
                     sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
-                    n_fft: int = 128,
+                    frequency_range: typing.Tuple[lps_qty.Frequency] = None,
                     filename: str = "test.dat"):
     """ Function to estimate a transfer function """
 
     file_without_extension = os.path.splitext(filename)[0]
 
-    freq_step = (sample_frequency/2)/n_fft
+    # encontra um sweep para atender a lista de distancias com base no mdc da lista
+    if len(source_depth) > 1:
+        depths = np.array(sorted([int(s.get_m()) for s in source_depth]))
+        start = depths[0]
+        stop = depths[-1]
+        depths = depths[1:] - depths[0]
+        step = functools.reduce(math.gcd, depths)
+        n_steps = math.ceil((stop-start)/step) + 1
+        depths = Sweep(start=lps_qty.Distance.m(start), step=lps_qty.Distance.m(step), n_steps=n_steps)
+    else:
+        depths = Sweep(start=source_depth[0], step=lps_qty.Distance.m(1), n_steps=1)
 
-    frequencies = Sweep(start=freq_step, step=freq_step, n_steps=n_fft)
-    depths = Sweep(start=sensor_depth, step=lps_qty.Distance.m(1), n_steps=1)
+    # encontra um sweep para ter um step com numero preferenciais [1,2,5] proximo a distancia/distance_points
+    step_inicial = max_distance.get_m() / max_distance_points
+    ordem_magnitude = 10 ** math.floor(math.log10(step_inicial))
+    possible_steps = [c * ordem_magnitude for c in [1, 2, 5, 10]]
+    filt_steps = [step for step in possible_steps if step > step_inicial]
+    step = min(filt_steps) if filt_steps else max(possible_steps)
+    # step = min(possible_steps, key=lambda x: abs(x - step_inicial))
+    n_steps = math.ceil(max_distance.get_m()/step) + 1
     ranges = Sweep(start=lps_qty.Distance.m(0),
-                   step=max_distance/(distance_points),
-                   n_steps=distance_points)
-
-    h_f = np.zeros((frequencies.get_n_steps(), ranges.get_n_steps()), dtype=np.complex_)
-
-    for f_i, frequency in enumerate(tqdm.tqdm(frequencies.get_all())):
-
-        export_dat_file(description=description,
-                frequency=frequency,
-                source_depth = source_depth,
-                sensor_depth = depths,
-                distance = ranges,
-                filename=filename)
-
-        comando = f"oasp {file_without_extension}"
-        resultado_str = subprocess.run(comando,
-                                        shell=True,
-                                        capture_output=True,
-                                        text=True,
-                                        check=True)
-
-        out, _, _, _, _, _, _, _ = trf_reader(filename)
-        out = out.ravel()
-
-        if len(out) != h_f.shape[1]:
-            print("####################")
-            print(resultado_str.stdout)
-            print("####################")
-            print("Error on frequency: ", frequency)
-            print("Len: ", len(out), "\texpected len: ", h_f.shape[1])
-            raise UnboundLocalError("Error in Oases simulation")
-
-        h_f[f_i, :] = out
+                   step=lps_qty.Distance.m(step),
+                   n_steps=n_steps)
 
 
-    ts = 1/frequencies.get_end()
-    t = np.arange(0, frequencies.get_n_steps() * ts.get_s(), ts.get_s())
+    export_dat_file(description=description,
+            sample_frequency=sample_frequency,
+            source_depths = depths,
+            sensor_depth = sensor_depth,
+            distance = ranges,
+            filename=filename,
+            frequency_range=frequency_range)
 
-    h_t = np.zeros((len(t), ranges.get_n_steps()), dtype=np.complex_)
+    comando = f"oasp {file_without_extension}"
+    resultado_str = subprocess.run(comando,
+                                    shell=True,
+                                    capture_output=True,
+                                    text=True,
+                                    check=True)
 
-    for r_i, _ in enumerate(ranges.get_all()):
-        # h_t[:,r_i] = np.fft.ifft(h_f[:, r_i], len(t))
-        h_t[:,r_i] = (len(t) / np.sqrt(2)) * (np.fft.ifft(h_f[:, r_i], len(t)) * \
-                                              np.exp(-1j * 2 * np.pi * freq_step.get_hz() * t))
+    h_freqs, freqs, dt = trf_reader(filename)
+
+    fs = 1 / dt
+    df = freqs[1] - freqs[0]
+
+    frequencies = np.arange(0, (fs+df), df)
+    frequencies = np.round(frequencies * 1000) / 1000
+    freqs = np.round(freqs * 1000) / 1000
+
+    n_samples = len(frequencies)
+    times = np.arange(0, n_samples * dt, dt)
+
+    h_f_tau = np.zeros((h_freqs.shape[0], h_freqs.shape[1], n_samples), dtype=np.complex_)
+    h_t_tau = np.zeros((h_freqs.shape[0], h_freqs.shape[1], n_samples), dtype=np.complex_)
+
+    indexes = np.isin(frequencies, freqs).nonzero()[0]
+
+    for d in range(h_freqs.shape[0]): # depths
+        for r in range(h_freqs.shape[1]):# ranges
+            h_f_tau[d, r, indexes] = h_freqs[d, r, :]
+            h_t_tau[d, r, :] = len(times) / np.sqrt(2) * np.fft.ifft(h_f_tau[d, r, :])
 
     for file in glob.glob(f"{file_without_extension}.*"):
         os.remove(file)
         print(f"Removido: {file}")
 
-    return h_f, h_t, ranges.get_all(), t, frequencies.get_all()
+    return h_f_tau, h_t_tau, \
+            depths.get_all(), ranges.get_all(), \
+            [lps_qty.Frequency.hz(f) for f in frequencies], \
+            [lps_qty.Time.s(t) for t in times]
