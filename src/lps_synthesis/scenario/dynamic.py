@@ -52,6 +52,11 @@ class Vector(typing.Generic[U]):
             return (self.x**2 + self.y**2)**0.5
         return (self.x**2 + self.y**2 + self.z**2)**0.5
 
+    def get_magnitude_xy(self) -> U:
+        """ Get magnitude of the vector. """
+        if self.z is None:
+            return (self.x**2 + self.y**2)**0.5
+
     def get_azimuth(self) -> lps_qty.Angle:
         """ Get azimuth of the vector (angle in XY plane). """
         if self.x.magnitude == 0 and self.y.magnitude == 0:

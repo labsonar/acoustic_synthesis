@@ -7,7 +7,6 @@ import glob
 import subprocess
 import math
 import functools
-import tqdm
 import numpy as np
 
 import lps_utils.quantities as lps_qty
@@ -70,8 +69,9 @@ def export_dat_file(description: lps_channel.Description,
     file_content += f"{description.to_oases_format()}\n"
 
     file_content += f"{sensor_depth.get_m():.0f}\n"
-    file_content += (f"{source_depths.get_start().get_m():.0f} {source_depths.get_end().get_m():.0f}"
-                    f" {source_depths.get_n_steps()}\n")
+    file_content += (f"{source_depths.get_start().get_m():.0f}"
+                     f" {source_depths.get_end().get_m():.0f}"
+                     f" {source_depths.get_n_steps()}\n")
 
     file_content += "300.000000 1.000000e+08\n"
     file_content += "-1 0 0 0\n"
@@ -207,11 +207,14 @@ def estimate_transfer_function(description: lps_channel.Description,
         depths = depths[1:] - depths[0]
         step = functools.reduce(math.gcd, depths)
         n_steps = math.ceil((stop-start)/step) + 1
-        depths = Sweep(start=lps_qty.Distance.m(start), step=lps_qty.Distance.m(step), n_steps=n_steps)
+        depths = Sweep(start=lps_qty.Distance.m(start),
+                        step=lps_qty.Distance.m(step),
+                        n_steps=n_steps)
     else:
         depths = Sweep(start=source_depth[0], step=lps_qty.Distance.m(1), n_steps=1)
 
-    # encontra um sweep para ter um step com numero preferenciais [1,2,5] proximo a distancia/distance_points
+    # encontra um sweep para ter um step com numero preferenciais [1,2,5]
+    # proximo a distancia/distance_points
     step_inicial = max_distance.get_m() / max_distance_points
     ordem_magnitude = 10 ** math.floor(math.log10(step_inicial))
     possible_steps = [c * ordem_magnitude for c in [1, 2, 5, 10]]
@@ -233,11 +236,20 @@ def estimate_transfer_function(description: lps_channel.Description,
             frequency_range=frequency_range)
 
     comando = f"oasp {file_without_extension}"
-    resultado_str = subprocess.run(comando,
-                                    shell=True,
-                                    capture_output=True,
-                                    text=True,
-                                    check=True)
+
+    process = subprocess.Popen(comando, shell=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, text=True)
+
+    while True:
+        output = process.stdout.readline()
+        if output == '' and process.poll() is not None:
+            break
+        if output:
+            print(output.strip())
+
+    stderr_output = process.stderr.read()
+    if stderr_output:
+        raise UnboundLocalError(f"Erro: {stderr_output.strip()}")
 
     h_freqs, freqs, dt = trf_reader(filename)
 
