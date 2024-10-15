@@ -3,6 +3,7 @@ Module for representing the scenario and their elements
 """
 import enum
 import typing
+import math
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -26,6 +27,106 @@ class ShipType(enum.Enum):
     TUG = 10
     VEHICLE_CARRIER = 11
     OTHER = 12
+
+    def __str__(self):
+        return self.name.lower()
+
+    def _get_ref_speed(self) -> lps_qty.Speed:
+        speed_ref = {
+            ShipType.BULKER: 13.9,
+            ShipType.CONTAINERSHIP: 18.0,
+            ShipType.CRUISE: 17.1,
+            ShipType.DREDGER: 9.5,
+            ShipType.FISHING: 6.4,
+            ShipType.GOVERNMENT: 8.0,
+            ShipType.NAVAL: 11.1,
+            ShipType.PASSENGER: 9.7,
+            ShipType.RECREATIONAL: 10.6,
+            ShipType.TANKER: 12.4,
+            ShipType.TUG: 3.7,
+            ShipType.VEHICLE_CARRIER: 15.8,
+            ShipType.OTHER: 7.4,
+        }
+        return lps_qty.Speed.kt(speed_ref[self])
+
+    def _is_cargo(self) -> bool:
+        cargo_ships = [ShipType.CONTAINERSHIP,
+                       ShipType.VEHICLE_CARRIER,
+                       ShipType.BULKER,
+                       ShipType.TANKER]
+        return self in cargo_ships
+
+    def to_psd(self,
+                fs: lps_qty.Frequency,
+                lower_bound: lps_qty.Frequency = lps_qty.Frequency.hz(2),
+                lenght: lps_qty.Distance = lps_qty.Distance.ft(300),
+                speed: lps_qty.Speed = None) -> \
+                    typing.Tuple[typing.List[lps_qty.Frequency], np.array]:
+        """Return frequencies and corresponding PDS.
+            An implementation of JOMOPANS-ECHO Model (https://www.mdpi.com/2077-1312/9/4/369)
+
+        Args:
+            fs (lps_qty.Frequency): Sample frequency
+            lower_bound (lps_qty.Frequency, optional): Lower Frequency to be computed.
+                Defaults to 2 Hz.
+            lenght (lps_qty.Distance, optional): Ship lenght. Defaults to 300 ft.
+            speed (lps_qty.Speed, optional): Ship speed. Defaults based on class.
+
+        Returns:
+            typing.Tuple[
+                typing.List[lps_qty.Frequency],  : frequencies
+                np.array]                        : PDS in (dB re 1 µPa^2/Hz @1m)
+            ]
+        """
+
+        if speed is None:
+            speed = self._get_ref_speed()
+
+        frequencies = []
+        f_ref = lps_qty.Frequency.khz(1)
+
+        f_index = math.ceil(3 * math.log(lower_bound / f_ref, 2))
+        # lower index in 1/3 octave inside interval
+
+        while True:
+            fi = f_ref * 2**(f_index / 3)
+
+            if fi > fs/2:
+                break
+
+            frequencies.append(fi)
+            f_index += 1
+
+        l_0 = lps_qty.Distance.ft(300)
+        v_c = self._get_ref_speed()
+        v_ref = lps_qty.Speed.kt(1)
+        f_ref = lps_qty.Frequency.hz(1)
+
+        psd = np.zeros(len(frequencies)) + 60*math.log10(speed/v_c) + 20*math.log10(lenght/l_0)
+
+        for index, f in enumerate(frequencies):
+            if f < lps_qty.Frequency.hz(100) and self._is_cargo():
+                k_lf = 208
+                if self == ShipType.CONTAINERSHIP or self == ShipType.BULKER:
+                    d_lf = 0.8
+                else:
+                    d_lf = 1
+                f_1_lf = lps_qty.Frequency.hz(600) * (v_ref/v_c)
+
+                psd[index] += k_lf - 40*math.log10(f_1_lf/f_ref) + 10*math.log10(f/f_ref) \
+                              - 10*math.log10((1 - (f/f_1_lf)**2)**2 + d_lf**2)
+
+            else:
+                f_1 = lps_qty.Frequency.hz(480) * (v_ref/v_c)
+                k = 191
+                d = 4 if self == ShipType.CRUISE else 3
+
+                psd[index] += k - 20*math.log10(f_1/f_ref) \
+                                - 10*math.log10((1 - f/f_1)**2 + d**2)
+
+        return frequencies, psd
+
+
 
 class Ship(lps_dynamic.Element):
     """ Class to represent a Ship in the scenario """

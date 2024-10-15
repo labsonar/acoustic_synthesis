@@ -207,7 +207,9 @@ class Channel():
         Args:
             input_data (np.array): Signal to propagate, should have size (n_samples,)
             source_depth (lps_qty.Distance): Depth of the source (ship's draft)
-            distance (typing.List[lps_qty.Distance]): Distance equivalent for each input_point
+            distance (typing.List[lps_qty.Distance]): Equivalent distance for input_data.
+                If the number of distances is different from the number of samples in the input
+                data, the distances are interpolated.
 
         Returns:
             np.array: signal after propagation in the channel
