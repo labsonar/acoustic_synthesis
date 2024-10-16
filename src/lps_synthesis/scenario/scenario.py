@@ -213,14 +213,24 @@ class Ship(lps_dynamic.Element):
 
         super().__init__(initial_state=initial_state)
 
+    def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
+        last_time = None
+
+        for time, state in self.state_map.items():
+            if last_time is not None:
+                print(time-last_time, ": ", (time-last_time)*fs)
+
+            last_time = time
+
 class Scenario():
     """ Class to represent a Scenario """
 
     def __init__(self,
                  environment: lps_env.Environment = lps_env.Environment.random(),
-                 channel_desc: lps_channel.Description
+                 channel_desc: lps_channel.Description = lps_channel.Description.get_random(),
                  start_time = lps_qty.Timestamp()) -> None:
         self.environment = environment
+        self.channel_desc = channel_desc
         self.start_time = start_time
         self.sonars = {}
         self.ships = {}
@@ -345,3 +355,5 @@ class Scenario():
 
             plt.clf()
         plt.close()
+
+    # def get_sonar_audio(self, sonar_id: str) -> None:
