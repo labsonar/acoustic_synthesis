@@ -54,7 +54,7 @@ scenario.add_ship(
         lps_scenario.Ship(
                 ship_id="Ship1",
                 ship_type=lps_scenario.ShipType.DREDGER,
-                time=scenario.start_time,
+                start_time=scenario.start_time,
                 initial_state=lps_dynamic.State(
                         position = lps_dynamic.Displacement(
                                 lps_qty.Distance.km(-1),
@@ -73,7 +73,7 @@ scenario.add_ship(
         lps_scenario.Ship(
                 ship_id="Ship2",
                 ship_type=lps_scenario.ShipType.DREDGER,
-                time=scenario.start_time,
+                start_time=scenario.start_time,
                 initial_state=lps_dynamic.State(
                         position = lps_dynamic.Displacement(
                                 lps_qty.Distance.m(500),
@@ -92,7 +92,7 @@ scenario.add_ship(
         lps_scenario.Ship(
                 ship_id="Ship3",
                 ship_type=lps_scenario.ShipType.DREDGER,
-                time=scenario.start_time,
+                start_time=scenario.start_time,
                 initial_state=lps_dynamic.State(
                         position = lps_dynamic.Displacement(
                                 lps_qty.Distance.km(-10),
@@ -112,7 +112,7 @@ scenario.add_ship(
         lps_scenario.Ship(
                 ship_id="Ship2",
                 ship_type=lps_scenario.ShipType.DREDGER,
-                time=scenario.start_time,
+                start_time=scenario.start_time,
                 initial_state=lps_dynamic.State(
                         position = lps_dynamic.Displacement(
                                 lps_qty.Distance.m(500),

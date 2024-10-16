@@ -245,7 +245,7 @@ class Background():
                 'Shipping[{self.shipping_value:.1f}]'
 
     @classmethod
-    def random(cls, ) -> 'Background':
+    def random(cls) -> 'Background':
         """
         Generate a sorted Background.
 

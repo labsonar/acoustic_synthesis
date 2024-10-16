@@ -4,12 +4,14 @@ Module for representing the scenario and their elements
 import enum
 import typing
 import math
+import random
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_dynamic
+import lps_synthesis.scenario.sonar as lps_sonar
 
 class ShipType(enum.Enum):
     " Enum class representing the possible ship types (https://www.mdpi.com/2077-1312/9/4/369)"
@@ -126,49 +128,67 @@ class ShipType(enum.Enum):
 
         return frequencies, psd
 
+    def get_random_speed(self) -> lps_qty.Speed:
+        """ Return a Speed in the expected range by ship type.
 
+        http://1worldenergy.com/ship-sizes-speeds-voyage-times-maritime-regulations/
+        """
+        speed_ranges = {
+            ShipType.BULKER: (10, 15),
+            ShipType.CONTAINERSHIP: (18, 25),
+            ShipType.CRUISE: (20, 24),
+            ShipType.DREDGER: (4, 12),
+            ShipType.FISHING: (8, 12),
+            ShipType.GOVERNMENT: (12, 20),
+            ShipType.RESEARCH: (12, 20),
+            ShipType.NAVAL: (25, 30),
+            ShipType.PASSENGER: (15, 22),
+            ShipType.RECREATIONAL: (5, 20),
+            ShipType.TANKER: (12, 16),
+            ShipType.TUG: (10, 14),
+            ShipType.VEHICLE_CARRIER: (15, 19),
+            ShipType.OTHER: (5, 25),
+        }
+        return lps_qty.Speed.kt(random.uniform(*speed_ranges[self]))
+
+    def get_random_length(self) -> lps_qty.Distance:
+        """ Return a Length in the expected range by ship type. """
+        length_ranges = {
+            ShipType.BULKER: (150, 300),
+            ShipType.CONTAINERSHIP: (200, 400),
+            ShipType.CRUISE: (250, 350),
+            ShipType.DREDGER: (50, 150),
+            ShipType.FISHING: (30, 100),
+            ShipType.GOVERNMENT: (50, 120),
+            ShipType.RESEARCH: (50, 120),
+            ShipType.NAVAL: (100, 250),
+            ShipType.PASSENGER: (100, 200),
+            ShipType.RECREATIONAL: (10, 50),
+            ShipType.TANKER: (200, 350),
+            ShipType.TUG: (20, 40),
+            ShipType.VEHICLE_CARRIER: (150, 200),
+            ShipType.OTHER: (10, 400),
+        }
+        return lps_qty.Distance.m(random.uniform(*length_ranges[self]))
 
 class Ship(lps_dynamic.Element):
-    """ Class to represent a Ship in the scenario """
+    """ Class to represent a Ship in the scenario"""
 
     def __init__(self,
                  ship_id: str,
                  ship_type: ShipType,
-                 time: lps_qty.Timestamp = lps_qty.Timestamp(),
+                 max_speed: lps_qty.Speed = None,
+                 length: lps_qty.Distance = None,
+                 start_time: lps_qty.Timestamp = lps_qty.Timestamp(),
                  initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
-        super().__init__(time, initial_state)
+
         self.ship_id = ship_id
         self.ship_type = ship_type
+        self.length = length if length is not None else ship_type.get_random_length()
+        initial_state.max_speed = max_speed if max_speed is not None else \
+            ship_type.get_random_speed()
 
-class AcousticSensor():
-    """ Class to represent an AcousticSensor in the scenario """
-
-    def __init__(self,
-                 sensitivity: lps_qty.Sensitivity = None,
-                 rel_position: lps_dynamic.Displacement = \
-                        lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))
-                 ) -> None:
-        self.sensitivity = sensitivity
-        self.rel_position = rel_position
-
-class Sonar(lps_dynamic.Element):
-    """ Class to represent a Sonar (with multiple acoustic sensors) in the scenario """
-
-    def __init__(self,
-                 sensors: typing.List[AcousticSensor],
-                 time: lps_qty.Timestamp = lps_qty.Timestamp(),
-                 initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
-        super().__init__(time, initial_state)
-        self.sensors = sensors
-
-    @staticmethod
-    def hidrofone(
-                 sensitivity: lps_qty.Sensitivity = None,
-                 time: lps_qty.Timestamp = lps_qty.Timestamp(),
-                 initial_state: lps_dynamic.State = lps_dynamic.State()) -> 'Sonar':
-        """ Class constructor for construct a Sonar with only one sensor """
-        return Sonar(sensors = [AcousticSensor(sensitivity=sensitivity)],
-                     time=time, initial_state=initial_state)
+        super().__init__(start_time, initial_state)
 
 class Scenario():
     """ Class to represent a Scenario """
@@ -179,7 +199,7 @@ class Scenario():
         self.ships = {}
         self.times = None
 
-    def add_sonar(self, sonar_id: str, sonar: Sonar) -> None:
+    def add_sonar(self, sonar_id: str, sonar: lps_sonar.Sonar) -> None:
         """ Insert a sonar in the scenario. """
         self.sonars[sonar_id] = sonar
 

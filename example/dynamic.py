@@ -57,8 +57,10 @@ e1 = lps_dynamic.Element(
                                                     lps_qty.Distance.m(5)),
                 velocity = lps_dynamic.Velocity(lps_qty.Speed.m_s(1),
                                                 lps_qty.Speed.m_s(2)),
-                acceleration = lps_dynamic.Acceleration(lps_qty.Acceleration.m_s2(0.02),
-                                            lps_qty.Acceleration.m_s2(0.01))))
+                acceleration = lps_dynamic.Acceleration(lps_qty.Acceleration.m_s2(0.2),
+                                            lps_qty.Acceleration.m_s2(0.1)),
+                max_speed=lps_qty.Speed.m_s(5)
+                ))
 
 times = [start_time + lps_qty.Time.s(t) for t in np.linspace(0, 30, 100)]
 
@@ -67,4 +69,4 @@ state_map = e1.move(times)
 print(e1)
 
 for time, state in state_map.items():
-    print(time, ": ", state.position)
+    print(time, ": ", state.position, " -> ", state.velocity, " -> ", state.velocity.get_magnitude())

@@ -307,26 +307,35 @@ class State():
     """ Class to represent any element dynamic state in the simulation """
 
     def __init__(self,
-                position = Displacement(lps_qty.Distance.m(0),
+                position: Displacement = Displacement(lps_qty.Distance.m(0),
                                         lps_qty.Distance.m(0),
                                         lps_qty.Distance.m(0)),
-                velocity = Velocity(lps_qty.Speed.m_s(0), lps_qty.Speed.m_s(0)),
+                velocity: Velocity = Velocity(lps_qty.Speed.m_s(0), lps_qty.Speed.m_s(0)),
                 acceleration: Acceleration = Acceleration(lps_qty.Acceleration.m_s2(0),
-                                                          lps_qty.Acceleration.m_s2(0))) -> None:
+                                                          lps_qty.Acceleration.m_s2(0)),
+                max_speed: lps_qty.Speed = lps_qty.Speed.kt(50)) -> None:
         self.position = position
         self.velocity = velocity
         self.acceleration = acceleration
+        self.max_speed = max_speed
 
     def estimate(self, dt: lps_qty.Time) -> 'State':
         """ Estimate state after a delta time """
-        return State(
-            position=self.position + self.velocity*dt + 0.5*self.acceleration*dt*dt,
-            velocity = self.velocity + self.acceleration*dt,
-            acceleration=self.acceleration)
+
+        position=self.position + self.velocity*dt + 0.5*self.acceleration*dt*dt
+        velocity = self.velocity + self.acceleration*dt
+        acceleration=self.acceleration
+
+        if self.max_speed is not None and velocity.get_magnitude() > self.max_speed:
+            velocity *= self.max_speed/velocity.get_magnitude()
+            acceleration = Acceleration(lps_qty.Acceleration.m_s2(0),
+                                        lps_qty.Acceleration.m_s2(0))
+
+        return State(position=position, velocity=velocity,
+                     acceleration=acceleration, max_speed=self.max_speed)
 
     def __str__(self) -> str:
         return  f"[{self.position}], [{self.velocity}], [{self.acceleration}]"
-
 
 
 class Element():
