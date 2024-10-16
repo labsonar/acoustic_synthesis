@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 
 import lps_sp.signal as lps_signal
 import lps_sp.acoustical.broadband as lps_bb
-import lps_synthesis.environment.background as lps
+import lps_synthesis.environment.environment as lps
 
-def main(background: lps.Background, fs: int, duration: float):
+def main(background: lps.Environment, fs: int, duration: float):
     """ Script to generate a acoustical enviroment noise
 
     Args:
@@ -53,7 +53,7 @@ def main(background: lps.Background, fs: int, duration: float):
 
 if __name__ == '__main__':
 
-    bg = lps.Background.random()
+    bg = lps.Environment.random()
 
     parser = argparse.ArgumentParser(description="Generate a background noise WAV file.")
     parser.add_argument('-r','--rain_value', type=float, default=None,

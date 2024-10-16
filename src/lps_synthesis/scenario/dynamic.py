@@ -344,9 +344,16 @@ class Element():
     def __init__(self,
                 time: lps_qty.Timestamp = lps_qty.Timestamp(),
                 initial_state: State = State()) -> None:
+        self.ref_state = initial_state
+        self.reset(time=time)
+
+    def reset(self, time: lps_qty.Timestamp, initial_state: State = None) -> None:
+        """ Resets the element to prepare for simulation. """
+        if initial_state is None:
+            initial_state = self.ref_state
+
         self.current_time = time
         self.state_map = {}
-
         self.state_map[self.current_time] = initial_state
 
     def move(self, ref_time: typing.Union[lps_qty.Timestamp, typing.List[lps_qty.Timestamp]]) -> \

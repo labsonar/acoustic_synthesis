@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.sonar as lps_sonar
+import lps_synthesis.environment.environment as lps_env
+import lps_synthesis.propagation.acoustical_channel as lps_channel
 
 class ShipType(enum.Enum):
     " Enum class representing the possible ship types (https://www.mdpi.com/2077-1312/9/4/369)"
@@ -171,6 +173,26 @@ class ShipType(enum.Enum):
         }
         return lps_qty.Distance.m(random.uniform(*length_ranges[self]))
 
+    def get_random_draft(self) -> lps_qty.Distance:
+        """ Return a Draft (calado) in the expected range by ship type. """
+        draft_ranges = {
+            ShipType.BULKER: (10, 18),
+            ShipType.CONTAINERSHIP: (12, 15),
+            ShipType.CRUISE: (7, 9),
+            ShipType.DREDGER: (5, 8),
+            ShipType.FISHING: (3, 6),
+            ShipType.GOVERNMENT: (5, 9),
+            ShipType.RESEARCH: (5, 9),
+            ShipType.NAVAL: (7, 12),
+            ShipType.PASSENGER: (6, 10),
+            ShipType.RECREATIONAL: (1, 3),
+            ShipType.TANKER: (12, 20),
+            ShipType.TUG: (3, 5),
+            ShipType.VEHICLE_CARRIER: (8, 12),
+            ShipType.OTHER: (3, 12),
+        }
+        return lps_qty.Distance.m(random.uniform(*draft_ranges[self]))
+
 class Ship(lps_dynamic.Element):
     """ Class to represent a Ship in the scenario"""
 
@@ -179,21 +201,26 @@ class Ship(lps_dynamic.Element):
                  ship_type: ShipType,
                  max_speed: lps_qty.Speed = None,
                  length: lps_qty.Distance = None,
-                 start_time: lps_qty.Timestamp = lps_qty.Timestamp(),
+                 draft: lps_qty.Distance = None,
                  initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
 
         self.ship_id = ship_id
         self.ship_type = ship_type
         self.length = length if length is not None else ship_type.get_random_length()
+        self.draft = draft if draft is not None else ship_type.get_random_draft()
         initial_state.max_speed = max_speed if max_speed is not None else \
             ship_type.get_random_speed()
 
-        super().__init__(start_time, initial_state)
+        super().__init__(initial_state=initial_state)
 
 class Scenario():
     """ Class to represent a Scenario """
 
-    def __init__(self, start_time = lps_qty.Timestamp()) -> None:
+    def __init__(self,
+                 environment: lps_env.Environment = lps_env.Environment.random(),
+                 channel_desc: lps_channel.Description
+                 start_time = lps_qty.Timestamp()) -> None:
+        self.environment = environment
         self.start_time = start_time
         self.sonars = {}
         self.ships = {}
@@ -216,9 +243,11 @@ class Scenario():
                                 int(simulation_time.get_s()//time_step.get_s()))]
 
         for _, ship in self.ships.items():
+            ship.reset(self.start_time)
             ship.move(self.times)
 
         for _, sonar in self.sonars.items():
+            sonar.reset(self.start_time)
             sonar.move(self.times)
 
         return self.times

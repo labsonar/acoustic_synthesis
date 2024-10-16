@@ -2,7 +2,7 @@ import scipy.io as scipy
 import matplotlib.pyplot as plt
 
 import lps_utils.quantities as lps_qty
-import lps_synthesis.environment.background as lps_bg
+import lps_synthesis.environment.environment as lps_bg
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_sp.acoustical.broadband as lps_bb
 
@@ -10,7 +10,8 @@ fs = lps_qty.Frequency.khz(16)
 duration = lps_qty.Time.s(30)
 n_samples=int(duration * fs)
 
-bg = lps_bg.Background.random()
+bg = lps_bg.Environment.random()
+print("Environment> ", bg)
 signal = bg.generate_bg_noise(fs=fs.get_hz(), n_samples=n_samples)
 
 sensitivity = lps_qty.Sensitivity.db_v_p_upa(-165)

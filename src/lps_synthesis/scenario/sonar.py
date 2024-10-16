@@ -20,7 +20,6 @@ class ADConverter():
 
         input_data = np.clip(input_data, v_min, v_max)
 
-        print("clipped: ", np.min(input_data), " -> ", np.max(input_data))
 
         max_output_value = 2**(self.resolution - 1) - 1
         min_output_value = -2**(self.resolution - 1)
@@ -30,7 +29,6 @@ class ADConverter():
         scaled_data = min_output_value + \
                     ((input_data - v_min) / voltage_range) * (max_output_value - min_output_value)
 
-        print("digital: ", np.min(scaled_data), " -> ", np.max(scaled_data))
 
         if self.resolution <= 8:
             return scaled_data.astype(np.int8)
@@ -62,11 +60,9 @@ class AcousticSensor():
         """ Convert input data in micropascal (µPa) to a digital signal using the sensor's
         sensitivity, gain and ADC conversion.
         """
-        print("input_data: ", np.min(input_data), " -> ", np.max(input_data))
 
         data = input_data * 10**((self.sensitivity.get_db_v_p_upa() + self.gain_db) / 20)
 
-        print("pos gain: ", np.min(data), " -> ", np.max(data))
         return self.adc.apply(data)
 
 class Sonar(lps_dynamic.Element):
@@ -74,16 +70,15 @@ class Sonar(lps_dynamic.Element):
 
     def __init__(self,
                  sensors: typing.List[AcousticSensor],
-                 time: lps_qty.Timestamp = lps_qty.Timestamp(),
                  initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
-        super().__init__(time, initial_state)
+        super().__init__(initial_state=initial_state)
         self.sensors = sensors
 
     @staticmethod
     def hidrofone(
                  sensitivity: lps_qty.Sensitivity = None,
-                 time: lps_qty.Timestamp = lps_qty.Timestamp(),
+                 adc: ADConverter = ADConverter(),
                  initial_state: lps_dynamic.State = lps_dynamic.State()) -> 'Sonar':
         """ Class constructor for construct a Sonar with only one sensor """
-        return Sonar(sensors = [AcousticSensor(sensitivity=sensitivity)],
-                     time=time, initial_state=initial_state)
+        return Sonar(sensors = [AcousticSensor(sensitivity=sensitivity, adc=adc)],
+                     initial_state=initial_state)

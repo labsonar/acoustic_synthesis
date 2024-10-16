@@ -221,7 +221,7 @@ class Shipping(enum.Enum):
 
         return frequencies, interpolated_psd
 
-class Background():
+class Environment():
     """Class to represent an acoustical environment background."""
 
     def __init__(self,
@@ -240,19 +240,19 @@ class Background():
                                                         else shipping_value
 
     def __str__(self) -> str:
-        return f'Rain[{self.rain_value:.1f}], ' \
-                'Sea[{self.sea_value:.1f}], ' \
-                'Shipping[{self.shipping_value:.1f}]'
+        return (f'Rain[{self.rain_value:.1f}], '
+                f'Sea[{self.sea_value:.1f}], '
+                f'Shipping[{self.shipping_value:.1f}]')
 
     @classmethod
-    def random(cls) -> 'Background':
+    def random(cls) -> 'Environment':
         """
         Generate a sorted Background.
 
         Returns:
             Background: sorted Background.
         """
-        return Background(
+        return Environment(
             rain_value=random.uniform(Rain.NONE.value, Rain.VERY_HEAVY.value),
             sea_value=random.uniform(Sea.STATE_0.value, Sea.STATE_6.value),
             shipping_value=random.uniform(Shipping.NONE.value, Shipping.LEVEL_7.value)
