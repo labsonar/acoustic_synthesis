@@ -13,23 +13,36 @@ duration = lps_qty.Time.s(15)
 
 ship = lps_scenario.ShipType.CONTAINERSHIP
 speed = lps_qty.Speed.kt(5)
-f_axis = lps_qty.Frequency.rpm(90)
-n_harmonics = 4
+f_axis = lps_qty.Frequency.rpm(80)
+
+n_blades = 4
+n_shafts = 2
+shaft_error = 5e-2
+blade_error = 1e-3
 
 n_samples = int(duration * fs)
 
 
 t = np.linspace(0, duration.get_s(), n_samples, endpoint=False)
-f_RPM1_vec = np.ones(n_samples) * f_axis.get_hz()
 
-f_21 = np.cumsum(f_RPM1_vec) / fs.get_hz()
+narrowband_total = np.zeros(n_samples)
+for eixo in range(n_shafts):
 
-m21 = np.zeros((n_harmonics, n_samples))
-for har in range(1, n_harmonics + 1):
-    m21[har - 1, :] = np.cos(2 * np.pi * f_21 * har)
+    eixo_variation = f_axis.get_hz() * (1 + shaft_error * np.random.randn())
+    f_RPM1_vec = np.ones(n_samples) * eixo_variation
 
-narrowband = np.sum(m21, axis=0)
+    f_21 = np.cumsum(f_RPM1_vec) / fs.get_hz()
 
+    m21 = np.zeros((n_blades, n_samples))
+    for har in range(1, n_blades + 1):
+        blade_phase_shift = (har - 1) * 2 * np.pi / n_blades
+        harmonic_variation = 1 + blade_error * np.random.randn()
+        m21[har - 1, :] = np.cos(2 * np.pi * f_21 * har * harmonic_variation + blade_phase_shift)
+
+    narrowband_eixo = np.sum(m21, axis=0)
+    narrowband_total += narrowband_eixo
+
+narrowband_total /= n_shafts * n_blades
 
 
 freqs, psd = ship.to_psd(fs=fs, speed=speed)
@@ -41,8 +54,8 @@ broadband = lps_bb.generate(frequencies=np.array(freqs_hz),
                     fs=fs.get_hz())
 # broadband = 10 * np.random.randn(n_samples)
 
-mod_index = 0.2
-signal = (1 + mod_index * narrowband) * broadband
+mod_index = 1
+signal = (1 + mod_index * narrowband_total) * broadband
 
 def normalizar_sinal(sinal):
     sinal_max = np.max(np.abs(sinal))
@@ -94,7 +107,7 @@ plt.figure(figsize=(12, 8))
 
 # Banda estreita (soma dos harmônicos)
 plt.subplot(4, 1, 1)
-plt.plot(t, narrowband)
+plt.plot(t, narrowband_total)
 plt.title('Sinal de Banda Estreita (Soma dos Harmônicos)')
 plt.xlabel('Tempo [s]')
 plt.ylabel('Amplitude')
@@ -116,7 +129,7 @@ plt.ylabel('Amplitude')
 # Sinal modulado
 plt.subplot(4, 1, 4)
 plt.plot(t, prop_signal)
-plt.title('Sinal Modulado (Banda Estreita + Ruído)')
+plt.title('Sinal Propagado (Banda Estreita + Ruído + Canal)')
 plt.xlabel('Tempo [s]')
 plt.ylabel('Amplitude')
 
