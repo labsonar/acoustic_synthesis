@@ -30,7 +30,7 @@ for ship in lps_scenario.ShipType:
         csv_data[i].append(value)
     header.append(str(ship))
 
-    # plt.semilogx(freqs_hz, psd, label=str(ship))
+    plt.semilogx(freqs_hz, psd, label=str(ship))
 
     audio_signal = lps_bb.generate(frequencies=np.array(freqs_hz),
                                    psd_db=psd,
@@ -38,7 +38,7 @@ for ship in lps_scenario.ShipType:
                                    fs=fs.get_hz())
 
     est_freqs, est_psd_db = lps_bb.psd(signal=audio_signal, fs=fs.get_hz(), window_size=2048)
-    plt.semilogx(est_freqs, est_psd_db, label=str(ship))
+    # plt.semilogx(est_freqs, est_psd_db, label=str(ship))
 
     audio_signal = audio_signal / np.max(np.abs(audio_signal))
     audio_signal_int16 = np.int16(audio_signal * (2**15-1))

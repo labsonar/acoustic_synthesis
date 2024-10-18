@@ -49,13 +49,12 @@ class Vector(typing.Generic[U]):
     def get_magnitude(self) -> U:
         """ Get magnitude of the vector. """
         if self.z is None:
-            return (self.x**2 + self.y**2)**0.5
-        return (self.x**2 + self.y**2 + self.z**2)**0.5
+            return ((self.x**2) + (self.y**2))**0.5
+        return ((self.x**2) + (self.y**2) + self.z**2)**0.5
 
     def get_magnitude_xy(self) -> U:
-        """ Get magnitude of the vector. """
-        if self.z is None:
-            return (self.x**2 + self.y**2)**0.5
+        """ Get magnitude of the vector in XY plane. """
+        return ((self.x**2) + (self.y**2))**0.5
 
     def get_azimuth(self) -> lps_qty.Angle:
         """ Get azimuth of the vector (angle in XY plane). """
@@ -342,44 +341,36 @@ class Element():
     """ Class to represent any element that moves in the simulation """
 
     def __init__(self,
-                time: lps_qty.Timestamp = lps_qty.Timestamp(),
                 initial_state: State = State()) -> None:
-        self.ref_state = initial_state
-        self.reset(time=time)
+        self.ref_state = initial_state.estimate(lps_qty.Time.s(0))
+        self.reset()
 
-    def reset(self, time: lps_qty.Timestamp, initial_state: State = None) -> None:
+    def reset(self, initial_state: State = None) -> None:
         """ Resets the element to prepare for simulation. """
         if initial_state is None:
             initial_state = self.ref_state
+        else:
+            self.ref_state = initial_state
 
-        self.current_time = time
-        self.state_map = {}
-        self.state_map[self.current_time] = initial_state
+        self.state_map = []
+        self.state_map.append(initial_state)
+        self.step_interval = []
 
-    def move(self, ref_time: typing.Union[lps_qty.Timestamp, typing.List[lps_qty.Timestamp]]) -> \
-                             typing.Union[State, typing.Dict[lps_qty.Timestamp, State]]:
-        """Update the element state to ref_time, based on its dynicamic
+    def move(self, step_interval: lps_qty.Speed, n_steps: int = 1) -> typing.List[State]:
 
-        Args:
-            ref_time (lps_qty.Timestamp or typing.List[lps_qty.Timestamp]): Time reference
+        for _ in range(n_steps):
+            new_state = self.state_map[-1].estimate(step_interval)
+            self.state_map.append(new_state)
+            self.step_interval.append(step_interval)
 
-        Returns:
-            State: Final state or typing.Dict[lps_qty.Timestamp, State]
-        """
-
-        if isinstance(ref_time, list):
-            move_map = {}
-            for time in ref_time:
-                move_map[time] = self.move(time)
-            return move_map
-
-        new_state = self.state_map[self.current_time].estimate(ref_time - self.current_time)
-        self.state_map[ref_time] = new_state
-        self.current_time = ref_time
         return new_state
 
     def __str__(self) -> str:
-        return str(self.state_map[self.current_time])
+        return str(self.state_map[self.current_step])
 
-    def __getitem__(self, timestamp: lps_qty.Timestamp):
-        return self.state_map[timestamp]
+    def __getitem__(self, step: int):
+        return self.state_map[step]
+
+    def get_depth(self) -> lps_qty.Distance:
+        """ Return the starting depth of the element. """
+        return self.ref_state.position.z

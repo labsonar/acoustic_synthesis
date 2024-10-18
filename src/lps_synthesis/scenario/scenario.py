@@ -5,6 +5,8 @@ import enum
 import typing
 import math
 import random
+import overrides
+import tqdm
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,6 +16,7 @@ import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.propagation.acoustical_channel as lps_channel
+import lps_sp.acoustical.broadband as lps_bb
 
 class ShipType(enum.Enum):
     " Enum class representing the possible ship types (https://www.mdpi.com/2077-1312/9/4/369)"
@@ -214,13 +217,36 @@ class Ship(lps_dynamic.Element):
         super().__init__(initial_state=initial_state)
 
     def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
-        last_time = None
+        """
+        Generates ship noise over simulated intervals.
 
-        for time, state in self.state_map.items():
-            if last_time is not None:
-                print(time-last_time, ": ", (time-last_time)*fs)
+        Args:
+            fs: The sampling frequency as an lps_qty.Frequency.
 
-            last_time = time
+        Returns:
+            A numpy array containing the audio signal in 1 µPa @1m.
+        """
+
+        audio_signals = []
+
+        for state, interval in zip(self.state_map, self.step_interval):
+            frequencies, psd = self.ship_type.to_psd(fs=fs,
+                                                     lenght=self.length,
+                                                     speed=state.velocity.get_magnitude())
+
+            freqs_hz = [f.get_hz() for f in frequencies]
+
+            audio_signals.append(lps_bb.generate(frequencies=np.array(freqs_hz),
+                                                 psd_db=psd,
+                                                 n_samples=int(interval * fs),
+                                                 fs=fs.get_hz()))
+
+        return np.concatenate(audio_signals)
+
+    @overrides.overrides
+    def get_depth(self) -> lps_qty.Distance:
+        """ Return the starting depth of the element. """
+        return self.draft
 
 class Scenario():
     """ Class to represent a Scenario """
@@ -228,13 +254,16 @@ class Scenario():
     def __init__(self,
                  environment: lps_env.Environment = lps_env.Environment.random(),
                  channel_desc: lps_channel.Description = lps_channel.Description.get_random(),
-                 start_time = lps_qty.Timestamp()) -> None:
+                 temp_dir: str = '/temp') \
+                    -> None:
         self.environment = environment
         self.channel_desc = channel_desc
-        self.start_time = start_time
+        self.channel = None
         self.sonars = {}
         self.ships = {}
-        self.times = None
+        self.n_steps = 0
+        self.step_interval = None
+        self.temp_dir = temp_dir
 
     def add_sonar(self, sonar_id: str, sonar: lps_sonar.Sonar) -> None:
         """ Insert a sonar in the scenario. """
@@ -244,23 +273,33 @@ class Scenario():
         """ Insert a ship in the scenario. """
         self.ships[ship.ship_id] = ship
 
-    def simulate(self, time_step: lps_qty.Time, simulation_time: lps_qty.Time) -> \
-                                                                    typing.List[lps_qty.Timestamp]:
-        """ Calculate the positions of all elements in the scenario along the simulation time. """
-
-        self.times = [self.start_time + lps_qty.Time.s(t) for t in np.linspace(0,
-                                simulation_time.get_s(),
-                                int(simulation_time.get_s()//time_step.get_s()))]
+    def reset(self) -> None:
+        """ Reset simulation. """
+        self.n_steps = 0
+        self.step_interval = None
 
         for _, ship in self.ships.items():
-            ship.reset(self.start_time)
-            ship.move(self.times)
+            ship.reset()
 
         for _, sonar in self.sonars.items():
-            sonar.reset(self.start_time)
-            sonar.move(self.times)
+            sonar.reset()
 
-        return self.times
+    def simulate(self, step_interval: lps_qty.Speed, n_steps: int = 1) -> None:
+        """Move elements n times the step_interval
+
+        Args:
+            step_interval (lps_qty.Speed): Interval of a step
+            n_steps (int, optional): Number of steps. Defaults to 1.
+        """
+
+        self.n_steps = n_steps
+        self.step_interval = step_interval
+
+        for _, ship in self.ships.items():
+            ship.move(step_interval=step_interval, n_steps=n_steps)
+
+        for _, sonar in self.sonars.items():
+            sonar.move(step_interval=step_interval, n_steps=n_steps)
 
     def geographic_plot(self, filename: str) -> None:
         """ Make plots with top view, centered in the final position of the sonar. """
@@ -277,9 +316,9 @@ class Scenario():
             ref_x = []
             ref_y = []
             ref_angle = 0
-            for time in self.times:
-                diff = sonar[time].position
-                diff_vel = sonar[time].velocity
+            for step_i in range(self.n_steps):
+                diff = sonar[step_i].position
+                diff_vel = sonar[step_i].velocity
 
                 ref_x.append(diff.x.get_km())
                 ref_y.append(diff.y.get_km())
@@ -290,9 +329,9 @@ class Scenario():
                 x = []
                 y = []
                 last_angle = 0
-                for time in self.times:
-                    diff = ship[time].position
-                    diff_vel = ship[time].velocity
+                for step_i in range(self.n_steps):
+                    diff = ship[step_i].position
+                    diff_vel = ship[step_i].velocity
 
                     x.append(diff.x.get_km() - ref_x[-1])
                     y.append(diff.y.get_km() - ref_y[-1])
@@ -302,6 +341,8 @@ class Scenario():
                 limit = np.max([limit, np.max(np.abs(x)), np.max(np.abs(y))])
                 plot_ship(x, y, last_angle, ship_id)
 
+            ref_x = np.array(ref_x)
+            ref_y = np.array(ref_y)
             limit = np.max([limit,
                             np.max(np.abs(ref_x - ref_x[-1])),
                             np.max(np.abs(ref_y - ref_y[-1]))])
@@ -330,16 +371,14 @@ class Scenario():
 
         for sonar_id, sonar in self.sonars.items():
 
-            t = [(time - self.times[0]).get_s() for time in self.times]
+            t = [(step_i * self.step_interval).get_s() for step_i in range(self.n_steps)]
 
             for ship_id, ship in self.ships.items():
 
                 dist = []
-                for time in self.times:
-                    diff = ship[time].position - sonar[time].position
-                    diff.z = lps_qty.Distance.m(0)
-
-                    dist.append(diff.get_magnitude().get_km())
+                for step_i in range(self.n_steps):
+                    diff = ship[step_i].position - sonar[step_i].position
+                    dist.append(diff.get_magnitude_xy().get_km())
 
                 plt.plot(t, dist, label=ship_id)
 
@@ -356,4 +395,62 @@ class Scenario():
             plt.clf()
         plt.close()
 
-    # def get_sonar_audio(self, sonar_id: str) -> None:
+    def get_sonar_audio(self, sonar_id: str, fs: lps_qty.Frequency):
+
+        sonar = self.sonars[sonar_id]
+
+        ship_signals = {}
+        source_depths = {}
+
+        for ship_id, ship in tqdm.tqdm(self.ships.items(),
+                                       desc="Generating noise from ships",
+                                       leave=False):
+            ship_signals[ship_id] = ship.generate_noise(fs=fs)
+            source_depths[ship_id] = ship.get_depth()
+
+        sonar_signals = []
+        for sensor in sonar.sensors:
+
+            ship_distance = {}
+            max_distance = lps_qty.Distance.m(0)
+
+            for ship_id, ship in tqdm.tqdm(self.ships.items(),
+                                        desc="Generating noise from ships",
+                                        leave=False):
+
+                ship_distance[ship_id] = []
+                for step_id in range(self.n_steps):
+                    sonar_pos = sonar[step_id].position + sensor.rel_position
+                    dist = (ship[step_id].position - sonar_pos).get_magnitude()
+                    ship_distance[ship_id].append(dist)
+                    if ship_distance[ship_id][-1] > max_distance:
+                        max_distance = ship_distance[ship_id][-1]
+
+            max_distance = lps_qty.Distance.km(np.ceil(max_distance.get_km()*2)/2)
+
+            channel = lps_channel.Channel(
+                    description = self.channel_desc,
+                    source_depths = [
+                        lps_qty.Distance.m(5),
+                        lps_qty.Distance.m(7),
+                        lps_qty.Distance.m(25)
+                    ],
+                    sensor_depth = sonar.get_depth(),
+                    max_distance = max_distance,
+                    max_distance_points = 200,
+                    sample_frequency = fs,
+                    temp_dir = self.temp_dir)
+
+            for ship_id in tqdm.tqdm(self.ships.keys(),
+                                    desc="Propagating signals from ships",
+                                    leave=False):
+                ship_signals[ship_id] = channel.propagate(input_data = ship_signals[ship_id],
+                                                        source_depth = source_depths[ship_id],
+                                                        distance = ship_distance[ship_id])
+
+            ship_signal = np.sum(np.column_stack(list(ship_signals.values())), axis=1)
+            env_noise = self.environment.generate_bg_noise(len(ship_signal), fs=fs.get_hz())
+
+            sonar_signals.append(sensor.apply(ship_signal + env_noise))
+
+        return np.column_stack(sonar_signals)
