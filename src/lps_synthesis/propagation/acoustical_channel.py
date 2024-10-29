@@ -170,17 +170,18 @@ class Description():
 
             desc.add(lps_qty.Distance.m(depth), speed)
 
-        for depth in range(termocline_depth, int(max_depth.get_m()),
-                           int((max_depth.get_m()-termocline_depth)/depth_n_layers)):
-            if depth >= max_depth.get_m():
-                continue
+        n_steps = int((max_depth.get_m()-termocline_depth)/depth_n_layers)
+        if n_steps > 0:
+            for depth in range(termocline_depth, int(max_depth.get_m()), n_steps):
+                if depth >= max_depth.get_m():
+                    continue
 
-            speed = speed + depth_alpha
-            desc.add(lps_qty.Distance.m(depth), speed)
+                speed = speed + depth_alpha
+                desc.add(lps_qty.Distance.m(depth), speed)
 
 
-        bottom_layer = random.choice([b for b in lps_layer.BottomType])
-        desc.add(max_depth, bottom_layer)
+            bottom_layer = random.choice([b for b in lps_layer.BottomType])
+            desc.add(max_depth, bottom_layer)
 
         return desc
 

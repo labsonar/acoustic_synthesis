@@ -133,7 +133,7 @@ class ShipType(enum.Enum):
 
         return frequencies, psd
 
-    def get_random_speed(self) -> lps_qty.Speed:
+    def get_speed_range(self) -> typing.Tuple[lps_qty.Speed, lps_qty.Speed]:
         """ Return a Speed in the expected range by ship type.
 
         http://1worldenergy.com/ship-sizes-speeds-voyage-times-maritime-regulations/
@@ -154,7 +154,36 @@ class ShipType(enum.Enum):
             ShipType.VEHICLE_CARRIER: (15, 19),
             ShipType.OTHER: (5, 25),
         }
-        return lps_qty.Speed.kt(random.uniform(*speed_ranges[self]))
+        return lps_qty.Speed.kt(speed_ranges[self][0]), lps_qty.Speed.kt(speed_ranges[self][1])
+
+    def get_rpm_range(self) -> typing.Tuple[lps_qty.Frequency, lps_qty.Frequency]:
+        """ Return an RPM range in the expected range by ship type. """
+        rpm_ranges = {
+            ShipType.BULKER: (50, 90),
+            ShipType.CONTAINERSHIP: (60, 120),
+            ShipType.CRUISE: (80, 110),
+            ShipType.DREDGER: (30, 60),
+            ShipType.FISHING: (50, 90),
+            ShipType.GOVERNMENT: (70, 110),
+            ShipType.RESEARCH: (70, 110),
+            ShipType.NAVAL: (100, 180),
+            ShipType.PASSENGER: (60, 100),
+            ShipType.RECREATIONAL: (40, 90),
+            ShipType.TANKER: (50, 80),
+            ShipType.TUG: (100, 150),
+            ShipType.VEHICLE_CARRIER: (60, 90),
+            ShipType.OTHER: (40, 150),
+        }
+        return lps_qty.Frequency.rpm(rpm_ranges[self][0]), \
+                lps_qty.Frequency.rpm(rpm_ranges[self][1])
+
+    def get_random_speed(self) -> lps_qty.Speed:
+        """ Return a Speed in the expected range by ship type.
+
+        http://1worldenergy.com/ship-sizes-speeds-voyage-times-maritime-regulations/
+        """
+        min_speed, max_speed = self.get_speed_range()
+        return lps_qty.Speed.kt(random.uniform(min_speed.get_kt(), max_speed.get_kt()))
 
     def get_random_length(self) -> lps_qty.Distance:
         """ Return a Length in the expected range by ship type. """
@@ -196,6 +225,168 @@ class ShipType(enum.Enum):
         }
         return lps_qty.Distance.m(random.uniform(*draft_ranges[self]))
 
+    def get_blades_range(self) -> typing.Tuple[int, int]:
+        """ Return a range of valores típicos de pás para cada tipo de navio. """
+        blades_ranges = {
+            ShipType.BULKER: (4, 5),
+            ShipType.CONTAINERSHIP: (4, 6),
+            ShipType.CRUISE: (5, 6),
+            ShipType.DREDGER: (3, 4),
+            ShipType.FISHING: (3, 4),
+            ShipType.GOVERNMENT: (4, 5),
+            ShipType.RESEARCH: (4, 5),
+            ShipType.NAVAL: (5, 7),
+            ShipType.PASSENGER: (4, 6),
+            ShipType.RECREATIONAL: (3, 5),
+            ShipType.TANKER: (4, 5),
+            ShipType.TUG: (3, 4),
+            ShipType.VEHICLE_CARRIER: (4, 5),
+            ShipType.OTHER: (3, 6)
+        }
+        return blades_ranges[self]
+
+    def get_shafts_range(self) -> typing.Tuple[int, int]:
+        """ Return a range of shafts typical for each ship type. """
+        shafts_ranges = {
+            ShipType.BULKER: (1, 2),
+            ShipType.CONTAINERSHIP: (1, 2),
+            ShipType.CRUISE: (2, 3),
+            ShipType.DREDGER: (1, 2),
+            ShipType.FISHING: (1, 1),
+            ShipType.GOVERNMENT: (1, 2),
+            ShipType.RESEARCH: (1, 2),
+            ShipType.NAVAL: (2, 2),
+            ShipType.PASSENGER: (1, 2),
+            ShipType.RECREATIONAL: (1, 2),
+            ShipType.TANKER: (1, 2),
+            ShipType.TUG: (1, 2),
+            ShipType.VEHICLE_CARRIER: (1, 2),
+            ShipType.OTHER: (1, 2),
+        }
+        return shafts_ranges[self]
+
+
+class Propulsion():
+    """ Class to simulate ship propulsion system noise modulation. """
+
+    def __init__(self,
+                 ship_type:
+                 ShipType,
+                 n_blades: int,
+                 n_shafts: int,
+                 shaft_error=5e-2,
+                 blade_error=1e-3):
+        self.ship_type = ship_type
+        self.n_blades = n_blades
+        self.n_shafts = n_shafts
+        self.shaft_error = shaft_error
+        self.blade_error = blade_error
+
+    def estimate_rpm(self, speeds: typing.List[lps_qty.Speed]) -> typing.List[lps_qty.Frequency]:
+        """
+        Estimate RPM based on ship speed.
+
+        Args:
+            speeds: List of speeds in lps_qty.Speed.
+
+        Returns:
+            List of estimated RPM (lps_qty.Frequency).
+        """
+        rpm_estimates = []
+        for speed in speeds:
+            if speed == lps_qty.Speed.m_s(0):
+                rpm_estimates.append(lps_qty.Frequency.rpm(0))
+                return
+
+            if speed < lps_qty.Speed.m_s(0):
+                speed *= -1
+
+            min_rpm, max_rpm = self.ship_type.get_rpm_range()
+            _, max_speed = self.ship_type.get_speed_range()
+
+            rpm_value = min_rpm + (max_rpm - min_rpm) * (speed / max_speed)
+            rpm_estimates.append(rpm_value)
+
+        return rpm_estimates
+
+    def estimate_modulation(self, rpms: typing.List[lps_qty.Frequency]) -> typing.List[float]:
+        """
+        Estimate modulation index based on RPM.
+
+        Args:
+            rpms: List of RPM (lps_qty.Frequency).
+
+        Returns:
+            List of modulation indices (0 to 1).
+        """
+        modulation_indices = []
+        for rpm in rpms:
+            min_rpm, max_rpm = self.ship_type.get_rpm_range()
+            cavitation_threshold = min_rpm * 1.15
+
+            modulation_index = (rpm - cavitation_threshold) / (max_rpm - cavitation_threshold)
+            modulation_index = np.clip(modulation_index, 0, 1)
+            modulation_indices.append(modulation_index)
+
+        return modulation_indices
+
+    def modulate_noise(self, broadband: np.array, speeds: typing.List[lps_qty.Speed], fs = lps_qty.Frequency):
+        """
+        Modulate broadband noise based on ship speeds.
+
+        Args:
+            broadband: Array of broadband noise samples.
+            speeds: List of speed values at corresponding timestamps.
+
+        Returns:
+            Array of modulated noise.
+        """
+
+        n_samples = len(broadband)
+
+        if n_samples != len(speeds):
+            speed_list = np.array([s.get_m_s() for s in speeds])
+            speeds_interp = np.interp(np.linspace(0, 1, n_samples),
+                              np.linspace(0, 1, len(speeds)),
+                              speed_list)
+            speeds = [lps_qty.Speed.m_s(s) for s in speeds_interp]
+
+        rpms = self.estimate_rpm(speeds)
+        modulation_indices = self.estimate_modulation(rpms)
+
+        narrowband_total = np.zeros(n_samples)
+
+        for _ in range(self.n_shafts):
+
+            base_error = self.shaft_error * np.random.randn()
+            along_error = 0.1 * np.random.randn(n_samples)
+
+            shaft_rpm = np.array([rpm.get_hz() * (1 + base_error) for rpm in rpms]) + along_error
+
+            shaft_phase = np.cumsum(shaft_rpm) / fs.get_hz()
+
+            sins = np.zeros((self.n_blades, n_samples))
+            for har in range(1, self.n_blades + 1):
+                blade_phase_shift = (har - 1) * 2 * np.pi / self.n_blades
+                harmonic_variation = 1 + self.blade_error * np.random.randn()
+                sins[har - 1, :] = np.cos(2 * np.pi * shaft_phase * har * harmonic_variation + \
+                                         blade_phase_shift)
+
+            narrowband_eixo = np.sum(sins, axis=0)
+            narrowband_total += narrowband_eixo
+
+        narrowband_total /= self.n_shafts * self.n_blades
+
+        modulated_signal = (1 + np.array(modulation_indices) * narrowband_total) * broadband
+
+        return modulated_signal, narrowband_total
+
+    @classmethod
+    def get_random(cls, ship_type: ShipType) -> 'Propulsion':
+        return cls(ship_type = ship_type,
+                          n_blades = np.random.randint(*ship_type.get_blades_range()),
+                          n_shafts = np.random.randint(*ship_type.get_shafts_range()))
+
 class Ship(lps_dynamic.Element):
     """ Class to represent a Ship in the scenario"""
 
@@ -205,18 +396,20 @@ class Ship(lps_dynamic.Element):
                  max_speed: lps_qty.Speed = None,
                  length: lps_qty.Distance = None,
                  draft: lps_qty.Distance = None,
+                 propulsion: Propulsion = None,
                  initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
 
         self.ship_id = ship_id
         self.ship_type = ship_type
         self.length = length if length is not None else ship_type.get_random_length()
         self.draft = draft if draft is not None else ship_type.get_random_draft()
+        self.propulsion = propulsion if propulsion is not None else Propulsion.get_random(ship_type)
         initial_state.max_speed = max_speed if max_speed is not None else \
             ship_type.get_random_speed()
 
         super().__init__(initial_state=initial_state)
 
-    def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
+    def generate_base_noise(self, fs: lps_qty.Frequency) -> np.array:
         """
         Generates ship noise over simulated intervals.
 
@@ -228,11 +421,14 @@ class Ship(lps_dynamic.Element):
         """
 
         audio_signals = []
+        speeds = []
 
         for state, interval in zip(self.state_map, self.step_interval):
+            speeds.append(state.velocity.get_magnitude())
             frequencies, psd = self.ship_type.to_psd(fs=fs,
                                                      lenght=self.length,
-                                                     speed=state.velocity.get_magnitude())
+                                                     speed=speeds[-1])
+            
 
             freqs_hz = [f.get_hz() for f in frequencies]
 
@@ -241,7 +437,12 @@ class Ship(lps_dynamic.Element):
                                                  n_samples=int(interval * fs),
                                                  fs=fs.get_hz()))
 
-        return np.concatenate(audio_signals)
+        return np.concatenate(audio_signals), speeds
+
+    def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
+        noise, speeds = self.generate_base_noise(fs=fs)
+        noise, _ = self.propulsion.modulate_noise(broadband=noise, speeds=speeds, fs=fs)
+        return noise
 
     @overrides.overrides
     def get_depth(self) -> lps_qty.Distance:
