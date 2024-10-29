@@ -1,3 +1,4 @@
+""" Simple Ship Noise test. """
 import csv
 
 import numpy as np

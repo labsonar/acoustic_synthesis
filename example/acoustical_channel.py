@@ -1,7 +1,8 @@
+"""Simple acoustical channel test. """
 import matplotlib.pyplot as plt
 
 import lps_synthesis.propagation.layers as lps_layer
-import lps_synthesis.propagation.acoustical_channel as lps_channel
+import lps_synthesis.propagation.channel_description as lps_channel
 
 num_profiles: int = 5
 

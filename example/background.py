@@ -15,7 +15,7 @@ def plot_psd(values: np.ndarray, get_psd_func, title: str) -> None:
         get_psd_func (function): Function to get interpolated PSD.
         title (str): Title for the plot.
     """
-    base_dir = "./results"
+    base_dir = "./result"
     os.makedirs(base_dir, exist_ok = True)
 
     plt.figure(figsize=(10, 6))

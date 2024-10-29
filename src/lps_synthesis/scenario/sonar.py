@@ -1,3 +1,4 @@
+""" Sonar Module. """
 import typing
 
 import numpy as np
@@ -9,9 +10,9 @@ class ADConverter():
     """ Class to represent an Analog to Digital Converter"""
 
     def __init__(self,
-                 input_limits: typing.Tuple[float, float] = [-5, 5],
+                 input_limits: typing.Tuple[float, float] = None,
                  resolution: float = 16):
-        self.input_limits = input_limits
+        self.input_limits = input_limits if input_limits is not None else [-5, 5]
         self.resolution = resolution
 
     def apply(self, input_data: np.array) -> np.array:

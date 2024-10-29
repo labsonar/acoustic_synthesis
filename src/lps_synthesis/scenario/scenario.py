@@ -15,7 +15,8 @@ import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.environment.environment as lps_env
-import lps_synthesis.propagation.acoustical_channel as lps_channel
+import lps_synthesis.propagation.channel as lps_channel
+import lps_synthesis.propagation.channel_description as lps_desc
 import lps_sp.acoustical.broadband as lps_bb
 
 class ShipType(enum.Enum):
@@ -330,7 +331,10 @@ class Propulsion():
 
         return modulation_indices
 
-    def modulate_noise(self, broadband: np.array, speeds: typing.List[lps_qty.Speed], fs = lps_qty.Frequency):
+    def modulate_noise(self,
+                        broadband: np.array,
+                        speeds: typing.List[lps_qty.Speed],
+                        fs = lps_qty.Frequency):
         """
         Modulate broadband noise based on ship speeds.
 
@@ -383,6 +387,7 @@ class Propulsion():
 
     @classmethod
     def get_random(cls, ship_type: ShipType) -> 'Propulsion':
+        """ Return a random propulsion based on ship type. """
         return cls(ship_type = ship_type,
                           n_blades = np.random.randint(*ship_type.get_blades_range()),
                           n_shafts = np.random.randint(*ship_type.get_shafts_range()))
@@ -428,7 +433,6 @@ class Ship(lps_dynamic.Element):
             frequencies, psd = self.ship_type.to_psd(fs=fs,
                                                      lenght=self.length,
                                                      speed=speeds[-1])
-            
 
             freqs_hz = [f.get_hz() for f in frequencies]
 
@@ -440,6 +444,7 @@ class Ship(lps_dynamic.Element):
         return np.concatenate(audio_signals), speeds
 
     def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
+        """ Generate noise based on simulated steps. """
         noise, speeds = self.generate_base_noise(fs=fs)
         noise, _ = self.propulsion.modulate_noise(broadband=noise, speeds=speeds, fs=fs)
         return noise
@@ -454,7 +459,7 @@ class Scenario():
 
     def __init__(self,
                  environment: lps_env.Environment = lps_env.Environment.random(),
-                 channel_desc: lps_channel.Description = lps_channel.Description.get_random(),
+                 channel_desc: lps_desc.Description = lps_desc.Description.get_random(),
                  temp_dir: str = '/temp') \
                     -> None:
         self.environment = environment
@@ -597,6 +602,7 @@ class Scenario():
         plt.close()
 
     def get_sonar_audio(self, sonar_id: str, fs: lps_qty.Frequency):
+        """ Returns the calculated scan data for the selected sonar. """
 
         sonar = self.sonars[sonar_id]
 

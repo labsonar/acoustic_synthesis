@@ -8,8 +8,8 @@ import scipy.signal as scipy
 import scipy.io.wavfile as wavfile
 
 import lps_utils.quantities as lps_qty
-import lps_synthesis.propagation.layers as lps_layer
-import lps_synthesis.propagation.acoustical_channel as lps_channel
+import lps_synthesis.propagation.channel as lps_channel
+import lps_synthesis.propagation.channel_description as lps_desc
 
 sample_frequency = lps_qty.Frequency.khz(16)
 source_depths = [lps_qty.Distance.m(5),
@@ -17,9 +17,7 @@ source_depths = [lps_qty.Distance.m(5),
                  lps_qty.Distance.m(10),
                  lps_qty.Distance.m(15)]
 
-desc = lps_channel.Description()
-desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
-desc.add(lps_qty.Distance.m(50), lps_layer.BottomType.CHALK)
+desc = lps_desc.Description.get_default()
 
 start_time = time.time()
 channel = lps_channel.Channel(

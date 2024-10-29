@@ -357,16 +357,17 @@ class Element():
         self.step_interval = []
 
     def move(self, step_interval: lps_qty.Speed, n_steps: int = 1) -> typing.List[State]:
+        """ Calculates the state of this element throughout a simulation."""
 
         for _ in range(n_steps):
             new_state = self.state_map[-1].estimate(step_interval)
             self.state_map.append(new_state)
             self.step_interval.append(step_interval)
 
-        return new_state
+        return self.state_map
 
     def __str__(self) -> str:
-        return str(self.state_map[self.current_step])
+        return str(self.state_map[0])
 
     def __getitem__(self, step: int):
         return self.state_map[step]

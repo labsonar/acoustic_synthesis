@@ -1,7 +1,5 @@
 """ Example of use of dynamic module
 """
-import numpy as np
-
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_dynamic
 
@@ -51,7 +49,6 @@ print("\n======= Element =======")
 start_time = lps_qty.Timestamp()
 
 e1 = lps_dynamic.Element(
-        time=start_time,
         initial_state = lps_dynamic.State(
                 position = lps_dynamic.Displacement(lps_qty.Distance.m(5),
                                                     lps_qty.Distance.m(5)),
@@ -62,11 +59,7 @@ e1 = lps_dynamic.Element(
                 max_speed=lps_qty.Speed.m_s(5)
                 ))
 
-times = [start_time + lps_qty.Time.s(t) for t in np.linspace(0, 30, 100)]
+state_map = e1.move(lps_qty.Time.s(0.2), n_steps=100)
 
-state_map = e1.move(times)
-
-print(e1)
-
-for time, state in state_map.items():
-    print(time, ": ", state.position, " -> ", state.velocity, " -> ", state.velocity.get_magnitude())
+for state in state_map:
+    print(state.position, " -> ", state.velocity, " -> ", state.velocity.get_magnitude())

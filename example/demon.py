@@ -125,7 +125,7 @@ def demon(data, fs, n_fft=512, max_freq=50, overlap_ratio=0.25, apply_bandpass=T
     return np.transpose(sxx), freq, time
 
 # fs, signal = read("./result/modulated_ship_noise.wav")
-fs, signal = read("./result/cavitation.wav")
+fs, signal = read("./result/conv.wav")
 # fs, signal = read("./result/sum.wav")
 
 S, f, t = demon(signal, fs)

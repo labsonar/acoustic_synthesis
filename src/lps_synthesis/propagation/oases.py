@@ -10,7 +10,7 @@ import functools
 import numpy as np
 
 import lps_utils.quantities as lps_qty
-import lps_synthesis.propagation.acoustical_channel as lps_channel
+import lps_synthesis.propagation.channel_description as lps_channel
 
 class Sweep():
     """ Class to represent a sweep. """

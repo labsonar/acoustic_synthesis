@@ -5,8 +5,6 @@ from scipy.io.wavfile import write
 import lps_sp.acoustical.broadband as lps_bb
 import lps_synthesis.scenario.scenario as lps_scenario
 import lps_utils.quantities as lps_qty
-import lps_synthesis.propagation.layers as lps_layer
-import lps_synthesis.propagation.acoustical_channel as lps_channel
 
 fs = lps_qty.Frequency.khz(16)
 duration = lps_qty.Time.s(15)

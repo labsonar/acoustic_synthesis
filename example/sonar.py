@@ -1,3 +1,4 @@
+""" Simple sonar test. """
 import scipy.io as scipy
 import matplotlib.pyplot as plt
 

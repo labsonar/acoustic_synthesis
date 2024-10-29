@@ -1,8 +1,8 @@
+""" Simple ADC test """
 import numpy as np
 import matplotlib.pyplot as plt
 
-import lps_synthesis.scenario.scenario as lps_scenario
-
+import lps_synthesis.scenario.sonar as lps_sonar
 
 frequency = 200
 amplitude = 5
@@ -24,8 +24,8 @@ plt.ylabel("Valor convertido")
 print("Sinal: ", np.max(signal))
 
 for i, res in enumerate(resolutions):
-    adc = lps_scenario.ADConverter(input_limits=(0, 3), resolution=res)
-    converted_signal = adc.convert(signal)
+    adc = lps_sonar.ADConverter(input_limits=(0, 3), resolution=res)
+    converted_signal = adc.apply(signal)
 
     print(res, " bits: ", np.max(converted_signal), "/", 2**(res - 1) - 1)
 

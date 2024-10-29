@@ -10,7 +10,7 @@ import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.scenario as lps_scenario
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.environment.environment as lps_env
-import lps_synthesis.propagation.acoustical_channel as lps_channel
+import lps_synthesis.propagation.channel_description as lps_channel
 
 environment = lps_env.Environment.random()
 channel_desc = lps_channel.Description.get_default()
