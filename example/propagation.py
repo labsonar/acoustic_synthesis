@@ -9,30 +9,18 @@ import scipy.io.wavfile as wavfile
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.channel as lps_channel
-import lps_synthesis.propagation.channel_description as lps_desc
 
 sample_frequency = lps_qty.Frequency.khz(16)
-source_depths = [lps_qty.Distance.m(5),
-                 lps_qty.Distance.m(6),
-                 lps_qty.Distance.m(10),
-                 lps_qty.Distance.m(15)]
 
-desc = lps_desc.Description.get_default()
+lps_channel.TEMP_DEFAULT_DIR = "./result/propagation"
+
 
 start_time = time.time()
-channel = lps_channel.Channel(
-                description = desc,
-                source_depths = source_depths,
-                sensor_depth = lps_qty.Distance.m(40),
-                max_distance = lps_qty.Distance.m(1000),
-                max_distance_points = 200,
-                sample_frequency = sample_frequency,
-                # frequency_range = (lps_qty.Frequency.khz(5.2), lps_qty.Frequency.khz(5.5)),
-                temp_dir = './result/propagation')
+channel = lps_channel.PredefinedChannel.BASIC.get_channel()
 end_time = time.time()
 print("Estimate channel: ", end_time-start_time)
 
-channel.export_h_f('./result/h_f_.png')
+channel.get_ir().print_h_t_tau('./result/ir.png')
 
 Ts = 1/sample_frequency.get_hz()
 s_n_samples = int(sample_frequency.get_hz() * 10)
@@ -53,7 +41,7 @@ input_signal = scipy.filtfilt(b, a, input_signal)
 #     input_signal += np.sin(2 * np.pi * freq * s_t) * 0.2
 
 start_time = time.time()
-final_signal = channel.propagate(input_signal, source_depths[0], r_t)
+final_signal = channel.propagate(input_signal, lps_qty.Distance.m(10), r_t)
 end_time = time.time()
 print("Propagate signal: ", end_time-start_time)
 

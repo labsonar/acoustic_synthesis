@@ -6,6 +6,8 @@ import typing
 
 import numpy as np
 import pickle
+import bisect
+import matplotlib.pyplot as plt
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.channel_description as lps_channel
@@ -14,13 +16,11 @@ import lps_synthesis.propagation.oases as oases
 class ImpulseResponse():
     """ Simple class to represent all the data needed to represent a response. """
     def __init__(self,
-                 h_f_tau: np.array = None,
                  h_t_tau: np.array = None,
                  depths: typing.List[lps_qty.Distance] = None,
                  ranges: typing.List[lps_qty.Distance] = None,
                  frequencies: typing.List[lps_qty.Frequency] = None,
                  times: typing.List[lps_qty.Time] = None):
-        self.h_f_tau = h_f_tau
         self.h_t_tau = h_t_tau
         self.depths = depths
         self.ranges = ranges
@@ -33,16 +33,89 @@ class ImpulseResponse():
         if os.path.exists(filename):
             with open(filename, 'rb') as file:
                 ir = cls()
-                ir.h_f_tau, ir.h_t_tau, ir.depths, ir.ranges, ir.times, ir.frequencies \
-                        = pickle.load(file)
+                ir.h_t_tau, ir.depths, ir.ranges, ir.times, ir.frequencies = pickle.load(file)
                 return ir
         return None
 
     def save(self, filename: str) -> None:
         """ Save a impulse response to file. """
         with open(filename, 'wb') as file:
-            pickle.dump((self.h_f_tau, self.h_t_tau, self.depths,
-                         self.ranges, self.times, self.frequencies), file)
+            pickle.dump((self.h_t_tau, self.depths, self.ranges, self.times, self.frequencies),
+                        file)
+
+    def apply(self,
+                  input_data: np.array,
+                  source_depth: lps_qty.Distance,
+                  distance: typing.List[lps_qty.Distance]) -> np.array:
+        """ Calculates the signal after propagation in the channel
+
+        Args:
+            input_data (np.array): Signal to propagate, should have size (n_samples,)
+            source_depth (lps_qty.Distance): Depth of the source (ship's draft)
+            distance (typing.List[lps_qty.Distance]): Equivalent distance for input_data.
+                If the number of distances is different from the number of samples in the input
+                data, the distances are interpolated.
+
+        Returns:
+            np.array: signal after propagation in the channel
+        """
+
+        depth_index = bisect.bisect_left(self.depths, source_depth)
+
+        if depth_index == len(self.depths):
+            depth_index -= 1
+        elif depth_index != 0 and (self.depths[depth_index] - source_depth > \
+                                   source_depth - self.depths[depth_index - 1]):
+            depth_index -= 1
+
+        h_t_tau = self.h_t_tau[depth_index].T[::-1]
+
+        time_response = h_t_tau.shape[0]
+
+        x = np.concatenate((np.zeros(time_response-1), input_data))
+        y = np.zeros_like(input_data, dtype=np.complex_)
+
+        dists = [np.abs(d.get_m()) for d in distance]
+        if len(input_data) != len(dists):
+            dists = np.interp(np.linspace(0, 1, len(input_data)),
+                              np.linspace(0, 1, len(dists)),
+                              dists)
+
+        ranges = [r.get_m() for r in self.ranges]
+
+        for y_i in range(len(input_data)):
+            r_i = bisect.bisect_right(ranges, dists[y_i])
+            interp_factor = (dists[y_i] - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
+
+            ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
+            y[y_i] = np.dot(x[y_i:y_i + time_response], ir)
+
+        y = np.real(y)
+
+        return y
+
+    def print_h_t_tau(self, filename: str, source_id: int = 0) -> None:
+        """
+        Print the transfer function h(t) as an image, with distance and time axes.
+
+        Args:
+            filename: The file path where the image should be saved.
+        """
+        plt.imshow(abs(self.h_t_tau[source_id,:,:]), aspect='auto',
+                    cmap='jet', interpolation='none',
+                    extent=[
+                                    self.times[0].get_s(),
+                                    self.times[-1].get_s(),
+                                    self.ranges[-1].get_m(),
+                                    self.ranges[0].get_m()]
+                    )
+
+        plt.xlabel("Time (s)")
+        plt.ylabel("Distance (m)")
+        plt.colorbar()
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
 
 
 class Model(enum.Enum):
@@ -60,7 +133,7 @@ class Model(enum.Enum):
                 filename: str = "test.dat"):
         """ Function to estimate a transfer function """
         if self == Model.OASES:
-            return ImpulseResponse(*oases.estimate_transfer_function(
+            ir = ImpulseResponse(*oases.estimate_transfer_function(
                     description = description,
                     source_depth = source_depth,
                     sensor_depth = sensor_depth,
@@ -69,5 +142,6 @@ class Model(enum.Enum):
                     sample_frequency = sample_frequency,
                     frequency_range = frequency_range,
                     filename = filename))
+            return ir
 
         raise NotImplementedError(f"Estimate_transfer_function not implemented for {self}")

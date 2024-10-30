@@ -10,15 +10,17 @@ import os
 import typing
 import json
 import hashlib
-import pickle
-import bisect
+import enum
+import overrides
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.channel_description as lps_desc
+import lps_synthesis.propagation.layers as lps_layer
 import lps_synthesis.propagation.models as lps_model
+
+TEMP_DEFAULT_DIR = "."
 
 class Channel():
     """
@@ -27,19 +29,19 @@ class Channel():
 
     def __init__(self,
                  description: lps_desc.Description,
-                 source_depths: typing.List[lps_qty.Distance],
                  sensor_depth: lps_qty.Distance,
                  max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
                  max_distance_points: int = 128,
                  sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
                  frequency_range: typing.Tuple[lps_qty.Frequency] = None,
                  model: lps_model.Model = lps_model.Model.OASES,
-                 temp_dir: str = "."):
+                 temp_dir: str = TEMP_DEFAULT_DIR,
+                 hash_id: str = None):
 
         os.makedirs(temp_dir, exist_ok=True)
 
         self.description = description
-        self.source_depth = source_depths
+        self.source_depth = [lps_qty.Distance.m(d) for d in np.arange(5, 25, 2)]
         self.sensor_depth = sensor_depth
         self.max_distance = max_distance
         self.max_distance_points = max_distance_points
@@ -47,14 +49,15 @@ class Channel():
         self.frequency_range = frequency_range
         self.model = model
         self.temp_dir = temp_dir
+        self.hash_id = hash_id
 
         self.response = None
 
         if not self._load():
             self._calc()
 
-    def _filename(self) -> str:
-        return os.path.join(self.temp_dir, f"{self._get_hash()}.pkl")
+    def _filename(self, ext: str  = ".pkl") -> str:
+        return os.path.join(self.temp_dir, f"{self._get_hash()}{ext}")
 
     def _load(self) -> bool:
         self.response = lps_model.ImpulseResponse.load(self._filename())
@@ -69,10 +72,13 @@ class Channel():
                         max_distance_points = self.max_distance_points,
                         sample_frequency = self.sample_frequency,
                         frequency_range = self.frequency_range,
-                        filename = os.path.join(self.temp_dir, "test.dat"))
+                        filename = self._filename(ext=".dat"))
         self.response.save(self._filename())
 
     def _get_hash(self) -> str:
+        if self.hash_id is not None:
+            return self.hash_id
+
         hash_dict = {
             'description': self.description.to_oases_format(),
             'source_depths': [d.get_m() for d in self.source_depth],
@@ -104,103 +110,38 @@ class Channel():
         Returns:
             np.array: signal after propagation in the channel
         """
+        return self.response.apply(input_data = input_data,
+                                   source_depth = source_depth,
+                                   distance = distance)
 
-        depth_index = bisect.bisect_left(self.response.depths, source_depth)
+    def get_ir(self) -> lps_model.ImpulseResponse:
+        """ Return the impulse response of a channel. """
+        return self.response
 
-        if depth_index == len(self.response.depths):
-            depth_index -= 1
-        elif depth_index != 0 and (self.response.depths[depth_index] - source_depth > \
-                                   source_depth - self.response.depths[depth_index - 1]):
-            depth_index -= 1
 
-        h_t_tau = self.response.h_t_tau[depth_index].T[::-1]
+class PredefinedChannel(enum.Enum):
+    """ Enum class to represent predefined and preestimated channels. """
+    BASIC = 0
 
-        time_response = h_t_tau.shape[0]
+    def get_channel(self):
+        """ Return the estimated channel"""
 
-        x = np.concatenate((np.zeros(time_response-1), input_data))
-        y = np.zeros_like(input_data, dtype=np.complex_)
+        if self == PredefinedChannel.BASIC:
 
-        dists = [np.abs(d.get_m()) for d in distance]
-        if len(input_data) != len(dists):
-            dists = np.interp(np.linspace(0, 1, len(input_data)),
-                              np.linspace(0, 1, len(dists)),
-                              dists)
+            desc = lps_desc.Description()
+            desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
+            desc.add(lps_qty.Distance.m(50), lps_layer.BottomType.CHALK)
 
-        ranges = [r.get_m() for r in self.response.ranges]
+            return Channel(description = desc,
+                            sensor_depth = lps_qty.Distance.m(40),
+                            max_distance = lps_qty.Distance.km(1),
+                            max_distance_points = 128,
+                            sample_frequency = lps_qty.Frequency.khz(16),
+                            frequency_range = None,
+                            model = lps_model.Model.OASES,
+                            temp_dir = TEMP_DEFAULT_DIR,
+                            hash_id=self.name.lower())
 
-        for y_i in range(len(input_data)):
-            r_i = bisect.bisect_right(ranges, dists[y_i])
-            interp_factor = (dists[y_i] - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
+        else:
+            raise NotImplementedError(f"PredefinedChannel {self} not implemented")
 
-            ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
-            y[y_i] = np.dot(x[y_i:y_i + time_response], ir)
-
-        y = np.real(y)
-
-        return y
-
-    def export_h_f(self, filename: str, source_id: int = 0) -> None:
-        """
-        Exports the transfer function H(f) as an image, with distance and frequency axes.
-
-        Args:
-            filename: The file path where the image should be saved.
-        """
-        plt.imshow(abs(self.response.h_f_tau[source_id,:,:self.response.h_f_tau.shape[2]//2]),
-                   aspect='auto', cmap='jet',
-                   extent=[self.response.frequencies[0].get_khz(),
-                        self.response.frequencies[len(self.response.frequencies)//2].get_khz(),
-                        self.response.ranges[0].get_km(),
-                        self.response.ranges[-1].get_km()]
-        )
-
-        plt.xlabel("Frequency (kHz)")
-        plt.ylabel("Distance (km)")
-        plt.colorbar()
-        plt.tight_layout()
-        plt.savefig(filename)
-        plt.close()
-
-    def export_h_t_tau(self, filename: str, source_id: int = 0) -> None:
-        """
-        Exports the transfer function h(t) as an image, with distance and time axes.
-
-        Args:
-            filename: The file path where the image should be saved.
-        """
-
-        plt.imshow(abs(self.response.h_t_tau[source_id,:,:]), aspect='auto',
-                    cmap='jet', interpolation='none',
-                    extent=[
-                                    self.response.times[0].get_s(),
-                                    self.response.times[-1].get_s(),
-                                    self.response.ranges[-1].get_m(),
-                                    self.response.ranges[0].get_m()]
-                    )
-
-        plt.xlabel("Time (s)")
-        plt.ylabel("Distance (m)")
-
-        plt.colorbar()
-        plt.tight_layout()
-        plt.savefig(filename)
-        plt.close()
-
-    def export_h_t_plots(self, filename: str, n_plots: int = 16, source_id: int = 0) -> None:
-        """
-        Exports the transfer function h(t) as an image, with intensity and time axes.
-
-        Args:
-            filename: The file path where the image should be saved.
-            n_plots: number of plots equally separated in ranges.
-        """
-
-        times = [t.get_s() for t in self.response.times]
-        labels = []
-        for r_i in range(0, len(self.response.ranges), len(self.response.ranges)//n_plots):
-            plt.plot(times, abs(self.response.h_t_tau[source_id,r_i,:]))
-            labels.append(str(self.response.ranges[r_i]))
-
-        plt.legend(labels)
-        plt.savefig(filename)
-        plt.close()

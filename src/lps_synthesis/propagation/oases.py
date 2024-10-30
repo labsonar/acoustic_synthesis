@@ -273,11 +273,11 @@ def estimate_transfer_function(description: lps_channel.Description,
             h_f_tau[d, r, indexes] = h_freqs[d, r, :]
             h_t_tau[d, r, :] = len(times) / np.sqrt(2) * np.fft.ifft(h_f_tau[d, r, :])
 
-    for file in glob.glob(f"{file_without_extension}.*"):
-        os.remove(file)
-        print(f"Removido: {file}")
+    # for file in glob.glob(f"{file_without_extension}.*"):
+    #     os.remove(file)
+    #     print(f"Removido: {file}")
 
-    return h_f_tau, h_t_tau, \
+    return h_t_tau, \
             depths.get_all(), ranges.get_all(), \
             [lps_qty.Frequency.hz(f) for f in frequencies], \
             [lps_qty.Time.s(t) for t in times]
