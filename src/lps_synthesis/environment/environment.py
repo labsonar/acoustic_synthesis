@@ -60,7 +60,8 @@ class Rain(enum.Enum):
         return frequencies, psd
 
     @staticmethod
-    def get_interpolated_psd(value: float) -> typing.Tuple[np.ndarray, np.ndarray]:
+    def get_interpolated_psd(value: typing.Union[float, 'Rain']) \
+            -> typing.Tuple[np.ndarray, np.ndarray]:
         """
         Get the interpolated PSD for a given Rain level noise value between 0 and 4.
 
@@ -72,6 +73,9 @@ class Rain(enum.Enum):
                 - Frequencies in Hz.
                 - Interpolated PSD estimates in dB ref 1μPa @1m/Hz.
         """
+        if isinstance(value, Rain):
+            return value.get_psd()
+
         if not 0 <= value <= 7:
             raise ValueError("Rain level noise must be between 0 and 4.")
 
@@ -122,7 +126,8 @@ class Sea(enum.Enum):
         return frequencies, psd
 
     @staticmethod
-    def get_interpolated_psd(value: float) -> typing.Tuple[np.ndarray, np.ndarray]:
+    def get_interpolated_psd(value: typing.Union[float, 'Sea']) \
+            -> typing.Tuple[np.ndarray, np.ndarray]:
         """
         Get the interpolated PSD for a given sea state value between 0 and 6.
 
@@ -134,6 +139,9 @@ class Sea(enum.Enum):
                 - Frequencies in Hz.
                 - Interpolated PSD estimates in dB ref 1μPa @1m/Hz.
         """
+        if isinstance(value, Sea):
+            return value.get_psd()
+
         if not 0 <= value <= 6:
             raise ValueError("Sea state must be between 0 and 6.")
 
@@ -191,7 +199,8 @@ class Shipping(enum.Enum):
         return frequencies, spectrum
 
     @staticmethod
-    def get_interpolated_psd(value: float) -> typing.Tuple[np.ndarray, np.ndarray]:
+    def get_interpolated_psd(value: typing.Union[float, 'Shipping']) \
+            -> typing.Tuple[np.ndarray, np.ndarray]:
         """
         Get the interpolated PSD for a given Shipping level noise value between 0 and 7.
 
@@ -203,6 +212,9 @@ class Shipping(enum.Enum):
                 - Frequencies in Hz.
                 - Interpolated PSD estimates in dB ref 1μPa @1m/Hz.
         """
+        if isinstance(value, Shipping):
+            return value.get_psd()
+
         if not 0 <= value <= 7:
             raise ValueError("Shipping level noise must be between 0 and 7.")
 
@@ -234,10 +246,9 @@ class Environment():
             sea_value (typing.Union[float, Sea]): Sea state value between 0 and 6.
             shipping_value (typing.Union[float, Shipping]): Shipping level value between 0 and 7.
         """
-        self.rain_value = rain_value.value if isinstance(rain_value, Rain) else rain_value
-        self.sea_value = sea_value.value if isinstance(rain_value, Sea) else sea_value
-        self.shipping_value = shipping_value.value if isinstance(rain_value, Shipping) \
-                                                        else shipping_value
+        self.rain_value = rain_value
+        self.sea_value = sea_value
+        self.shipping_value = shipping_value
 
     def __str__(self) -> str:
         return (f'Rain[{self.rain_value:.1f}], '

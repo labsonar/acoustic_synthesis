@@ -10,45 +10,40 @@ import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.scenario as lps_scenario
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.environment.environment as lps_env
-import lps_synthesis.propagation.channel_description as lps_channel
+import lps_synthesis.propagation.channel as lps_channel
 
-environment = lps_env.Environment.random()
-channel_desc = lps_channel.Description.get_default()
+lps_channel.TEMP_DEFAULT_DIR = "./result/propagation"
+
+environment = lps_env.Environment(rain_value=lps_env.Rain.HEAVY,
+                                  sea_value=lps_env.Sea.STATE_4,
+                                  shipping_value=lps_env.Shipping.LEVEL_2)
+channel = lps_channel.PredefinedChannel.BASIC.get_channel()
 sample_frequency = lps_qty.Frequency.khz(16)
 
-scenario = lps_scenario.Scenario(environment = environment,
-                                 channel_desc = channel_desc,
-                                 temp_dir = './result/propagation')
+scenario = lps_scenario.Scenario(channel = channel,
+                                 environment = environment)
 
-# sonar = lps_sonar.Sonar(
-#         sensors=[
-#             lps_sonar.AcousticSensor(sensitivity=lps_qty.Sensitivity.db_v_p_upa(-165)),
-#             lps_sonar.AcousticSensor(sensitivity=lps_qty.Sensitivity.db_v_p_upa(-140),
-#                                      rel_position=lps_dynamic.Displacement(
-#                                          lps_qty.Distance.m(50), lps_qty.Distance.m(100)))
-#         ],
-#         initial_state=lps_dynamic.State(
-#                 position = lps_dynamic.Displacement(
-#                         lps_qty.Distance.m(0),
-#                         lps_qty.Distance.m(0),
-#                         lps_qty.Distance.m(40)))
-# )
 sonar = lps_sonar.Sonar.hidrofone(
         sensitivity=lps_qty.Sensitivity.db_v_p_upa(-165),
         initial_state=lps_dynamic.State(
                 position = lps_dynamic.Displacement(
                         lps_qty.Distance.m(0),
-                        lps_qty.Distance.m(0),
-                        lps_qty.Distance.m(40)))
+                        lps_qty.Distance.m(0)))
 )
 
 scenario.add_sonar("main", sonar)
 
 ship1 = lps_scenario.Ship(
                 ship_id="Ship_1",
-                ship_type=lps_scenario.ShipType.TANKER,
-                max_speed=lps_qty.Speed.kt(25),
-                draft=lps_qty.Distance.m(5),
+                ship_type=lps_scenario.ShipType.BULKER,
+                max_speed=lps_qty.Speed.kt(15),
+                draft=lps_qty.Distance.m(15),
+                propulsion=lps_scenario.Propulsion(
+                    ship_type=lps_scenario.ShipType.BULKER,
+                    n_blades=5,
+                    n_shafts=2,
+                    shaft_error=0.1
+                ),
                 initial_state=lps_dynamic.State(
                         position = lps_dynamic.Displacement(
                                 lps_qty.Distance.km(-0.1),
@@ -62,7 +57,7 @@ ship1 = lps_scenario.Ship(
                 )
         )
 
-scenario.add_ship(ship1)
+scenario.add_noise_source(ship1)
 
 # scenario.simulate(1024 / sample_frequency, 10)
 scenario.simulate(lps_qty.Time.s(1), 120)
@@ -80,7 +75,7 @@ print(signal.shape)
 time_axis = np.linspace(0, len(signal) / sample_frequency.get_hz(), num=len(signal))
 
 plt.figure(figsize=(10, 4))
-plt.plot(time_axis, np.log10(np.abs(signal)), label="Audio Signal")
+plt.plot(time_axis, signal, label="Audio Signal")
 plt.xlabel("Time (s)")
 plt.ylabel("Amplitude")
 plt.title("Audio Signal in Time Domain")
