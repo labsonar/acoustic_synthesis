@@ -26,7 +26,7 @@ broadband = lps_bb.generate(frequencies=np.array(freqs_hz),
                     n_samples=n_samples,
                     fs=fs.get_hz())
 
-prop = lps_scenario.Propulsion(ship_type=ship,
+prop = lps_scenario.CavitationNoise(ship_type=ship,
                                n_blades = 4,
                                n_shafts = 1,
                                shaft_error = 0,

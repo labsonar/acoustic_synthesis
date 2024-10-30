@@ -42,7 +42,7 @@ class ADConverter():
 
         raise NotImplementedError(f"ADConverter for {self.resolution} bits")
 
-class AcousticSensor():
+class AcousticSensor(lps_dynamic.RelativeElement):
     """ Class to represent an AcousticSensor in the scenario """
 
     def __init__(self,
@@ -55,7 +55,7 @@ class AcousticSensor():
         self.sensitivity = sensitivity
         self.gain_db = gain_db
         self.adc = adc
-        self.rel_position = rel_position
+        super().__init__(rel_position=rel_position)
 
     def apply(self, input_data: np.array) -> np.array:
         """ Convert input data in micropascal (µPa) to a digital signal using the sensor's
@@ -74,6 +74,9 @@ class Sonar(lps_dynamic.Element):
                  initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
         super().__init__(initial_state=initial_state)
         self.sensors = sensors
+
+        for sensor in sensors:
+            sensor.set_base_element(self)
 
     @staticmethod
     def hidrofone(

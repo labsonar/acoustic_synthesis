@@ -33,17 +33,17 @@ sonar = lps_sonar.Sonar.hidrofone(
 
 scenario.add_sonar("main", sonar)
 
+
 ship1 = lps_scenario.Ship(
                 ship_id="Ship_1",
-                ship_type=lps_scenario.ShipType.BULKER,
-                max_speed=lps_qty.Speed.kt(15),
-                draft=lps_qty.Distance.m(15),
-                propulsion=lps_scenario.Propulsion(
+                propulsion=lps_scenario.CavitationNoise(
                     ship_type=lps_scenario.ShipType.BULKER,
                     n_blades=5,
-                    n_shafts=2,
-                    shaft_error=0.1
+                    n_shafts=1,
+                #     shaft_error=0.1
                 ),
+                max_speed=lps_qty.Speed.kt(15),
+                draft=lps_qty.Distance.m(15),
                 initial_state=lps_dynamic.State(
                         position = lps_dynamic.Displacement(
                                 lps_qty.Distance.km(-0.1),
@@ -57,7 +57,7 @@ ship1 = lps_scenario.Ship(
                 )
         )
 
-scenario.add_noise_source(ship1)
+scenario.add_noise_container(ship1)
 
 # scenario.simulate(1024 / sample_frequency, 10)
 scenario.simulate(lps_qty.Time.s(1), 120)

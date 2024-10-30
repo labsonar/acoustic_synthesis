@@ -17,18 +17,43 @@ import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.propagation.channel as lps_channel
-import lps_synthesis.propagation.channel_description as lps_desc
 import lps_sp.acoustical.broadband as lps_bb
 
-class NoiseSource(lps_dynamic.Element):
+class NoiseSource(lps_dynamic.RelativeElement):
     """ Abstract class to represent a point source of noise. """
-    def __init__(self, source_id: str, initial_state: lps_dynamic.State = lps_dynamic.State()):
-        super().__init__(initial_state)
+
+    def __init__(self, source_id: str, rel_position: lps_dynamic.Displacement = \
+                 lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))):
         self.source_id = source_id
+        super().__init__(rel_position=rel_position)
 
     @abc.abstractmethod
     def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
         """ Generate noise based on simulated steps. """
+
+    def get_id(self) -> str:
+        """ Return the relative id """
+        if self.ref_element is None or not isinstance(self.ref_element, NoiseContainer):
+            return self.source_id
+        return f"{self.ref_element.container_id}:{self.source_id}"
+
+class NoiseContainer(lps_dynamic.Element):
+    """ Base class to represent an element with multiple point noise sources. """
+
+    def __init__(self, container_id: str, initial_state: lps_dynamic.State = lps_dynamic.State()):
+        super().__init__(initial_state)
+        self.container_id = container_id
+        self.noise_sources = []
+
+    def add_source(self, noise_source: NoiseSource):
+        """ Add a noise source relative to this container element. """
+        self.noise_sources.append(noise_source)
+        noise_source.set_base_element(self)
+
+    def get_id(self) -> str:
+        """ Return the relative id """
+        return f"{self.container_id}[{len(self.noise_sources)}]"
+
 
 class ShipType(enum.Enum):
     " Enum class representing the possible ship types (https://www.mdpi.com/2077-1312/9/4/369)"
@@ -277,21 +302,23 @@ class ShipType(enum.Enum):
         }
         return shafts_ranges[self]
 
-class Propulsion():
+class CavitationNoise(NoiseSource):
     """ Class to simulate ship propulsion system noise modulation. """
 
     def __init__(self,
-                 ship_type:
-                 ShipType,
+                 ship_type: ShipType,
                  n_blades: int,
                  n_shafts: int,
-                 shaft_error=5e-2,
-                 blade_error=1e-3):
+                 shaft_error = 5e-2,
+                 blade_error = 1e-3,
+                 length: lps_qty.Distance = None):
         self.ship_type = ship_type
         self.n_blades = n_blades
         self.n_shafts = n_shafts
         self.shaft_error = shaft_error
         self.blade_error = blade_error
+        self.length = length if length is not None else ship_type.get_random_length()
+        super().__init__(source_id="cavitation")
 
     def estimate_rpm(self, speeds: typing.List[lps_qty.Speed]) -> typing.List[lps_qty.Frequency]:
         """
@@ -396,35 +423,16 @@ class Propulsion():
         return modulated_signal, narrowband_total
 
     @classmethod
-    def get_random(cls, ship_type: ShipType) -> 'Propulsion':
+    def get_random(cls, ship_type: ShipType = None) -> 'CavitationNoise':
         """ Return a random propulsion based on ship type. """
+        if ship_type is None:
+            return cls.get_random(random.choice(list(ShipType))
+)
         return cls(ship_type = ship_type,
                           n_blades = np.random.randint(*ship_type.get_blades_range()),
                           n_shafts = np.random.randint(*ship_type.get_shafts_range()))
 
-
-class Ship(NoiseSource):
-    """ Class to represent a Ship in the scenario"""
-
-    def __init__(self,
-                 ship_id: str,
-                 ship_type: ShipType,
-                 max_speed: lps_qty.Speed = None,
-                 length: lps_qty.Distance = None,
-                 draft: lps_qty.Distance = None,
-                 propulsion: Propulsion = None,
-                 initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
-
-        self.ship_type = ship_type
-        self.length = length if length is not None else ship_type.get_random_length()
-        self.draft = draft if draft is not None else ship_type.get_random_draft()
-        self.propulsion = propulsion if propulsion is not None else Propulsion.get_random(ship_type)
-        initial_state.max_speed = max_speed if max_speed is not None else \
-            ship_type.get_random_speed()
-
-        super().__init__(source_id=ship_id, initial_state=initial_state)
-
-    def generate_base_noise(self, fs: lps_qty.Frequency) -> np.array:
+    def generate_broadband_noise(self, fs: lps_qty.Frequency) -> np.array:
         """
         Generates ship noise over simulated intervals.
 
@@ -434,11 +442,12 @@ class Ship(NoiseSource):
         Returns:
             A numpy array containing the audio signal in 1 µPa @1m.
         """
+        self.check()
 
         audio_signals = []
         speeds = []
 
-        for state, interval in zip(self.state_map, self.step_interval):
+        for state, interval in self.ref_element.get_simulated_steps():
             speeds.append(state.velocity.get_magnitude())
             frequencies, psd = self.ship_type.to_psd(fs=fs,
                                                      lenght=self.length,
@@ -456,9 +465,29 @@ class Ship(NoiseSource):
     @overrides.overrides
     def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
         """ Generate noise based on simulated steps. """
-        noise, speeds = self.generate_base_noise(fs=fs)
-        noise, _ = self.propulsion.modulate_noise(broadband=noise, speeds=speeds, fs=fs)
-        return noise
+        broadband, speeds = self.generate_broadband_noise(fs=fs)
+        modulated_noise, _ = self.modulate_noise(broadband=broadband, speeds=speeds, fs=fs)
+        return modulated_noise
+
+class Ship(NoiseContainer):
+    """ Class to represent a Ship in the scenario"""
+
+    def __init__(self,
+                 ship_id: str,
+                 propulsion: CavitationNoise = None,
+                 max_speed: lps_qty.Speed = None,
+                 draft: lps_qty.Distance = None,
+                 initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
+
+        self.propulsion = propulsion if propulsion is not None else CavitationNoise.get_random()
+        self.ship_type = propulsion.ship_type
+        self.draft = draft if draft is not None else self.ship_type.get_random_draft()
+        initial_state.max_speed = max_speed if max_speed is not None else \
+                                                            self.ship_type.get_random_speed()
+
+        super().__init__(container_id=ship_id, initial_state=initial_state)
+        self.add_source(propulsion)
+
 
     @overrides.overrides
     def get_depth(self) -> lps_qty.Distance:
@@ -476,7 +505,7 @@ class Scenario():
         self.environment = environment
         self.channel = channel
         self.sonars = {}
-        self.noise_sources = []
+        self.noise_containers = []
         self.n_steps = 0
         self.step_interval = None
 
@@ -484,17 +513,23 @@ class Scenario():
         """ Insert a sonar in the scenario. """
         self.sonars[sonar_id] = sonar
 
-    def add_noise_source(self, noise_source: NoiseSource) -> None:
+    def add_noise_source(self, noise_source: NoiseSource, initial_state: lps_dynamic.State) -> None:
         """ Insert a noise_source in the scenario. """
-        self.noise_sources.append(noise_source)
+        container = NoiseContainer(container_id="", initial_state=initial_state)
+        container.add_source(noise_source=noise_source)
+        self.add_noise_container(container)
+
+    def add_noise_container(self, noise_source: NoiseContainer) -> None:
+        """ Insert a noise container in the scenario. """
+        self.noise_containers.append(noise_source)
 
     def reset(self) -> None:
         """ Reset simulation. """
         self.n_steps = 0
         self.step_interval = None
 
-        for noise_source in self.noise_sources:
-            noise_source.reset()
+        for container in self.noise_containers:
+            container.reset()
 
         for _, sonar in self.sonars.items():
             sonar.reset()
@@ -510,8 +545,8 @@ class Scenario():
         self.n_steps = n_steps
         self.step_interval = step_interval
 
-        for noise_source in self.noise_sources:
-            noise_source.move(step_interval=step_interval, n_steps=n_steps)
+        for container in self.noise_containers:
+            container.move(step_interval=step_interval, n_steps=n_steps)
 
         for _, sonar in self.sonars.items():
             sonar.move(step_interval=step_interval, n_steps=n_steps)
@@ -539,14 +574,14 @@ class Scenario():
                 ref_y.append(diff.y.get_km())
                 ref_angle = diff_vel.get_azimuth().get_deg()
 
-            for noise_source in self.noise_sources:
+            for container in self.noise_containers:
 
                 x = []
                 y = []
                 last_angle = 0
                 for step_i in range(self.n_steps):
-                    diff = noise_source[step_i].position
-                    diff_vel = noise_source[step_i].velocity
+                    diff = container[step_i].position
+                    diff_vel = container[step_i].velocity
 
                     x.append(diff.x.get_km() - ref_x[-1])
                     y.append(diff.y.get_km() - ref_y[-1])
@@ -554,7 +589,7 @@ class Scenario():
 
 
                 limit = np.max([limit, np.max(np.abs(x)), np.max(np.abs(y))])
-                plot_ship(x, y, last_angle, noise_source.source_id)
+                plot_ship(x, y, last_angle, container.get_id())
 
             ref_x = np.array(ref_x)
             ref_y = np.array(ref_y)
@@ -588,14 +623,14 @@ class Scenario():
 
             t = [(step_i * self.step_interval).get_s() for step_i in range(self.n_steps)]
 
-            for noise_source in self.noise_sources:
+            for container in self.noise_containers:
 
                 dist = []
                 for step_i in range(self.n_steps):
-                    diff = noise_source[step_i].position - sonar[step_i].position
+                    diff = container[step_i].position - sonar[step_i].position
                     dist.append(diff.get_magnitude_xy().get_km())
 
-                plt.plot(t, dist, label=noise_source.source_id)
+                plt.plot(t, dist, label=container.get_id())
 
             plt.xlabel('Time (seconds)')
             plt.ylabel('Distance (km)')
@@ -619,29 +654,30 @@ class Scenario():
         noises_dict = {}
         depth_dict = {}
 
-        for noise_source in tqdm.tqdm(self.noise_sources,
+        for container in tqdm.tqdm(self.noise_containers,
                                        desc="Generating point noises",
                                        leave=True,
                                        ncols=120):
-            source_ids.append(noise_source.source_id)
-            noises_dict[noise_source.source_id] = noise_source.generate_noise(fs=fs)
-            depth_dict[noise_source.source_id] = noise_source.get_depth()
+            for noise_source in container.noise_sources:
+                source_ids.append(noise_source.get_id())
+                noises_dict[source_ids[-1]] = noise_source.generate_noise(fs=fs)
+                depth_dict[source_ids[-1]] = noise_source.get_depth()
 
         sonar_signals = []
         for sensor in sonar.sensors:
 
             distance_dict = {}
 
-            for noise_source in tqdm.tqdm(self.noise_sources,
+            for container in tqdm.tqdm(self.noise_containers,
                                         desc="Calculating distances between source and sensors",
                                         leave=True,
                                         ncols=120):
+                for noise_source in container.noise_sources:
 
-                distance_dict[noise_source.source_id] = []
-                for step_id in range(self.n_steps):
-                    sonar_pos = sonar[step_id].position + sensor.rel_position
-                    dist = (noise_source[step_id].position - sonar_pos).get_magnitude()
-                    distance_dict[noise_source.source_id].append(dist)
+                    distance_dict[noise_source.get_id()] = []
+                    for step_id in range(self.n_steps):
+                        dist = noise_source[step_id].position - sensor[step_id].position
+                        distance_dict[noise_source.get_id()].append(dist.get_magnitude())
 
             for source_id in tqdm.tqdm(source_ids,
                                     desc="Propagating signals from point sources",

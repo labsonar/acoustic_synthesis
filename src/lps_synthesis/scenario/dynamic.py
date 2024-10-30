@@ -352,26 +352,57 @@ class Element():
         else:
             self.ref_state = initial_state
 
-        self.state_map = []
-        self.state_map.append(initial_state)
+        self.state_list = []
+        self.state_list.append(initial_state)
         self.step_interval = []
 
     def move(self, step_interval: lps_qty.Speed, n_steps: int = 1) -> typing.List[State]:
         """ Calculates the state of this element throughout a simulation."""
 
         for _ in range(n_steps):
-            new_state = self.state_map[-1].estimate(step_interval)
-            self.state_map.append(new_state)
+            new_state = self.state_list[-1].estimate(step_interval)
+            self.state_list.append(new_state)
             self.step_interval.append(step_interval)
 
-        return self.state_map
+        return self.state_list
 
     def __str__(self) -> str:
-        return str(self.state_map[0])
+        return str(self.state_list[0])
 
-    def __getitem__(self, step: int):
-        return self.state_map[step]
+    def __getitem__(self, step: int) -> State:
+        return self.state_list[step]
 
     def get_depth(self) -> lps_qty.Distance:
         """ Return the starting depth of the element. """
         return self.ref_state.position.z
+
+    def get_simulated_steps(self) -> typing.Iterator[typing.Tuple[State, lps_qty.Speed]]:
+        """ Return the associated states and simulation steps. """
+        return zip(self.state_list, self.step_interval)
+
+class RelativeElement():
+    """ Class to represent any element that moves in the simulation """
+
+    def __init__(self, rel_position: Displacement = \
+                    Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))) -> None:
+        self.rel_position = rel_position
+        self.ref_element = None
+
+    def set_base_element(self, element: Element):
+        """ Set the element this element is relative to. """
+        self.ref_element = element
+
+    def __getitem__(self, step: int) -> State:
+        self.check()
+        state = self.ref_element[step]
+        state.position = state.position + self.rel_position
+        return state
+
+    def get_depth(self) -> lps_qty.Distance:
+        """ Return the starting depth of the element. """
+        self.check()
+        return self.ref_element.get_depth()
+    
+    def check(self):
+        if (self is None):
+            raise UnboundLocalError("Relative item must be set before use")
