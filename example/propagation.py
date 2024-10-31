@@ -16,7 +16,7 @@ lps_channel.TEMP_DEFAULT_DIR = "./result/propagation"
 
 
 start_time = time.time()
-channel = lps_channel.PredefinedChannel.BASIC.get_channel()
+channel = lps_channel.PredefinedChannel.DELTA_NODE.get_channel()
 end_time = time.time()
 print("Estimate channel: ", end_time-start_time)
 

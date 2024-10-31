@@ -1,6 +1,7 @@
 """Simple acoustical channel test. """
 import matplotlib.pyplot as plt
 
+import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.layers as lps_layer
 import lps_synthesis.propagation.channel_description as lps_channel
 
@@ -31,3 +32,10 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig("./result/acoustical_channel.png")
+
+
+print('description: ', description)
+
+print('20: ', description.get_speed_at(lps_qty.Distance.m(20)))
+print('50: ', description.get_speed_at(lps_qty.Distance.m(50)))
+print('100: ', description.get_speed_at(lps_qty.Distance.m(100)))

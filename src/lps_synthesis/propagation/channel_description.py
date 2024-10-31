@@ -111,6 +111,25 @@ class Description():
 
         return lps_qty.Speed.m_s(1500)
 
+    def get_speed_at(self, desired_depth: lps_qty.Distance) -> lps_qty.Speed:
+        """ Retrieves the sound speed at the specified depth. """
+
+        last_speed = None
+        last_depths = None
+
+        for depth, layer in self:
+            if not isinstance(layer, lps_layer.Water) :
+                continue
+
+            if depth > desired_depth:
+                factor = (desired_depth - last_depths)/(depth - last_depths)
+                return (1 - factor) * last_speed + factor * layer.get_compressional_speed()
+
+            last_speed = layer.get_compressional_speed()
+            last_depths = depth
+
+        return last_speed
+
     @classmethod
     def get_random(cls) -> 'Description':
         """

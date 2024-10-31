@@ -122,6 +122,8 @@ class Channel():
 class PredefinedChannel(enum.Enum):
     """ Enum class to represent predefined and preestimated channels. """
     BASIC = 0
+    DEEPSHIP = 1
+    DELTA_NODE = 1
 
     def get_channel(self):
         """ Return the estimated channel"""
@@ -134,6 +136,35 @@ class PredefinedChannel(enum.Enum):
 
             return Channel(description = desc,
                             sensor_depth = lps_qty.Distance.m(40),
+                            max_distance = lps_qty.Distance.km(1),
+                            max_distance_points = 128,
+                            sample_frequency = lps_qty.Frequency.khz(16),
+                            frequency_range = None,
+                            model = lps_model.Model.OASES,
+                            temp_dir = TEMP_DEFAULT_DIR,
+                            hash_id=self.name.lower())
+
+        if self == PredefinedChannel.DELTA_NODE:
+
+            desc = lps_desc.Description()
+
+            desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
+
+            mixing_layer_depth = 30
+            for depth in range(0, mixing_layer_depth, 10):  
+                desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1490 + depth * 0.3))
+
+            termocline_depth = 80
+            for depth in range(mixing_layer_depth, termocline_depth, 10):  
+                desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1500 - depth * 0.2))
+
+            for depth in range(termocline_depth, 200, 10):
+                desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1495 + depth * 0.1))
+
+            desc.add(lps_qty.Distance.m(200), lps_layer.SeabedType.SILT)
+
+            return Channel(description = desc,
+                            sensor_depth = lps_qty.Distance.m(140),
                             max_distance = lps_qty.Distance.km(1),
                             max_distance_points = 128,
                             sample_frequency = lps_qty.Frequency.khz(16),
