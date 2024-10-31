@@ -8,10 +8,45 @@ import numpy as np
 import pickle
 import bisect
 import matplotlib.pyplot as plt
+import scipy.signal as scipy
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.channel_description as lps_channel
 import lps_synthesis.propagation.oases as oases
+
+
+def apply_doppler(input_data: np.array,
+                  speeds: typing.List[lps_qty.Speed],
+                  sound_speed: lps_qty.Speed) -> typing.Tuple[np.array, int]:
+    """ Applies time-varying doppler based on approach speed.
+
+    Args:
+        input_data (np.array): Input data
+        speeds (typing.List[lps_qty.Speed]): The speed across the data should be equivalent to a
+            block slice of input_data.
+        sound_speed (lps_qty.Speed): Reference sound speed propagation
+
+    Returns:
+        np.array: output data with zero padding to keep size and the number of efective samples
+    """
+
+    input_samples = len(input_data)
+    num_blocks = len(speeds)
+    samples_per_block = input_samples//num_blocks
+
+    output = np.array([])
+    for i_block in range(num_blocks):
+        doppler_factor = (sound_speed + speeds[i_block]) / sound_speed
+
+        scaled_data = scipy.resample(
+                input_data[i_block * samples_per_block:(i_block+1) * samples_per_block - 1],
+                int(samples_per_block//doppler_factor))
+
+        output = np.concatenate((output, scaled_data))
+
+    # output_samples = len(output)
+    # output = np.pad(output, (0, output_samples-input_samples), 'constant')
+    return output
 
 class ImpulseResponse():
     """ Simple class to represent all the data needed to represent a response. """

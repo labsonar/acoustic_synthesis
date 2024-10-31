@@ -56,11 +56,11 @@ class Vector(typing.Generic[U]):
         """ Get magnitude of the vector in XY plane. """
         return ((self.x**2) + (self.y**2))**0.5
 
-    def get_azimuth(self) -> lps_qty.Angle:
+    def get_azimuth(self) -> lps_qty.Bearing:
         """ Get azimuth of the vector (angle in XY plane). """
         if self.x.magnitude == 0 and self.y.magnitude == 0:
-            return lps_qty.Angle.rad(0)
-        return lps_qty.Angle.rad(math.atan2(self.y.get(self.x.unity, self.x.prefix),
+            return lps_qty.Bearing.eccw_rad(0)
+        return lps_qty.Bearing.eccw_rad(math.atan2(self.y.get(self.x.unity, self.x.prefix),
                                     self.x.get(self.x.unity, self.x.prefix)))
 
     def get_elevation(self) -> lps_qty.Angle:
@@ -70,6 +70,10 @@ class Vector(typing.Generic[U]):
 
         magnitude = self.get_magnitude()
         return lps_qty.Angle.rad(math.asin(self.z / magnitude))
+
+    def project(self, direction: lps_qty.Bearing) -> U:
+        """ Returns the projection of magnitude onto direction. """
+        return math.cos((direction - self.get_azimuth()).get_ccw_rad()) * self.get_magnitude_xy()
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -336,6 +340,10 @@ class State():
     def __str__(self) -> str:
         return  f"[{self.position}], [{self.velocity}], [{self.acceleration}]"
 
+    def get_relative_speed(self, other_state: 'State') -> lps_qty.Speed:
+        """ Get the approach speed of another state. """
+        diff = self.position - other_state.position
+        return self.velocity.project(diff.get_azimuth())
 
 class Element():
     """ Class to represent any element that moves in the simulation """
@@ -376,7 +384,7 @@ class Element():
         """ Return the starting depth of the element. """
         return self.ref_state.position.z
 
-    def get_simulated_steps(self) -> typing.Iterator[typing.Tuple[State, lps_qty.Speed]]:
+    def get_simulated_steps(self) -> typing.Iterator[typing.Tuple[State, lps_qty.Time]]:
         """ Return the associated states and simulation steps. """
         return zip(self.state_list, self.step_interval)
 

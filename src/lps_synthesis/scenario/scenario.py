@@ -17,6 +17,7 @@ import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.propagation.channel as lps_channel
+import lps_synthesis.propagation.models as lps_model
 import lps_sp.acoustical.broadband as lps_bb
 
 class NoiseSource(lps_dynamic.RelativeElement):
@@ -469,6 +470,30 @@ class CavitationNoise(NoiseSource):
         modulated_noise, _ = self.modulate_noise(broadband=broadband, speeds=speeds, fs=fs)
         return modulated_noise
 
+class Sin(NoiseSource):
+    """ Simple noise source that add a sin. """
+
+    def __init__(self,
+                 frequency: lps_qty.Frequency,
+                 amp_db_p_upa: float,
+                 rel_position: lps_dynamic.Displacement = \
+                         lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))):
+        super().__init__(source_id=f"Sin [{frequency}]", rel_position=rel_position)
+        self.frequency = frequency
+        self.amp = 10**(amp_db_p_upa/20)
+
+    @abc.abstractmethod
+    def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
+        """ Generate noise based on simulated steps. """
+        accum_interval = lps_qty.Time.s(0)
+        for _, interval in self.ref_element.get_simulated_steps():
+            accum_interval = accum_interval + interval
+
+        n_samples = int(accum_interval * fs)
+        t = np.linspace(0, accum_interval.get_s(), n_samples, endpoint=False)
+
+        return np.sin(2 * np.pi * self.frequency.get_hz() * t) * self.amp
+
 class Ship(NoiseContainer):
     """ Class to represent a Ship in the scenario"""
 
@@ -645,6 +670,55 @@ class Scenario():
             plt.clf()
         plt.close()
 
+    def velocity_plot(self, filename: str) -> None:
+        """ Make plots with velocity of all noise sources. """
+
+        t = [(step_i * self.step_interval).get_s() for step_i in range(self.n_steps)]
+
+        for container in self.noise_containers:
+
+            speeds = []
+            for step_i in range(self.n_steps):
+                speeds.append(container[step_i].velocity.get_magnitude_xy().get_kt())
+
+            plt.plot(t, speeds, label=container.get_id())
+
+        plt.xlabel('Time (second)')
+        plt.ylabel('Speed (knot)')
+        plt.legend()
+
+        output_filename = filename
+        plt.savefig(output_filename)
+        plt.close()
+
+    def relative_velocity_plot(self, filename: str) -> None:
+        """ Make plots with relative distances between each sonar and ships. """
+
+        for sonar_id, sonar in self.sonars.items():
+
+            t = [(step_i * self.step_interval).get_s() for step_i in range(self.n_steps)]
+
+            for container in self.noise_containers:
+
+                speeds = []
+                for step_i in range(self.n_steps):
+                    speeds.append((container[step_i].get_relative_speed(sonar[step_i])).get_kt())
+
+                plt.plot(t, speeds, label=container.get_id())
+
+            plt.xlabel('Time (second)')
+            plt.ylabel('Speed (knot)')
+            plt.legend()
+
+            if len(self.sonars) == 1:
+                output_filename = filename
+            else:
+                output_filename = f"{filename}{sonar_id}.png"
+            plt.savefig(output_filename)
+
+            plt.clf()
+        plt.close()
+
     def get_sonar_audio(self, sonar_id: str, fs: lps_qty.Frequency):
         """ Returns the calculated scan data for the selected sonar. """
 
@@ -653,6 +727,8 @@ class Scenario():
         source_ids = []
         noises_dict = {}
         depth_dict = {}
+        noise_dict = {}
+        output_samples = 0
 
         for container in tqdm.tqdm(self.noise_containers,
                                        desc="Generating point noises",
@@ -662,6 +738,9 @@ class Scenario():
                 source_ids.append(noise_source.get_id())
                 noises_dict[source_ids[-1]] = noise_source.generate_noise(fs=fs)
                 depth_dict[source_ids[-1]] = noise_source.get_depth()
+                noise_dict[source_ids[-1]] = noise_source
+
+                output_samples = np.max((output_samples, len(noises_dict[source_ids[-1]])))
 
         sonar_signals = []
         for sensor in sonar.sensors:
@@ -683,13 +762,40 @@ class Scenario():
                                     desc="Propagating signals from point sources",
                                     leave=True,
                                     ncols=120):
-                noises_dict[source_id] = self.channel.propagate(input_data = noises_dict[source_id],
+
+                sound_speed = self.channel.description.get_speed_at(depth_dict[source_id])
+
+                source_doppler_list = []
+                sensor_doppler_list = []
+                for step_i in range(self.n_steps):
+                    source_doppler_list.append(
+                            noise_dict[source_id][step_i].get_relative_speed(sonar[step_i]))
+
+                    sensor_doppler_list.append(
+                            sonar[step_i].get_relative_speed(noise_dict[source_id][step_i]))
+
+                doppler_noise = lps_model.apply_doppler(input_data=noises_dict[source_id],
+                                                        speeds=source_doppler_list,
+                                                        sound_speed=sound_speed)
+
+                propag_noise = self.channel.propagate(input_data = doppler_noise,
                                                         source_depth = depth_dict[source_id],
                                                         distance = distance_dict[source_id])
+
+                doppler_noise = lps_model.apply_doppler(input_data=propag_noise,
+                                                        speeds=sensor_doppler_list,
+                                                        sound_speed=sound_speed)
+
+                doppler_samples = len(doppler_noise)
+
+                output_samples = np.max((doppler_samples, len(noises_dict[source_ids[-1]])))
+                noises_dict[source_id] = np.pad(doppler_noise,
+                                                (0, output_samples-doppler_samples),
+                                                'constant')
 
             ship_signal = np.sum(np.column_stack(list(noises_dict.values())), axis=1)
             env_noise = self.environment.generate_bg_noise(len(ship_signal), fs=fs.get_hz())
 
             sonar_signals.append(sensor.apply(ship_signal + env_noise))
 
-        return np.column_stack(sonar_signals)
+        return (np.column_stack(sonar_signals))[:output_samples, :]
