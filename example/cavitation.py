@@ -14,7 +14,7 @@ speed = lps_qty.Speed.kt(5)
 f_axis = lps_qty.Frequency.rpm(80)
 
 n_blades = 4
-n_shafts = 1
+n_shafts = 2
 shaft_error = 5e-2
 blade_error = 1e-2
 blade_int_error = 0
@@ -30,22 +30,35 @@ narrowband_conv_total = np.zeros(n_samples)
 A = 1.0        # Amplitude base
 alpha = 0.01    # Fator de decaimento (1.5 é um valor típico)
 narrowband = np.zeros_like(t)
+narrowband2 = np.zeros_like(t)
 
 n_harmonics = n_blades
-for n in range(n_harmonics-1):
-    amplitude = A * (2 - np.e**(alpha*n))
-    frequency = (1 + n) * f_axis.get_hz() * n_blades
-    fase = np.random.uniform(0, 2 * np.pi)  # Fase aleatória opcional
+
+f_ref = f_axis.get_hz()
+for n in range(n_harmonics):
+    # amplitude = A * (2 - np.e**(alpha*n))
+    amplitude = [0.8, 0.3, 0.4, 1][n]
+    frequency = (1 + n) * f_ref
+    fase = 0# np.random.uniform(0, 2 * np.pi)  # Fase aleatória opcional
     narrowband += amplitude * np.cos(2 * np.pi * frequency * t + fase)
 
-n_harmonics = 3
+f_ref = f_axis.get_hz() * (1 + 0.05)
 for n in range(n_harmonics):
-    amplitude = 2 * A * (2 - np.e**(alpha*n))
-    frequency = (1 + n) * f_axis.get_hz()
-    fase = np.random.uniform(0, 2 * np.pi)  # Fase aleatória opcional
-    narrowband += amplitude * np.cos(2 * np.pi * frequency * t + fase)
+    # amplitude = A * (2 - np.e**(alpha*n))
+    amplitude = [0.8, 0.3, 0.4, 1][n]
+    frequency = (1 + n) * f_ref
+    fase = 0# np.random.uniform(0, 2 * np.pi)  # Fase aleatória opcional
+    narrowband2 += amplitude * np.cos(2 * np.pi * frequency * t + fase)
+
+# n_harmonics = 3
+# for n in range(n_harmonics):
+#     amplitude = 2 * A * (2 - np.e**(alpha*n))
+#     frequency = (1 + n) * f_axis.get_hz()
+#     fase = np.random.uniform(0, 2 * np.pi)  # Fase aleatória opcional
+#     narrowband += amplitude * np.cos(2 * np.pi * frequency * t + fase)
 
 narrowband /= np.max(narrowband)
+narrowband2 /= np.max(narrowband2)
 
 freqs, psd = ship.to_psd(fs=fs, speed=speed)
 freqs_hz = [f.get_hz() for f in freqs]
@@ -57,6 +70,9 @@ broadband = lps_bb.generate(frequencies=np.array(freqs_hz),
 
 mod_index = 0.8
 signal = (1 + mod_index * narrowband) * broadband
+signal2 = (1 + mod_index * narrowband2) * broadband
+
+signal = signal + signal2
 
 def normalizar_sinal(sinal):
     sinal_max = np.max(np.abs(sinal))
