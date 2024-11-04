@@ -48,6 +48,7 @@ def apply_doppler(input_data: np.array,
     # output = np.pad(output, (0, output_samples-input_samples), 'constant')
     return output
 
+
 class ImpulseResponse():
     """ Simple class to represent all the data needed to represent a response. """
     def __init__(self,

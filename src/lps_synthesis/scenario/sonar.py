@@ -1,5 +1,6 @@
 """ Sonar Module. """
 import typing
+import math
 
 import numpy as np
 
@@ -80,9 +81,48 @@ class Sonar(lps_dynamic.Element):
 
     @staticmethod
     def hidrofone(
-                 sensitivity: lps_qty.Sensitivity = None,
+                 sensitivity: lps_qty.Sensitivity,
                  adc: ADConverter = ADConverter(),
                  initial_state: lps_dynamic.State = lps_dynamic.State()) -> 'Sonar':
         """ Class constructor for construct a Sonar with only one sensor """
         return Sonar(sensors = [AcousticSensor(sensitivity=sensitivity, adc=adc)],
                      initial_state=initial_state)
+
+    @staticmethod
+    def planar(n_staves: int, spacing: lps_qty.Distance,
+                 sensitivity: lps_qty.Sensitivity,
+                 adc: ADConverter = ADConverter(),
+                 initial_state: lps_dynamic.State = lps_dynamic.State()) -> 'Sonar':
+        """ Class constructor for construct a Sonar with only one sensor """
+        sensors = []
+        start_position = -((n_staves - 1) / 2) * spacing
+
+        for stave_i in range(n_staves):
+            sensors.append(AcousticSensor(sensitivity=sensitivity,
+                                          adc=adc,
+                                          rel_position=lps_dynamic.Displacement(
+                                              start_position + stave_i * spacing,
+                                              lps_qty.Distance.m(0)
+                                          )))
+
+        return Sonar(sensors = sensors, initial_state=initial_state)
+
+    @staticmethod
+    def cylindrical(n_staves: int,
+                    radius: lps_qty.Distance,
+                    sensitivity: lps_qty.Sensitivity,
+                    adc: ADConverter = ADConverter(),
+                    initial_state: lps_dynamic.State = lps_dynamic.State()) -> 'Sonar':
+        """ Class constructor for construct a Sonar with only one sensor """
+        sensors = []
+        angle_increment = 2 * math.pi / n_staves
+
+        for stave_i in range(n_staves):
+            angle = stave_i * angle_increment
+            x_position = radius * math.cos(angle)
+            y_position = radius * math.sin(angle)
+            sensors.append(AcousticSensor(sensitivity=sensitivity,
+                                    adc=adc,
+                                    rel_position=lps_dynamic.Displacement(x_position,y_position)))
+
+        return Sonar(sensors=sensors, initial_state=initial_state)

@@ -3,6 +3,7 @@ Module for representing the elements and dynamics of the scenario
 """
 import typing
 import math
+import copy
 
 import lps_utils.quantities as lps_qty
 
@@ -342,7 +343,7 @@ class State():
 
     def get_relative_speed(self, other_state: 'State') -> lps_qty.Speed:
         """ Get the approach speed of another state. """
-        diff = self.position - other_state.position
+        diff = other_state.position - self.position
         return self.velocity.project(diff.get_azimuth())
 
 class Element():
@@ -402,7 +403,7 @@ class RelativeElement():
 
     def __getitem__(self, step: int) -> State:
         self.check()
-        state = self.ref_element[step]
+        state = copy.deepcopy(self.ref_element[step])
         state.position = state.position + self.rel_position
         return state
 
@@ -410,7 +411,7 @@ class RelativeElement():
         """ Return the starting depth of the element. """
         self.check()
         return self.ref_element.get_depth()
-    
+
     def check(self):
         if (self is None):
             raise UnboundLocalError("Relative item must be set before use")
