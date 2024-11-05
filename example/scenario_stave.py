@@ -15,9 +15,9 @@ import lps_synthesis.propagation.channel as lps_channel
 
 lps_channel.TEMP_DEFAULT_DIR = "./result/propagation"
 
-environment = lps_env.Environment(rain_value=lps_env.Rain.LIGHT,
-                                  sea_value=lps_env.Sea.STATE_3,
-                                  shipping_value=lps_env.Shipping.LEVEL_3)
+environment = lps_env.Environment(rain_value=lps_env.Rain.HEAVY,
+                                  sea_value=lps_env.Sea.STATE_5,
+                                  shipping_value=lps_env.Shipping.LEVEL_5)
 channel = lps_channel.PredefinedChannel.BASIC.get_channel()
 sample_frequency = lps_qty.Frequency.khz(16)
 
@@ -35,7 +35,7 @@ scenario = lps_scenario.Scenario(channel = channel,
 # )
 sonar = lps_sonar.Sonar.cylindrical(
         n_staves=32,
-        radius=lps_qty.Distance.m(1),
+        radius=lps_qty.Distance.m(3),
         sensitivity=lps_qty.Sensitivity.db_v_p_upa(-150),
         initial_state=lps_dynamic.State(
                 position = lps_dynamic.Displacement(
@@ -80,7 +80,7 @@ scenario.add_noise_container(ship1)
 ship2 = lps_scenario.Ship(
                 ship_id="Ship_2",
                 propulsion=lps_scenario.CavitationNoise(
-                    ship_type=lps_scenario.ShipType.FISHING,
+                    ship_type=lps_scenario.ShipType.RECREATIONAL,
                     n_blades=4,
                     n_shafts=1,
                 #     shaft_error=0.1
@@ -107,7 +107,7 @@ ship2.add_source(lps_scenario.Sin(frequency=lps_qty.Frequency.khz(4), amp_db_p_u
 scenario.add_noise_container(ship2)
 
 
-scenario.simulate(lps_qty.Time.s(1), 60)
+scenario.simulate(lps_qty.Time.s(0.2), 5)
 
 scenario.geographic_plot("./result/geographic.png")
 scenario.relative_distance_plot("./result/distance.png")

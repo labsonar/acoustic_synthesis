@@ -8,6 +8,7 @@ import random
 import overrides
 import tqdm
 import abc
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -735,6 +736,58 @@ class Scenario():
             plt.clf()
         plt.close()
 
+    def _calculate_sensor_signal(self, sensor, sonar, source_ids, noises_dict, depth_dict, noise_dict, fs, channel, environment, n_steps):
+        distance_dict = {}
+
+        for container in self.noise_containers:
+            for noise_source in container.noise_sources:
+                distance_dict[noise_source.get_id()] = [
+                    (noise_source[step_id].position - sensor[step_id].position).get_magnitude()
+                    for step_id in range(n_steps)
+                ]
+
+        noises = []
+
+        for source_id in tqdm.tqdm(source_ids,
+                                desc="Propagating signals from sources",
+                                leave=False,
+                                ncols=120):
+            sound_speed = channel.description.get_speed_at(depth_dict[source_id])
+
+            source_doppler_list = [
+                noise_dict[source_id][step_i].get_relative_speed(sonar[step_i])
+                for step_i in range(n_steps)
+            ]
+            sensor_doppler_list = [
+                sonar[step_i].get_relative_speed(noise_dict[source_id][step_i])
+                for step_i in range(n_steps)
+            ]
+
+            doppler_noise = lps_model.apply_doppler(
+                input_data=noises_dict[source_id],
+                speeds=source_doppler_list,
+                sound_speed=sound_speed
+            )
+
+            propag_noise = channel.propagate(
+                input_data=doppler_noise,
+                source_depth=depth_dict[source_id],
+                distance=distance_dict[source_id]
+            )
+
+            noises.append(lps_model.apply_doppler(
+                input_data=propag_noise,
+                speeds=sensor_doppler_list,
+                sound_speed=sound_speed
+            ))
+
+        min_size = min(signal.shape[0] for signal in noises)
+        signals = [signal[:min_size] for signal in noises]
+        ship_signal = np.sum(np.column_stack(signals), axis=1)
+        env_noise = environment.generate_bg_noise(len(ship_signal), fs=fs.get_hz())
+
+        return sensor.apply(ship_signal + env_noise)
+
     def get_sonar_audio(self, sonar_id: str, fs: lps_qty.Frequency):
         """ Returns the calculated scan data for the selected sonar. """
 
@@ -747,13 +800,13 @@ class Scenario():
         noise_dict = {}
 
         for container in tqdm.tqdm(self.noise_containers,
-                                       desc="Noise Containers",
-                                       leave=False,
-                                       ncols=120):
+                                desc="Noise Containers",
+                                leave=False,
+                                ncols=120):
             for noise_source in tqdm.tqdm(container.noise_sources,
-                                       desc="Source noises",
-                                       leave=False,
-                                       ncols=120):
+                                        desc="Source noises",
+                                        leave=False,
+                                        ncols=120):
 
                 source_ids.append(noise_source.get_id())
                 noises_dict[source_ids[-1]] = noise_source.generate_noise(fs=fs)
@@ -762,60 +815,21 @@ class Scenario():
 
         print(f"##### Audio for {len(source_ids)} sources generated #####")
 
+        # Parallelize sensor signal calculations
         sonar_signals = []
-        for sensor in tqdm.tqdm(sonar.sensors,
-                    desc="Sensors",
-                    leave=False,
-                    ncols=120):
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [
+                executor.submit(
+                    self._calculate_sensor_signal,
+                    sensor, sonar, source_ids, noises_dict, depth_dict, noise_dict, fs, self.channel, self.environment, self.n_steps
+                )
+                for sensor in sonar.sensors
+            ]
 
-            distance_dict = {}
+            for future in tqdm.tqdm(as_completed(futures), total=len(futures), desc="Sensors", leave=False, ncols=120):
+                sonar_signals.append(future.result())
 
-            for container in self.noise_containers:
-                for noise_source in container.noise_sources:
-
-                    distance_dict[noise_source.get_id()] = []
-                    for step_id in range(self.n_steps):
-                        dist = noise_source[step_id].position - sensor[step_id].position
-                        distance_dict[noise_source.get_id()].append(dist.get_magnitude())
-
-            noises = []
-
-            for source_id in tqdm.tqdm(source_ids,
-                                    desc="Propagating signals from sources",
-                                    leave=False,
-                                    ncols=120):
-
-                sound_speed = self.channel.description.get_speed_at(depth_dict[source_id])
-
-                source_doppler_list = []
-                sensor_doppler_list = []
-                for step_i in range(self.n_steps):
-                    source_doppler_list.append(
-                            noise_dict[source_id][step_i].get_relative_speed(sonar[step_i]))
-
-                    sensor_doppler_list.append(
-                            sonar[step_i].get_relative_speed(noise_dict[source_id][step_i]))
-
-                doppler_noise = lps_model.apply_doppler(input_data=noises_dict[source_id],
-                                                        speeds=source_doppler_list,
-                                                        sound_speed=sound_speed)
-
-                propag_noise = self.channel.propagate(input_data = doppler_noise,
-                                                        source_depth = depth_dict[source_id],
-                                                        distance = distance_dict[source_id])
-
-                noises.append(lps_model.apply_doppler(input_data=propag_noise,
-                                                        speeds=sensor_doppler_list,
-                                                        sound_speed=sound_speed))
-
-            min_size = min(signal.shape[0] for signal in noises)
-            signals = [signal[:min_size] for signal in noises]
-
-            ship_signal = np.sum(np.column_stack(signals), axis=1)
-            env_noise = self.environment.generate_bg_noise(len(ship_signal), fs=fs.get_hz())
-
-            sonar_signals.append(sensor.apply(ship_signal + env_noise))
-
+        # Align all signals to the minimum length
         min_size = min(signal.shape[0] for signal in sonar_signals)
         signals = [signal[:min_size] for signal in sonar_signals]
         signals = np.column_stack(signals)
