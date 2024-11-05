@@ -115,17 +115,17 @@ def demon(data, fs, n_fft=512, max_freq=50, overlap_ratio=0.25, apply_bandpass=T
                           sr=final_fs, hop_length=(n_fft - fft_over))
 
     sxx = np.absolute(sxx)
-    sxx[sxx == 0] = 1e-9
-    sxx = 20*np.log10(sxx)
-    sxx = sxx - tpsw(sxx)
-    sxx[sxx < -0.2] = 0
+    # sxx[sxx == 0] = 1e-9
+    # sxx = 20*np.log10(sxx)
+    # sxx = sxx - tpsw(sxx)
+    # sxx[sxx < -0.2] = 0
 
     sxx, freq = sxx[8:, :], freq[8:]  # ??
 
     return np.transpose(sxx), freq, time
 
-# fs, signal = read("./result/cavitation.wav")
-fs, signal = read("./result/scenario.wav")
+fs, signal = read("./result/cavitation.wav")
+# fs, signal = read("./result/scenario.wav")
 
 S, f, t = demon(signal, fs)
 
