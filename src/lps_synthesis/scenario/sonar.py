@@ -1,6 +1,8 @@
 """ Sonar Module. """
 import typing
 import math
+import abc
+import overrides
 
 import numpy as np
 
@@ -43,6 +45,36 @@ class ADConverter():
 
         raise NotImplementedError(f"ADConverter for {self.resolution} bits")
 
+class Directivity():
+    """ Class to represent the gain of a polar diagram for an acoustic sensor. """
+    @abc.abstractmethod
+    def get_gain(self, relative_angle: lps_qty.RelativeBearing):
+        """ return the directional gain for an specific angle. """
+
+class Omnidirectional(Directivity):
+    """ Class to represent an acoustic omnidirectional sensor. """
+    @overrides.overrides
+    def get_gain(self, relative_angle: lps_qty.RelativeBearing):
+        """ return the directional gain for an specific angle. """
+        return 1
+
+class Shaded(Directivity):
+    """ Class to represent an acoustic omnidirectional sensor.
+    https://www.coe.ufrj.br/~fabriciomtb/papers/Estima%C3%A7%C3%A3o_da_Dire%C3%A7%C3%A3o_de_Chegada_Utilizando_MUSIC_com_Antenas_Direcionais_em_Arranjo_Circular.pdf
+    """
+    def __init__(self, d: float = 10, m: float = 8.7):
+        super().__init__()
+        self.d = d
+        self.m = m
+
+    @overrides.overrides
+    def get_gain(self, relative_angle: lps_qty.RelativeBearing):
+        """ return the directional gain for an specific angle. """
+        max_gain = math.sqrt((self.d / 2**self.m) * ((1 + 1)**self.m))
+        gain = math.sqrt((self.d/2**self.m) * ((1 + math.cos(relative_angle.get_ccw_rad()))**self.m))
+        return gain/max_gain
+
+
 class AcousticSensor(lps_dynamic.RelativeElement):
     """ Class to represent an AcousticSensor in the scenario """
 
@@ -50,12 +82,16 @@ class AcousticSensor(lps_dynamic.RelativeElement):
                  sensitivity: lps_qty.Sensitivity,
                  gain_db: float = 0,
                  adc: ADConverter = ADConverter(),
+                 directivity: Directivity = Omnidirectional(),
+                 rel_direction: lps_qty.RelativeBearing = lps_qty.RelativeBearing.ccw_rad(0),
                  rel_position: lps_dynamic.Displacement = \
                         lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))
                  ) -> None:
         self.sensitivity = sensitivity
         self.gain_db = gain_db
         self.adc = adc
+        self.rel_direction = rel_direction
+        self.directivity = directivity
         super().__init__(rel_position=rel_position)
 
     def apply(self, input_data: np.array) -> np.array:
@@ -66,6 +102,24 @@ class AcousticSensor(lps_dynamic.RelativeElement):
         data = input_data * 10**((self.sensitivity.get_db_v_p_upa() + self.gain_db) / 20)
 
         return self.adc.apply(data)
+
+    def direction_gain(self, step: int, source_position: lps_dynamic.Displacement):
+        """ Calculate the directional gain of the sensor for a given source position.
+
+        Args:
+            step (int): Current step in the simulation.
+            source_position (lps_dynamic.Displacement): Position of the acoustic source.
+
+        Returns:
+            float: Directional gain based on the angle between the sensor's direction and
+                the direction to the source.
+        """
+        current_state = self[step]
+        wavefront_direction = (source_position - current_state.position).get_azimuth()
+        sensor_direction = current_state.velocity.get_azimuth() + self.rel_direction
+        return self.directivity.get_gain(wavefront_direction - sensor_direction)
+
+
 
 class Sonar(lps_dynamic.Element):
     """ Class to represent a Sonar (with multiple acoustic sensors) in the scenario """
@@ -123,6 +177,8 @@ class Sonar(lps_dynamic.Element):
             y_position = radius * math.sin(angle)
             sensors.append(AcousticSensor(sensitivity=sensitivity,
                                     adc=adc,
-                                    rel_position=lps_dynamic.Displacement(x_position,y_position)))
+                                    directivity=Shaded(),
+                                    rel_position=lps_dynamic.Displacement(x_position,y_position),
+                                    rel_direction = lps_qty.RelativeBearing.ccw_rad(angle)))
 
         return Sonar(sensors=sensors, initial_state=initial_state)

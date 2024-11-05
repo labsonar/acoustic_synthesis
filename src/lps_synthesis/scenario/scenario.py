@@ -738,11 +738,16 @@ class Scenario():
 
     def _calculate_sensor_signal(self, sensor, sonar, source_ids, noises_dict, depth_dict, noise_dict, fs, channel, environment, n_steps):
         distance_dict = {}
+        gain_dict = {}
 
         for container in self.noise_containers:
             for noise_source in container.noise_sources:
                 distance_dict[noise_source.get_id()] = [
                     (noise_source[step_id].position - sensor[step_id].position).get_magnitude()
+                    for step_id in range(n_steps)
+                ]
+                gain_dict[noise_source.get_id()] = [
+                    sensor.direction_gain(step_id, noise_source[step_id].position)
                     for step_id in range(n_steps)
                 ]
 
@@ -764,7 +769,7 @@ class Scenario():
             ]
 
             doppler_noise = lps_model.apply_doppler(
-                input_data=noises_dict[source_id],
+                input_data=noises_dict[source_id] * gain_dict[source_id],
                 speeds=source_doppler_list,
                 sound_speed=sound_speed
             )

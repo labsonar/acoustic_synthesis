@@ -401,11 +401,25 @@ class RelativeElement():
         """ Set the element this element is relative to. """
         self.ref_element = element
 
+    # def __getitem__(self, step: int) -> State:
+    #     self.check()
+    #     state = copy.deepcopy(self.ref_element[step])
+    #     state.position = state.position + self.rel_position
+    #     return state
+
     def __getitem__(self, step: int) -> State:
         self.check()
         state = copy.deepcopy(self.ref_element[step])
-        state.position = state.position + self.rel_position
+
+        heading = state.velocity.get_azimuth().get_eccw_rad()
+
+        rotated_x = self.rel_position.x * math.cos(heading) - self.rel_position.y * math.sin(heading)
+        rotated_y = self.rel_position.x * math.sin(heading) + self.rel_position.y * math.cos(heading)
+
+        state.position = state.position + Displacement(rotated_x, rotated_y, self.rel_position.z)
+
         return state
+
 
     def get_depth(self) -> lps_qty.Distance:
         """ Return the starting depth of the element. """
@@ -413,5 +427,6 @@ class RelativeElement():
         return self.ref_element.get_depth()
 
     def check(self):
+        """ Check if reference element is set, If not raise UnboundLocalError. """
         if (self is None):
             raise UnboundLocalError("Relative item must be set before use")
