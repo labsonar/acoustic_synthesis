@@ -736,6 +736,13 @@ class Scenario():
             plt.clf()
         plt.close()
 
+    @staticmethod
+    def _process_noise_source(noise_source, fs):
+        source_id = noise_source.get_id()
+        noise = noise_source.generate_noise(fs=fs)
+        depth = noise_source.get_depth()
+        return source_id, noise, depth, noise_source
+
     def _calculate_sensor_signal(self, sensor, sonar, source_ids, noises_dict, depth_dict, noise_dict, fs, channel, environment, n_steps):
         distance_dict = {}
         gain_dict = {}
@@ -804,19 +811,19 @@ class Scenario():
         depth_dict = {}
         noise_dict = {}
 
-        for container in tqdm.tqdm(self.noise_containers,
-                                desc="Noise Containers",
-                                leave=False,
-                                ncols=120):
-            for noise_source in tqdm.tqdm(container.noise_sources,
-                                        desc="Source noises",
-                                        leave=False,
-                                        ncols=120):
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(Scenario._process_noise_source, noise_source, fs)
+                for container in self.noise_containers
+                for noise_source in container.noise_sources
+            ]
 
-                source_ids.append(noise_source.get_id())
-                noises_dict[source_ids[-1]] = noise_source.generate_noise(fs=fs)
-                depth_dict[source_ids[-1]] = noise_source.get_depth()
-                noise_dict[source_ids[-1]] = noise_source
+            for future in tqdm.tqdm(as_completed(futures), total=len(futures), desc="Noise Sources", leave=False, ncols=120):
+                source_id, noise, depth, noise_source = future.result()
+                source_ids.append(source_id)
+                noises_dict[source_id] = noise
+                depth_dict[source_id] = depth
+                noise_dict[source_id] = noise_source
 
         print(f"##### Audio for {len(source_ids)} sources generated #####")
 
