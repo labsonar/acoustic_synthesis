@@ -59,18 +59,18 @@ ship1 = lps_scenario.Ship(
                 draft=lps_qty.Distance.m(4),
                 initial_state=lps_dynamic.State(
                         position = lps_dynamic.Displacement(
-                                lps_qty.Distance.km(-0.05),
+                                lps_qty.Distance.km(-0.5),
                                 lps_qty.Distance.km(0.2)),
                         velocity = lps_dynamic.Velocity(
                                 lps_qty.Speed.kt(4),
                                 lps_qty.Speed.kt(0)),
                         acceleration = lps_dynamic.Acceleration(
-                                lps_qty.Acceleration.m_s2(0.02),
+                                lps_qty.Acceleration.m_s2(0),
                                 lps_qty.Acceleration.m_s2(0))
                 )
         )
 
-ship1.add_source(lps_scenario.Sin(frequency=lps_qty.Frequency.khz(0.5), amp_db_p_upa=95))
+# ship1.add_source(lps_scenario.Sin(frequency=lps_qty.Frequency.khz(0.5), amp_db_p_upa=95))
 # ship1.add_source(lps_scenario.Sin(frequency=lps_qty.Frequency.khz(4), amp_db_p_upa=90))
 # ship1.add_source(lps_scenario.Sin(frequency=lps_qty.Frequency.khz(6), amp_db_p_upa=80))
 
@@ -89,13 +89,13 @@ ship2 = lps_scenario.Ship(
                 draft=lps_qty.Distance.m(15),
                 initial_state=lps_dynamic.State(
                         position = lps_dynamic.Displacement(
-                                lps_qty.Distance.km(0.1),
-                                lps_qty.Distance.km(0)),
+                                lps_qty.Distance.km(0.3),
+                                lps_qty.Distance.km(-0.8)),
                         velocity = lps_dynamic.Velocity(
-                                lps_qty.Speed.kt(-2),
+                                lps_qty.Speed.kt(2),
                                 lps_qty.Speed.kt(4)),
                         acceleration = lps_dynamic.Acceleration(
-                                lps_qty.Acceleration.m_s2(-0.03),
+                                lps_qty.Acceleration.m_s2(-0.005),
                                 lps_qty.Acceleration.m_s2(0))
                 )
         )
@@ -107,7 +107,7 @@ ship2.add_source(lps_scenario.Sin(frequency=lps_qty.Frequency.khz(4), amp_db_p_u
 scenario.add_noise_container(ship2)
 
 
-scenario.simulate(lps_qty.Time.s(0.2), 5)
+scenario.simulate(lps_qty.Time.s(1), 10*60)
 
 scenario.geographic_plot("./result/geographic.png")
 scenario.relative_distance_plot("./result/distance.png")

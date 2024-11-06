@@ -362,7 +362,7 @@ class CavitationNoise(NoiseSource):
         modulation_indices = []
         for rpm in rpms:
             min_rpm, max_rpm = self.ship_type.get_rpm_range()
-            cavitation_threshold = min_rpm * 1.15
+            cavitation_threshold = 40
 
             modulation_index = (rpm - cavitation_threshold) / (max_rpm - cavitation_threshold)
             modulation_index = np.clip(modulation_index, 0, 1)
@@ -811,7 +811,7 @@ class Scenario():
         depth_dict = {}
         noise_dict = {}
 
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             futures = [
                 executor.submit(Scenario._process_noise_source, noise_source, fs)
                 for container in self.noise_containers
@@ -829,7 +829,7 @@ class Scenario():
 
         # Parallelize sensor signal calculations
         sonar_signals = []
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             futures = [
                 executor.submit(
                     self._calculate_sensor_signal,
