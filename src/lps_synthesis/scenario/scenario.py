@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.signal as scipy
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_dynamic
@@ -362,7 +363,7 @@ class CavitationNoise(NoiseSource):
         modulation_indices = []
         for rpm in rpms:
             min_rpm, max_rpm = self.ship_type.get_rpm_range()
-            cavitation_threshold = 40
+            cavitation_threshold = lps_qty.Frequency.rpm(40)
 
             modulation_index = (rpm - cavitation_threshold) / (max_rpm - cavitation_threshold)
             modulation_index = np.clip(modulation_index, 0, 1)
@@ -775,8 +776,10 @@ class Scenario():
                 for step_i in range(n_steps)
             ]
 
+            gain = scipy.resample(gain_dict[source_id], len(noises_dict[source_id]))
+
             doppler_noise = lps_model.apply_doppler(
-                input_data=noises_dict[source_id] * gain_dict[source_id],
+                input_data=noises_dict[source_id] * gain,
                 speeds=source_doppler_list,
                 sound_speed=sound_speed
             )

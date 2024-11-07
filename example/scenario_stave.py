@@ -106,7 +106,6 @@ ship2.add_source(lps_scenario.Sin(frequency=lps_qty.Frequency.khz(4), amp_db_p_u
 
 scenario.add_noise_container(ship2)
 
-
 scenario.simulate(lps_qty.Time.s(1), 10*60)
 
 scenario.geographic_plot("./result/geographic.png")

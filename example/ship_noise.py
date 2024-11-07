@@ -4,6 +4,7 @@ import csv
 import numpy as np
 import scipy.io as scipy
 import matplotlib.pyplot as plt
+import tikzplotlib
 
 import lps_sp.acoustical.broadband as lps_bb
 import lps_synthesis.scenario.scenario as lps_scenario
@@ -31,7 +32,7 @@ for ship in lps_scenario.ShipType:
         csv_data[i].append(value)
     header.append(str(ship))
 
-    plt.semilogx(freqs_hz, psd, label=str(ship))
+    plt.semilogx(freqs_hz, psd, label=str(ship).capitalize().replace("_", " "))
 
     audio_signal = lps_bb.generate(frequencies=np.array(freqs_hz),
                                    psd_db=psd,
@@ -48,7 +49,10 @@ for ship in lps_scenario.ShipType:
 plt.grid()
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.tight_layout(rect=[0, 0, 0.75, 1])
+plt.xlabel("Frequency (Hz)")
+plt.ylabel("Power Spectral Density (dB ref 1 µPa @ 1m)")
 plt.savefig("./result/all_ships_psd.png", bbox_inches='tight')
+tikzplotlib.save("./result/all_ships_psd.tex")
 plt.close()
 
 with open('./result/frequency_psd_data.csv', mode='w', newline='', encoding="utf-8") as file:

@@ -68,7 +68,7 @@ ship1.add_source(lps_scenario.Sin(frequency=lps_qty.Frequency.khz(4.05),
 
 scenario.add_noise_container(ship1)
 
-scenario.simulate(lps_qty.Time.s(1), 120)
+scenario.simulate(lps_qty.Time.s(0.1), 10)
 
 scenario.geographic_plot("./result/geographic.png")
 scenario.relative_distance_plot("./result/distance.png")
