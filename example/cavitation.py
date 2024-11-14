@@ -6,6 +6,10 @@ import lps_sp.acoustical.broadband as lps_bb
 import lps_synthesis.scenario.scenario as lps_scenario
 import lps_utils.quantities as lps_qty
 
+import lps_utils.utils as lps_utils
+
+lps_utils.set_seed()
+
 fs = lps_qty.Frequency.khz(16)
 duration = lps_qty.Time.s(5)
 
@@ -31,36 +35,40 @@ narrowband_conv_total = np.zeros(n_samples)
 alpha = 0.01    # Fator de decaimento (1.5 é um valor típico)
 
 
-def generate_harmonic_intensities(n_harmonics, k, alpha=0.5, A=1.0, G=1.5, noise_std=0.1):
+def generate_harmonic_intensities(n_harmonics, k, alpha=1.5, G=1.5, noise_std=0.1, mod_ind = 2):
+
     intensities = []
-    rn = np.random.normal(0, noise_std, k)
+    rn = np.random.normal(1, noise_std, k)
+    alphas = alpha + np.random.normal(0, alpha * 0.01, k)
     for n in range(1, n_harmonics + 1):
         
         # Reforço para múltiplos de k
         if n % k == 0:
-            base_intensity = G * A / ((n/k) ** alpha)
+            base_intensity = G * rn[n%k] / ((n//k) ** alphas[n%k])
         else:
-            base_intensity = A / (n ** alpha)
+            base_intensity = rn[n%k] / (np.ceil(n/k) ** alphas[n%k])
         
         # Adiciona ruído leve
-        intensity = base_intensity + rn[n%k]
-        intensities.append(intensity)
-    
-    return np.array(intensities)
+        intensity = base_intensity
+        intensities.append(np.max(intensity,0))
+        
+    intensities = np.array(intensities)
+    A0 =  np.sum(intensities)/mod_ind
+
+    total_energy = A0**2 + np.sum(intensities**2)/2
+
+    A0 /= np.sqrt(total_energy)
+    intensities /= np.sqrt(total_energy)
+
+    return A0, np.array(intensities)
 
 alpha = 2
 # A = np.array([0.108666, 0.051330, 0.051330, 0.179160, 0.051330, 0.051330])
-A = generate_harmonic_intensities(n_harmonics=20, k=n_blades)
+A0, A = generate_harmonic_intensities(n_harmonics=16, k=n_blades)
 
 # for _ in range(3):
 #     plt.plot(generate_harmonic_intensities(n_harmonics=20, k=4), 'o')
 
-A0 =  np.sum(A)/alpha
-
-total_energy = A0**2 + np.sum(A**2)/2
-
-A0 /= np.sqrt(total_energy)
-A /= np.sqrt(total_energy)
 
 print(A0, " ", A)
 plt.plot(A, 'o')

@@ -171,6 +171,10 @@ class ShipType(enum.Enum):
                 psd[index] += k - 20*math.log10(f_1/f_ref) \
                                 - 10*math.log10((1 - f/f_1)**2 + d**2)
 
+        # Converto to source level
+        # for index, f in enumerate(frequencies):
+        #     psd[index] += 10*math.log10(0.231 * f.get_hz())
+
         return frequencies, psd
 
     def get_speed_range(self) -> typing.Tuple[lps_qty.Speed, lps_qty.Speed]:
