@@ -23,6 +23,96 @@ import pandas as pd
 
 import lps_sp.acoustical.broadband as lps
 
+def one_third_octave_frequencies(lower_bound = -20, upper_bound = -20) -> np.array:
+    return np.array([1e3 * 2**(i/3) for i in range(lower_bound, upper_bound + 1)])
+
+
+def turbulence_psd() -> typing.Tuple[np.array, np.array]:
+    """
+    Get the PSD (Power Spectral Density) of the rain noise.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]:
+            - Frequencies in Hz.
+            - PSD estimates in dB ref 1μPa @1m/Hz.
+    """
+    frequencies = one_third_octave_frequencies(-30, 0)
+    spectrum = np.array([107 - 30 * np.log10(f) for f in frequencies])
+    print(frequencies[0], " ", frequencies[-1])
+    return frequencies, spectrum
+
+class Shipping(enum.Enum):
+    """Enum representing Shipping level noise with various intensity levels."""
+    NONE = 0
+    LEVEL_1 = 1
+    LEVEL_2 = 2
+    LEVEL_3 = 3
+    LEVEL_4 = 4
+    LEVEL_5 = 5
+    LEVEL_6 = 6
+    LEVEL_7 = 7
+
+    @staticmethod
+    def __get_csv() -> str:
+        return os.path.join(os.path.dirname(__file__), "data", "shipping_noise.csv")
+
+    def __str__(self):
+        if self == Shipping.NONE:
+            return "without shipping noise"
+        return "shipping noise " + \
+            str(self.name).rsplit(".", maxsplit=1)[-1].lower().replace("_", " ")
+
+    def get_psd(self) -> typing.Tuple[np.array, np.array]:
+        """
+        Get the PSD (Power Spectral Density) of the rain noise.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]:
+                - Frequencies in Hz.
+                - PSD estimates in dB ref 1μPa @1m/Hz.
+        """
+        df = pd.read_csv(Shipping.__get_csv())
+        frequencies = df[df.columns[0]].values
+        if self != Shipping.NONE:
+            spectrum = df[df.columns[self.value]].values
+        else:
+            spectrum = np.zeros(frequencies.size)
+        return frequencies, spectrum
+
+    @staticmethod
+    def get_interpolated_psd(value: typing.Union[float, 'Shipping']) \
+            -> typing.Tuple[np.ndarray, np.ndarray]:
+        """
+        Get the interpolated PSD for a given Shipping level noise value between 0 and 7.
+
+        Args:
+            value (float): Shipping level value between 0 and 7.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]:
+                - Frequencies in Hz.
+                - Interpolated PSD estimates in dB ref 1μPa @1m/Hz.
+        """
+        if isinstance(value, Shipping):
+            return value.get_psd()
+
+        if not 0 <= value <= 7:
+            raise ValueError("Shipping level noise must be between 0 and 7.")
+
+        lower_state = Shipping(int(np.floor(value)))
+        upper_state = Shipping(int(np.ceil(value)))
+
+        frequencies, lower_psd = lower_state.get_psd()
+
+        if lower_state == upper_state:
+            return frequencies, lower_psd
+
+        _, upper_psd = upper_state.get_psd()
+
+        weight = value - int(np.floor(value))
+        interpolated_psd = lower_psd * (1 - weight) + upper_psd * weight
+
+        return frequencies, interpolated_psd
 
 class Rain(enum.Enum):
     """Enum representing rain noise with various intensity levels."""
@@ -40,7 +130,17 @@ class Rain(enum.Enum):
     def __str__(self):
         if self == Rain.NONE:
             return "without rain"
-        return str(self.name).rsplit(".", maxsplit=1)[-1].lower().replace("_", " ") + " rain"
+        return str(self.name).rsplit(".", maxsplit=1)[-1].lower().replace("_", " ")
+    
+    def to_mm_p_h(self) -> float:
+        value_dict = {
+            Rain.NONE: 0,
+            Rain.LIGHT: 1,
+            Rain.MODERATE: 5,
+            Rain.HEAVY: 10,
+            Rain.VERY_HEAVY: 100
+        }
+        return value_dict[self]
 
     def get_psd(self) -> typing.Tuple[np.array, np.array]:
         """
@@ -147,79 +247,6 @@ class Sea(enum.Enum):
 
         lower_state = Sea(int(np.floor(value)))
         upper_state = Sea(int(np.ceil(value)))
-
-        frequencies, lower_psd = lower_state.get_psd()
-
-        if lower_state == upper_state:
-            return frequencies, lower_psd
-
-        _, upper_psd = upper_state.get_psd()
-
-        weight = value - int(np.floor(value))
-        interpolated_psd = lower_psd * (1 - weight) + upper_psd * weight
-
-        return frequencies, interpolated_psd
-
-class Shipping(enum.Enum):
-    """Enum representing Shipping level noise with various intensity levels."""
-    NONE = 0
-    LEVEL_1 = 1
-    LEVEL_2 = 2
-    LEVEL_3 = 3
-    LEVEL_4 = 4
-    LEVEL_5 = 5
-    LEVEL_6 = 6
-    LEVEL_7 = 7
-
-    @staticmethod
-    def __get_csv() -> str:
-        return os.path.join(os.path.dirname(__file__), "data", "shipping_noise.csv")
-
-    def __str__(self):
-        if self == Shipping.NONE:
-            return "without shipping noise"
-        return "shipping noise " + \
-            str(self.name).rsplit(".", maxsplit=1)[-1].lower().replace("_", " ")
-
-    def get_psd(self) -> typing.Tuple[np.array, np.array]:
-        """
-        Get the PSD (Power Spectral Density) of the rain noise.
-
-        Returns:
-            Tuple[np.ndarray, np.ndarray]:
-                - Frequencies in Hz.
-                - PSD estimates in dB ref 1μPa @1m/Hz.
-        """
-        df = pd.read_csv(Shipping.__get_csv())
-        frequencies = df[df.columns[0]].values
-        if self != Shipping.NONE:
-            spectrum = df[df.columns[self.value]].values
-        else:
-            spectrum = np.zeros(frequencies.size)
-        return frequencies, spectrum
-
-    @staticmethod
-    def get_interpolated_psd(value: typing.Union[float, 'Shipping']) \
-            -> typing.Tuple[np.ndarray, np.ndarray]:
-        """
-        Get the interpolated PSD for a given Shipping level noise value between 0 and 7.
-
-        Args:
-            value (float): Shipping level value between 0 and 7.
-
-        Returns:
-            Tuple[np.ndarray, np.ndarray]:
-                - Frequencies in Hz.
-                - Interpolated PSD estimates in dB ref 1μPa @1m/Hz.
-        """
-        if isinstance(value, Shipping):
-            return value.get_psd()
-
-        if not 0 <= value <= 7:
-            raise ValueError("Shipping level noise must be between 0 and 7.")
-
-        lower_state = Shipping(int(np.floor(value)))
-        upper_state = Shipping(int(np.ceil(value)))
 
         frequencies, lower_psd = lower_state.get_psd()
 
