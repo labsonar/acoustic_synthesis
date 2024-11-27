@@ -8,6 +8,7 @@ import random
 import overrides
 import tqdm
 import abc
+import tikzplotlib as tikz
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
@@ -55,6 +56,8 @@ class NoiseContainer(lps_dynamic.Element):
 
     def get_id(self) -> str:
         """ Return the relative id """
+        if len(self.noise_sources) == 1:
+            return self.container_id
         return f"{self.container_id}[{len(self.noise_sources)}]"
 
 
@@ -327,6 +330,34 @@ class CavitationNoise(NoiseSource):
         self.length = length if length is not None else ship_type.get_random_length()
         super().__init__(source_id="cavitation")
 
+    @staticmethod
+    def generate_harmonic_intensities(n_blades, n_harmonics=16, alpha=1.5, gain=1.5, noise_std=0.1, mod_ind = 2):
+
+        intensities = []
+        rn = np.random.normal(1, noise_std, n_blades)
+        alphas = alpha + np.random.normal(0, alpha * 0.01, n_blades)
+        for n in range(1, n_harmonics + 1):
+            
+            # Reforço para múltiplos de k
+            if n % n_blades == 0:
+                base_intensity = gain * rn[n%n_blades] / ((n//n_blades) ** alphas[n%n_blades])
+            else:
+                base_intensity = rn[n%n_blades] / (np.ceil(n/n_blades) ** alphas[n%n_blades])
+            
+            # Adiciona ruído leve
+            intensity = base_intensity
+            intensities.append(np.max(intensity,0))
+            
+        intensities = np.array(intensities)
+        A0 =  np.sum(intensities)/mod_ind
+
+        total_energy = A0**2 + np.sum(intensities**2)/2
+
+        A0 /= np.sqrt(total_energy)
+        intensities /= np.sqrt(total_energy)
+
+        return A0, np.array(intensities)
+
     def estimate_rpm(self, speeds: typing.List[lps_qty.Speed]) -> typing.List[lps_qty.Frequency]:
         """
         Estimate RPM based on ship speed.
@@ -402,32 +433,19 @@ class CavitationNoise(NoiseSource):
         rpms = self.estimate_rpm(speeds)
         modulation_indices = self.estimate_modulation(rpms)
 
-        narrowband_total = np.zeros(n_samples)
+        A0, A = CavitationNoise.generate_harmonic_intensities(n_blades=self.n_blades, mod_ind=0.8)
 
-        for _ in range(self.n_shafts):
+        t = np.linspace(0, n_samples, n_samples, endpoint=False) / fs.get_hz()
+        rpms = np.array([rpm.get_hz() for rpm in rpms])
 
-            base_error = self.shaft_error * np.random.randn()
-            along_error = 0.1 * np.random.randn(n_samples)
+        narrowband = np.ones_like(t) * A0
 
-            shaft_rpm = np.array([rpm.get_hz() * (1 + base_error) for rpm in rpms]) + along_error
+        for n, An in enumerate(A):
+            narrowband += An * np.cos(2 * np.pi * (1 + n) * rpms * t)
 
-            shaft_phase = np.cumsum(shaft_rpm) / fs.get_hz()
+        modulated_signal = narrowband * broadband
 
-            sins = np.zeros((self.n_blades, n_samples))
-            for har in range(1, self.n_blades + 1):
-                blade_phase_shift = (har - 1) * 2 * np.pi / self.n_blades
-                harmonic_variation = 1 + self.blade_error * np.random.randn()
-                sins[har - 1, :] = np.cos(2 * np.pi * shaft_phase * har * harmonic_variation + \
-                                         blade_phase_shift)
-
-            narrowband_eixo = np.sum(sins, axis=0)
-            narrowband_total += narrowband_eixo
-
-        narrowband_total /= self.n_shafts * self.n_blades
-
-        modulated_signal = (1 + np.array(modulation_indices) * narrowband_total) * broadband
-
-        return modulated_signal, narrowband_total
+        return modulated_signal, narrowband
 
     @classmethod
     def get_random(cls, ship_type: ShipType = None) -> 'CavitationNoise':
@@ -573,7 +591,7 @@ class Scenario():
             n_steps (int, optional): Number of steps. Defaults to 1.
         """
 
-        self.n_steps = n_steps
+        self.n_steps += n_steps
         self.step_interval = step_interval
 
         for container in self.noise_containers:
@@ -585,8 +603,8 @@ class Scenario():
     def geographic_plot(self, filename: str) -> None:
         """ Make plots with top view, centered in the final position of the sonar. """
 
-        def plot_ship(x, y, angle, ship_id):
-            plt.scatter(x[-1], y[-1], marker=(3, 0, angle - 90), s=200)
+        def plot_ship(x, y, angle, ship_id, s = 100):
+            plt.scatter(x[-1], y[-1], marker=(3, 0, angle - 90), s=s)
             plt.plot(x, y, label=f'{ship_id}')
 
         for sonar_id, sonar in self.sonars.items():
@@ -627,7 +645,7 @@ class Scenario():
             limit = np.max([limit,
                             np.max(np.abs(ref_x - ref_x[-1])),
                             np.max(np.abs(ref_y - ref_y[-1]))])
-            plot_ship(ref_x - ref_x[-1], ref_y - ref_y[-1], ref_angle, "Sonar")
+            plot_ship(ref_x - ref_x[-1], ref_y - ref_y[-1], ref_angle, "Sonar", 200)
 
             # cont = 0
             # for sensor in sonar.sensors:
@@ -658,7 +676,11 @@ class Scenario():
                 output_filename = filename
             else:
                 output_filename = f"{filename}{sonar_id}.png"
-            plt.savefig(output_filename)
+
+            if output_filename[-4:] == ".tex":
+                tikz.save(output_filename)
+            else:
+                plt.savefig(output_filename)
 
             plt.clf()
         plt.close()
@@ -687,7 +709,11 @@ class Scenario():
                 output_filename = filename
             else:
                 output_filename = f"{filename}{sonar_id}.png"
-            plt.savefig(output_filename)
+
+            if output_filename[-4:] == ".tex":
+                tikz.save(output_filename)
+            else:
+                plt.savefig(output_filename)
 
             plt.clf()
         plt.close()
@@ -710,7 +736,10 @@ class Scenario():
         plt.legend()
 
         output_filename = filename
-        plt.savefig(output_filename)
+        if output_filename[-4:] == ".tex":
+            tikz.save(output_filename)
+        else:
+            plt.savefig(output_filename)
         plt.close()
 
     def relative_velocity_plot(self, filename: str) -> None:
@@ -728,6 +757,14 @@ class Scenario():
 
                 plt.plot(t, speeds, label=container.get_id())
 
+                # for source in container.noise_sources:
+
+                #     speeds = []
+                #     for step_i in range(self.n_steps):
+                #         speeds.append((source[step_i].get_relative_speed(sonar[step_i])).get_kt())
+
+                #     plt.plot(t, speeds, label=source.get_id())
+
             plt.xlabel('Time (second)')
             plt.ylabel('Speed (knot)')
             plt.legend()
@@ -736,7 +773,11 @@ class Scenario():
                 output_filename = filename
             else:
                 output_filename = f"{filename}{sonar_id}.png"
-            plt.savefig(output_filename)
+            
+            if output_filename[-4:] == ".tex":
+                tikz.save(output_filename)
+            else:
+                plt.savefig(output_filename)
 
             plt.clf()
         plt.close()
@@ -818,7 +859,7 @@ class Scenario():
         depth_dict = {}
         noise_dict = {}
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=16) as executor:
             futures = [
                 executor.submit(Scenario._process_noise_source, noise_source, fs)
                 for container in self.noise_containers
@@ -836,7 +877,7 @@ class Scenario():
 
         # Parallelize sensor signal calculations
         sonar_signals = []
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=16) as executor:
             futures = [
                 executor.submit(
                     self._calculate_sensor_signal,

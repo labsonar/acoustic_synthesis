@@ -305,12 +305,15 @@ class Environment():
                 - Frequencies in Hz.
                 - Combined PSD estimates in dB ref 1μPa @1m/Hz.
         """
+        frequencies0, spectrum0 = turbulence_psd()
         frequencies1, spectrum1 = Rain.get_interpolated_psd(self.rain_value)
         frequencies2, spectrum2 = Sea.get_interpolated_psd(self.sea_value)
         frequencies3, spectrum3 = Shipping.get_interpolated_psd(self.shipping_value)
 
-        all_frequencies = np.unique(np.concatenate([frequencies1, frequencies2, frequencies3]))
+        all_frequencies = np.unique(np.concatenate([frequencies0, frequencies1, frequencies2, frequencies3]))
 
+        interpolated_spectrum0 = np.interp(all_frequencies, frequencies0, spectrum0,
+                                                left=0, right=0)
         interpolated_spectrum1 = np.interp(all_frequencies, frequencies1, spectrum1,
                                                 left=0, right=0)
         interpolated_spectrum2 = np.interp(all_frequencies, frequencies2, spectrum2,
@@ -318,10 +321,11 @@ class Environment():
         interpolated_spectrum3 = np.interp(all_frequencies, frequencies3, spectrum3,
                                                 left=0, right=0)
 
+        linear0 = 10**(interpolated_spectrum0 / 20)
         linear1 = 10**(interpolated_spectrum1 / 20)
         linear2 = 10**(interpolated_spectrum2 / 20)
         linear3 = 10**(interpolated_spectrum3 / 20)
-        interpolated_spectrum = 20 * np.log10(linear1 + linear2 + linear3)
+        interpolated_spectrum = 20 * np.log10(linear0 + linear1 + linear2 + linear3)
 
         return all_frequencies, interpolated_spectrum
 
@@ -336,10 +340,13 @@ class Environment():
         Returns:
             np.array: Generated broadband noise in μPa.
         """
+        freq_turb, psd_turb = turbulence_psd()
         freq_rain, psd_rain = Rain.get_interpolated_psd(self.rain_value)
         freq_sea, psd_sea = Sea.get_interpolated_psd(self.sea_value)
         freq_shipping, psd_shipping = Shipping.get_interpolated_psd(self.shipping_value)
 
+        turb_noise = lps.generate(frequencies = freq_turb, psd_db = psd_turb,
+                                    n_samples=n_samples, fs = fs)
         rain_noise = lps.generate(frequencies = freq_rain, psd_db = psd_rain,
                                     n_samples=n_samples, fs = fs)
         sea_noise = lps.generate(frequencies = freq_sea, psd_db = psd_sea,
@@ -347,4 +354,4 @@ class Environment():
         shipping_noise = lps.generate(frequencies = freq_shipping, psd_db = psd_shipping,
                                     n_samples=n_samples, fs = fs)
 
-        return rain_noise + sea_noise + shipping_noise
+        return turb_noise + rain_noise + sea_noise + shipping_noise
