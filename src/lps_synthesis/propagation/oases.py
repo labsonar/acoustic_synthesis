@@ -196,8 +196,12 @@ def estimate_transfer_function(description: lps_channel.Description,
                     frequency_range: typing.Tuple[lps_qty.Frequency] = None,
                     filename: str = "test.dat"):
     """ Function to estimate a transfer function """
+    original_directory = os.getcwd()
 
-    file_without_extension = os.path.splitext(filename)[0]
+    # file_without_extension = os.path.splitext(filename)[0]
+    file_directory = os.path.dirname(filename)
+    file_without_extension = os.path.splitext(os.path.basename(filename))[0]
+
 
     # encontra um sweep para atender a lista de distancias com base no mdc da lista
     if len(source_depth) > 1:
@@ -235,9 +239,12 @@ def estimate_transfer_function(description: lps_channel.Description,
             filename=filename,
             frequency_range=frequency_range)
 
-    comando = f"oasp {file_without_extension}"
+    if file_directory:
+        os.chdir(file_directory)
 
-    process = subprocess.Popen(comando, shell=True, stdout=subprocess.PIPE,
+    comand = f"oasp {file_without_extension}"
+
+    process = subprocess.Popen(comand, shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, text=True)
 
     while True:
@@ -246,6 +253,8 @@ def estimate_transfer_function(description: lps_channel.Description,
             break
         if output:
             print(output.strip())
+
+    os.chdir(original_directory)
 
     stderr_output = process.stderr.read()
     if stderr_output:
@@ -276,6 +285,7 @@ def estimate_transfer_function(description: lps_channel.Description,
     # for file in glob.glob(f"{file_without_extension}.*"):
     #     os.remove(file)
     #     print(f"Removido: {file}")
+
 
     return h_t_tau, \
             depths.get_all(), ranges.get_all(), \

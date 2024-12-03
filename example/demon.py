@@ -124,7 +124,8 @@ def demon(data, fs, n_fft=512, max_freq=50, overlap_ratio=0.25, apply_bandpass=T
 
     return np.transpose(sxx), freq, time
 
-fs, signal = read("./result/cavitation.wav")
+fs, signal = read("./plot/scenario_0/scenario.wav")
+# fs, signal = read("./result/cavitation.wav")
 # fs, signal = read("./result/scenario.wav")
 
 S, f, t = demon(signal, fs)
@@ -144,4 +145,4 @@ else:
 
 plt.title('Demon')
 plt.xlabel('Frequency [rpm]')
-plt.savefig("./result/demon.png")
+plt.savefig("./plot/scenario_0/demon.png")
