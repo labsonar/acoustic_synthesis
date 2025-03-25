@@ -7,7 +7,7 @@ Classes and enums:
     - Water: Represents water as an acoustical layer.
     - Air: Represents air as an acoustical layer.
     - SeabedType: Enum for various seabed types, with acoustical properties.
-    
+
 The module uses `lps_utils.quantities` to represent physical quantities.
 """
 import enum
@@ -145,6 +145,10 @@ class SeabedType(AcousticalLayer, enum.Enum):
     BASALT = 8
 
     def __str__(self) -> str:
+        return f"{self.name}".title()
+
+    def to_complete_str(self) -> str:
+        """ More complete print """
         return f"{self.name} layer with speed {str(self.get_compressional_speed())}"
 
     @overrides.overrides

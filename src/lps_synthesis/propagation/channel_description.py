@@ -7,6 +7,7 @@ Classes:
 """
 import typing
 import random
+import json
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,7 +32,7 @@ class Description():
 
         Returns:
             A string formatted according to the OASES input file format.
-        
+
         Raises:
             UnboundLocalError: If the channel contains no layers.
         """
@@ -72,6 +73,11 @@ class Description():
         else:
             raise ValueError(("For add in AcousticalChannel, use lps_qty.Speed"
                              " or lps_layer.AcousticalLayer"))
+
+    def remove(self, depth: lps_qty.Distance) -> None:
+        """ Remove a layer to the channel description at a specific depth. """
+        if depth in self.layers:
+            self.layers.pop(depth)
 
     def export_ssp(self, filename: str) -> None:
         """
@@ -204,4 +210,40 @@ class Description():
         desc = cls()
         desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
         desc.add(lps_qty.Distance.m(50), lps_layer.BottomType.CHALK)
+        return desc
+
+    def save(self, file_path: str) -> None:
+        """Saves the description to a JSON file."""
+        local_dict = {}
+
+        for depth, layer in self.layers.items():
+            local_dict[depth.get_m()] = {
+                'type': layer.__class__.__name__,
+                'speed': layer.get_compressional_speed().get_m_s(),
+                'value': layer.value if isinstance(layer, lps_layer.BottomType) else "None"
+            }
+
+        with open(file_path, 'w', encoding="utf-8") as file:
+            json.dump(local_dict, file, indent=4)
+
+    @staticmethod
+    def load(file_path: str) -> 'Description':
+
+        with open(file_path, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+
+        desc = Description()
+
+        for depth, layer in data.items():
+            d = lps_qty.Distance.m(float(depth))
+
+            if layer['type'] == lps_layer.BottomType.CLAY.__class__.__name__:
+                desc.add(d, lps_layer.BottomType(int(layer['value'])))
+
+            elif layer['type'] == lps_layer.Water().__class__.__name__:
+                desc.add(d, lps_layer.Water(lps_qty.Speed.m_s(float(layer['speed']))))
+
+            else:
+                raise NotImplementedError(f"load for {layer['type']} not implemented")
+
         return desc

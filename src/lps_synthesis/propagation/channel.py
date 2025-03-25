@@ -11,7 +11,6 @@ import typing
 import json
 import hashlib
 import enum
-import overrides
 
 import numpy as np
 
@@ -20,7 +19,8 @@ import lps_synthesis.propagation.channel_description as lps_desc
 import lps_synthesis.propagation.layers as lps_layer
 import lps_synthesis.propagation.models as lps_model
 
-TEMP_DEFAULT_DIR = "."
+# DEFAULT_DIR = os.path.join(os.path.expanduser("~"), ".lps", "channel")
+DEFAULT_DIR = os.path.join(".", "channel")
 
 class Channel():
     """
@@ -37,21 +37,21 @@ class Channel():
                  sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
                  frequency_range: typing.Tuple[lps_qty.Frequency] = None,
                  model: lps_model.Model = lps_model.Model.OASES,
-                 temp_dir: str = TEMP_DEFAULT_DIR,
+                 channel_dir: typing.Optional[str] = None,
                  hash_id: str = None):
 
-        os.makedirs(temp_dir, exist_ok=True)
-
         self.description = description
-        self.source_depth = source_depths
+        self.source_depths = source_depths
         self.sensor_depth = sensor_depth
         self.max_distance = max_distance
         self.max_distance_points = max_distance_points
         self.sample_frequency = sample_frequency
         self.frequency_range = frequency_range
         self.model = model
-        self.temp_dir = temp_dir
+        self.channel_dir = channel_dir if channel_dir is not None else DEFAULT_DIR
         self.hash_id = hash_id
+
+        os.makedirs(self.channel_dir, exist_ok=True)
 
         self.response = None
 
@@ -59,7 +59,7 @@ class Channel():
             self._calc()
 
     def _filename(self, ext: str  = ".pkl") -> str:
-        return os.path.join(self.temp_dir, f"{self._get_hash()}{ext}")
+        return os.path.join(self.channel_dir, f"{self._get_hash()}{ext}")
 
     def _load(self) -> bool:
         self.response = lps_model.ImpulseResponse.load(self._filename())
@@ -68,7 +68,7 @@ class Channel():
     def _calc(self) -> None:
         self.response = self.model.estimate_transfer_function(
                         description = self.description,
-                        source_depth = self.source_depth,
+                        source_depth = self.source_depths,
                         sensor_depth = self.sensor_depth,
                         max_distance = self.max_distance,
                         max_distance_points = self.max_distance_points,
@@ -83,7 +83,7 @@ class Channel():
 
         hash_dict = {
             'description': self.description.to_oases_format(),
-            'source_depths': [d.get_m() for d in self.source_depth],
+            'source_depths': [d.get_m() for d in self.source_depths],
             'sensor_depth': self.sensor_depth.get_m(),
             'max_distance': self.max_distance.get_m(),
             'distance_points': self.max_distance_points,
@@ -143,7 +143,6 @@ class PredefinedChannel(enum.Enum):
                             sample_frequency = lps_qty.Frequency.khz(16),
                             frequency_range = None,
                             model = lps_model.Model.OASES,
-                            temp_dir = TEMP_DEFAULT_DIR,
                             hash_id=self.name.lower())
 
         if self == PredefinedChannel.DELTA_NODE:
@@ -153,11 +152,11 @@ class PredefinedChannel(enum.Enum):
             desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
 
             mixing_layer_depth = 30
-            for depth in range(0, mixing_layer_depth, 10):  
+            for depth in range(0, mixing_layer_depth, 10):
                 desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1490 + depth * 0.3))
 
             termocline_depth = 80
-            for depth in range(mixing_layer_depth, termocline_depth, 10):  
+            for depth in range(mixing_layer_depth, termocline_depth, 10):
                 desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1500 - depth * 0.2))
 
             for depth in range(termocline_depth, 200, 10):
@@ -172,9 +171,7 @@ class PredefinedChannel(enum.Enum):
                             sample_frequency = lps_qty.Frequency.khz(16),
                             frequency_range = None,
                             model = lps_model.Model.OASES,
-                            temp_dir = TEMP_DEFAULT_DIR,
                             hash_id=self.name.lower())
 
         else:
             raise NotImplementedError(f"PredefinedChannel {self} not implemented")
-
