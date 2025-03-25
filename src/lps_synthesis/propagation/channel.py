@@ -30,6 +30,8 @@ class Channel():
     def __init__(self,
                  description: lps_desc.Description,
                  sensor_depth: lps_qty.Distance,
+                 source_depths: typing.List[lps_qty.Distance] =
+                                [lps_qty.Distance.m(d) for d in np.arange(5, 25, 2)],
                  max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
                  max_distance_points: int = 128,
                  sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
@@ -41,7 +43,7 @@ class Channel():
         os.makedirs(temp_dir, exist_ok=True)
 
         self.description = description
-        self.source_depth = [lps_qty.Distance.m(d) for d in np.arange(5, 25, 2)]
+        self.source_depth = source_depths
         self.sensor_depth = sensor_depth
         self.max_distance = max_distance
         self.max_distance_points = max_distance_points

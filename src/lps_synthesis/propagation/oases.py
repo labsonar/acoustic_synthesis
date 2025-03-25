@@ -171,7 +171,7 @@ def trf_reader(filename):
 
         # Initialize output array
         nf = len(f)
-        h_f = np.zeros((num_z, nr, nf), dtype=np.complex_)
+        h_f = np.zeros((num_z, nr, nf), dtype=np.complex128)
 
         # Read complex transfer function data
         for j in range(nf):
@@ -272,8 +272,8 @@ def estimate_transfer_function(description: lps_channel.Description,
     n_samples = len(frequencies)
     times = np.arange(0, n_samples * dt, dt)
 
-    h_f_tau = np.zeros((h_freqs.shape[0], h_freqs.shape[1], n_samples), dtype=np.complex_)
-    h_t_tau = np.zeros((h_freqs.shape[0], h_freqs.shape[1], n_samples), dtype=np.complex_)
+    h_f_tau = np.zeros((h_freqs.shape[0], h_freqs.shape[1], n_samples), dtype=np.complex128)
+    h_t_tau = np.zeros((h_freqs.shape[0], h_freqs.shape[1], n_samples), dtype=np.complex128)
 
     indexes = np.isin(frequencies, freqs).nonzero()[0]
 
