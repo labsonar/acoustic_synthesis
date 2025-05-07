@@ -158,6 +158,9 @@ class Model(enum.Enum):
     """ Enum class to represent available propagation models. """
     OASES = 0
 
+    def __str__(self) -> str:
+        return self.name.title()
+
     def estimate_transfer_function(self,
                 description: lps_channel.Description,
                 source_depth: typing.List[lps_qty.Distance],

@@ -6,8 +6,10 @@ import typing
 import math
 import random
 import overrides
-import tqdm
 import abc
+import time
+
+import tqdm
 import tikzplotlib as tikz
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -337,17 +339,17 @@ class CavitationNoise(NoiseSource):
         rn = np.random.normal(1, noise_std, n_blades)
         alphas = alpha + np.random.normal(0, alpha * 0.01, n_blades)
         for n in range(1, n_harmonics + 1):
-            
+
             # Reforço para múltiplos de k
             if n % n_blades == 0:
                 base_intensity = gain * rn[n%n_blades] / ((n//n_blades) ** alphas[n%n_blades])
             else:
                 base_intensity = rn[n%n_blades] / (np.ceil(n/n_blades) ** alphas[n%n_blades])
-            
+
             # Adiciona ruído leve
             intensity = base_intensity
             intensities.append(np.max(intensity,0))
-            
+
         intensities = np.array(intensities)
         A0 =  np.sum(intensities)/mod_ind
 
@@ -369,19 +371,31 @@ class CavitationNoise(NoiseSource):
             List of estimated RPM (lps_qty.Frequency).
         """
         rpm_estimates = []
+
+        min_rpm, max_rpm = self.ship_type.get_rpm_range()
+        min_speed, max_speed = self.ship_type.get_speed_range()
+
+        last_speed = lps_qty.Speed.m_s(0)
+        rpm_value = lps_qty.Frequency.rpm(0)
+
         for speed in speeds:
-            if speed == lps_qty.Speed.m_s(0):
-                rpm_estimates.append(lps_qty.Frequency.rpm(0))
-                return
+            if last_speed != speed:
+                if speed == lps_qty.Speed.m_s(0):
+                    rpm_value = lps_qty.Frequency.rpm(0)
 
-            if speed < lps_qty.Speed.m_s(0):
-                speed *= -1
+                else:
+                    if speed < lps_qty.Speed.m_s(0):
+                        speed *= -1
 
-            min_rpm, max_rpm = self.ship_type.get_rpm_range()
-            _, max_speed = self.ship_type.get_speed_range()
+                    # if min_speed > speed:
+                    #     rpm_value = min_rpm
+                    # else:
+                    #     rpm_value = min_rpm + (max_rpm - min_rpm) * ((speed-min_speed) / (max_speed-min_speed))
 
-            rpm_value = min_rpm + (max_rpm - min_rpm) * (speed / max_speed)
+                    rpm_value = min_rpm + (max_rpm - min_rpm) * (speed / max_speed)
+
             rpm_estimates.append(rpm_value)
+            last_speed = speed
 
         return rpm_estimates
 
@@ -396,8 +410,9 @@ class CavitationNoise(NoiseSource):
             List of modulation indices (0 to 1).
         """
         modulation_indices = []
+        min_rpm, max_rpm = self.ship_type.get_rpm_range()
+
         for rpm in rpms:
-            min_rpm, max_rpm = self.ship_type.get_rpm_range()
             cavitation_threshold = lps_qty.Frequency.rpm(40)
 
             modulation_index = (rpm - cavitation_threshold) / (max_rpm - cavitation_threshold)
@@ -423,36 +438,33 @@ class CavitationNoise(NoiseSource):
 
         n_samples = len(broadband)
 
-        if n_samples != len(speeds):
-            speed_list = np.array([s.get_m_s() for s in speeds])
-            speeds_interp = np.interp(np.linspace(0, 1, n_samples),
-                              np.linspace(0, 1, len(speeds)),
-                              speed_list)
-            speeds = [lps_qty.Speed.m_s(s) for s in speeds_interp]
-
         rpms = self.estimate_rpm(speeds)
-        modulation_indices = self.estimate_modulation(rpms)
-
-        A0, A = CavitationNoise.generate_harmonic_intensities(n_blades=self.n_blades, mod_ind=0.8)
-
-        t = np.linspace(0, n_samples, n_samples, endpoint=False) / fs.get_hz()
+        # modulation_indices = self.estimate_modulation(rpms)
         rpms = np.array([rpm.get_hz() for rpm in rpms])
 
-        narrowband = np.ones_like(t) * A0
+        if n_samples != len(rpms):
+            rpms = np.interp(np.linspace(0, 1, n_samples),
+                              np.linspace(0, 1, len(speeds)),
+                              rpms)
+
+        A0, A = CavitationNoise.generate_harmonic_intensities(n_blades=self.n_blades, mod_ind=0.8) #TODO couple mod_ind to estimate_modulation
+
+        delta_t = 1 / fs.get_hz()
+
+        narrowband = np.ones(n_samples) * A0
 
         for n, An in enumerate(A):
-            narrowband += An * np.cos(2 * np.pi * (1 + n) * rpms * t)
+            phase = 2 * np.pi * (1 + n) * np.cumsum(rpms) * delta_t
+            narrowband += An * np.cos(phase)
 
         modulated_signal = narrowband * broadband
-
         return modulated_signal, narrowband
 
     @classmethod
     def get_random(cls, ship_type: ShipType = None) -> 'CavitationNoise':
         """ Return a random propulsion based on ship type. """
         if ship_type is None:
-            return cls.get_random(random.choice(list(ShipType))
-)
+            return cls.get_random(random.choice(list(ShipType)))
         return cls(ship_type = ship_type,
                           n_blades = np.random.randint(*ship_type.get_blades_range()),
                           n_shafts = np.random.randint(*ship_type.get_shafts_range()))
@@ -773,7 +785,7 @@ class Scenario():
                 output_filename = filename
             else:
                 output_filename = f"{filename}{sonar_id}.png"
-            
+
             if output_filename[-4:] == ".tex":
                 tikz.save(output_filename)
             else:

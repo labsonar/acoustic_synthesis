@@ -145,7 +145,7 @@ class SeabedType(AcousticalLayer, enum.Enum):
     BASALT = 8
 
     def __str__(self) -> str:
-        return f"{self.name}".title()
+        return self.name.title()
 
     def to_complete_str(self) -> str:
         """ More complete print """
