@@ -124,8 +124,9 @@ class Channel():
 class PredefinedChannel(enum.Enum):
     """ Enum class to represent predefined and preestimated channels. """
     BASIC = 0
-    DEEPSHIP = 1
-    DELTA_NODE = 1
+    DUMMY = 1
+    DEEPSHIP = 2
+    DELTA_NODE = 2
 
     def get_channel(self):
         """ Return the estimated channel"""
@@ -140,6 +141,23 @@ class PredefinedChannel(enum.Enum):
                             sensor_depth = lps_qty.Distance.m(40),
                             max_distance = lps_qty.Distance.km(1),
                             max_distance_points = 128,
+                            sample_frequency = lps_qty.Frequency.khz(16),
+                            frequency_range = None,
+                            model = lps_model.Model.OASES,
+                            hash_id=self.name.lower())
+
+        if self == PredefinedChannel.DUMMY:
+
+            desc = lps_desc.Description()
+            desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
+            desc.add(lps_qty.Distance.m(1000), lps_qty.Speed.m_s(1500))
+            desc.remove_air_sea_interface()
+
+            return Channel(description = desc,
+                            sensor_depth = lps_qty.Distance.m(500),
+                            source_depths = [lps_qty.Distance.m(500)],
+                            max_distance = lps_qty.Distance.m(1000),
+                            max_distance_points = 110,
                             sample_frequency = lps_qty.Frequency.khz(16),
                             frequency_range = None,
                             model = lps_model.Model.OASES,

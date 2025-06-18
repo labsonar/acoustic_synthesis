@@ -3,7 +3,6 @@
 import struct
 import typing
 import os
-import glob
 import subprocess
 import math
 import functools
@@ -58,7 +57,7 @@ def export_dat_file(description: lps_channel.Description,
         upper_freq = frequency_range[1]
         middle_freq = (frequency_range[0] + frequency_range[1])/2
     else:
-        lower_freq = lps_qty.Frequency.hz(10)
+        lower_freq = lps_qty.Frequency.hz(0)
         upper_freq = sample_frequency/2
         middle_freq = sample_frequency/4
 
@@ -92,100 +91,152 @@ def export_dat_file(description: lps_channel.Description,
 def trf_reader(filename):
     """ Function to read the .trf file output of a oasp """
 
-    # check corret extension
     root, ext = os.path.splitext(filename)
-    if ext != '.trf':
-        filename = root + '.trf'
+    if ext.lower() != ".trf":
+        filename = root + ".trf"
 
-    with open(filename, 'rb') as fid:
+    with open(filename, "rb") as fid:
+        byte = b" "
+        while byte[0] != ord(b"P"):
+            byte = fid.read(1)
 
-        junk = b' '
-        while junk[0] != ord(b'P'):
-            junk = fid.read(1)
+        fid.seek(-1, os.SEEK_CUR)
 
-        # Move back the file pointer to the start of 'P'
-        fid.seek(-1, 1)
-
-        # Read the first sign ('+' or '-')
-        sign = b' '
-        while sign not in [b'+', b'-']:
+        sign = b" "
+        while sign not in (b"+", b"-"):
             sign = fid.read(1)
 
-        # Skip next 2 floats and read center frequency
         fid.read(8)
-        _ = struct.unpack('f', fid.read(4))[0]
+        fc = struct.unpack("f", fid.read(4))[0]
 
         fid.read(8)
-        _ = struct.unpack('f', fid.read(4))[0]  # Source depth
+        sd = struct.unpack("f", fid.read(4))[0]
 
         fid.read(8)
-        z1 = struct.unpack('f', fid.read(4))[0]  # First receiver depth
-        z2 = struct.unpack('f', fid.read(4))[0]  # Last receiver depth
-        num_z = struct.unpack('i', fid.read(4))[0]  # Number of receiver depths
-        _ = np.linspace(z1, z2, num_z)  # Generate depths array
+        z1   = struct.unpack("f", fid.read(4))[0]
+        z2   = struct.unpack("f", fid.read(4))[0]
+        num_z = struct.unpack("i", fid.read(4))[0]
+        z = np.linspace(z1, z2, num_z, dtype=np.float32)
 
         fid.read(8)
-        r1 = struct.unpack('f', fid.read(4))[0]  # First receiver range
-        dr = struct.unpack('f', fid.read(4))[0]  # Range increment
-        nr = struct.unpack('i', fid.read(4))[0]  # Number of ranges
+        r1   = struct.unpack("f", fid.read(4))[0]
+        dr   = struct.unpack("f", fid.read(4))[0]
+        nr   = struct.unpack("i", fid.read(4))[0]
+        ranges = r1 + dr * np.arange(nr, dtype=np.float32)
 
         fid.read(8)
-        nfft = struct.unpack('i', fid.read(4))[0]  # FFT size
-        bin_low = struct.unpack('i', fid.read(4))[0]  # Low frequency bin
-        bin_high = struct.unpack('i', fid.read(4))[0]  # High frequency bin
+        nfft     = struct.unpack("i", fid.read(4))[0]
+        bin_low  = struct.unpack("i", fid.read(4))[0]
+        bin_high = struct.unpack("i", fid.read(4))[0]
 
-        dt = struct.unpack('f', fid.read(4))[0]  # Sampling interval
-        f = np.linspace(0, 1/dt, nfft)[:nfft]  # Frequencies
-        f = f[bin_low:bin_high + 1]  # Keep only the bins between bin_low and bin_high
+        dt = struct.unpack("f", fid.read(4))[0]
 
-        fid.read(8)
-        _ = struct.unpack('i', fid.read(4))[0]  # Skip icdr
+        f = np.linspace(0.0, 1.0 / dt, nfft, dtype=np.float32)[(bin_low-1): bin_high]
 
         fid.read(8)
-        _ = struct.unpack('f', fid.read(4))[0]  # Imaginary part of the radian frequency
+        _icdr = struct.unpack("i", fid.read(4))[0]
 
-        _ = np.arange(r1, r1 + dr * nr, dr)  # Range values
+        fid.read(8)
+        omegim = struct.unpack("f", fid.read(4))[0]
 
-        # Read and skip various data
-        fid.read(8)  # Skips
-        _ = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        _ = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        _ = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        _ = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        _ = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        dummy1 = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        dummy2 = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        dummy3 = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        dummy4 = struct.unpack('i', fid.read(4))[0]
-        fid.read(8)
-        dummy5 = struct.unpack('i', fid.read(4))[0]
-        fid.read(4)  # Skips final float
+        for _ in range(10):
+            fid.read(8)
+            fid.read(4)
 
-        # Initialize output array
-        nf = len(f)
-        h_f = np.zeros((num_z, nr, nf), dtype=np.complex128)
+        fid.read(4)
 
-        # Read complex transfer function data
+        nf   = len(f)
+        h_f_tau  = np.zeros((num_z, nr, nf), dtype=np.complex128)
+
         for j in range(nf):
             for jj in range(nr):
-                fid.read(4)  # Skip
-                temp = np.fromfile(fid, dtype='float32', count=num_z * 4 - 2)
-                real_part = temp[0::2]  # Real part
-                imag_part = temp[1::2]  # Imaginary part
-                temp_complex = real_part + 1j * imag_part  # Combine into complex numbers
-                temp_complex = temp_complex[0::2]
-                fid.read(4)  # Skip
-                h_f[:, jj, j] = temp_complex[:num_z]
+                fid.read(4)
+                raw = np.fromfile(fid, dtype=np.float32, count=num_z * 4 - 2)
 
-    return h_f, f, dt
+                real = raw[0::2]
+                imag = raw[1::2]
+                temp = real + 1j * imag
+                temp = temp[0::2]
+
+                fid.read(4)
+                h_f_tau[:, jj, j] = temp
+
+    return h_f_tau, sd, z, ranges, f, fc, omegim, dt
+
+def trf_time_series_tranform(h_f_tau: np.ndarray,
+                        freqs: np.ndarray,
+                        fo: float,
+                        omegim: float,
+                        times: np.ndarray,
+                        bw: float) -> np.ndarray:
+    """
+    Converts a frequency response to a time-domain response using the same
+    procedure as the Octave script (Gaussian window + exponential decay).
+
+    Parameters:
+        h_f_tau : np.ndarray (depth, range, freq)
+                  Complex frequency response
+        freqs   : np.ndarray (freq,)
+                  Frequency values (Hz) used in 'out'
+        fo      : float
+                  Center frequency (Hz)
+        omegim  : float
+                  Imaginary part of angular frequency
+        times   : np.ndarray (time,)
+                  Desired time vector (s)
+        bw      : float
+                  Bandwidth (Hz)
+
+    Returns:
+        ts_out  : np.ndarray (depth, range, time)
+                  Time-domain response (range-depth time series)
+    """
+    f = freqs[:, None]
+    t = times[None, :]
+
+    # shape: (F, T)
+    kernel = (np.exp(1j * (2*np.pi * f + 1j * omegim) * t) *
+              (np.exp(-((f - fo)**2) / (2 * bw**2)) *
+               np.sqrt(2 * np.pi) / len(times)))
+
+    depth, rng, _ = h_f_tau.shape
+    h_t_tau = np.empty((depth, rng, len(times)), dtype=np.complex128)
+
+    for j in range(depth):
+        temp = h_f_tau[j, :, :]
+        h_t_tau[j] = temp @ kernel
+
+    return h_t_tau
+
+def trf_impulse_response_reader(filename: str):
+    """ Function to read a .trf file and convert to impulse response in time. """
+
+    h_f_tau, _, depths, ranges, freqs, _, omegim, dt = trf_reader(filename)
+
+    fs = 1.0 / dt
+    df = freqs[1] - freqs[0]
+    n_samples = int(fs / df) + 1
+    times = np.arange(0, n_samples * dt, dt)
+
+    fo = freqs[len(freqs) // 2]
+    bw = freqs[-1] - freqs[0]
+
+    h_t_tau = trf_time_series_tranform(
+        h_f_tau    = h_f_tau,
+        freqs  = freqs,
+        fo     = fo,
+        omegim = omegim,
+        times  = times,
+        bw     = bw
+    )
+
+    h_t_tau = np.abs(h_t_tau)
+
+    return h_t_tau, \
+            [lps_qty.Distance.m(f) for f in depths], \
+            [lps_qty.Distance.km(f) for f in ranges], \
+            [lps_qty.Frequency.hz(f) for f in freqs], \
+            [lps_qty.Time.s(t) for t in times]
 
 def estimate_transfer_function(description: lps_channel.Description,
                     source_depth: typing.List[lps_qty.Distance],
@@ -201,7 +252,6 @@ def estimate_transfer_function(description: lps_channel.Description,
     # file_without_extension = os.path.splitext(filename)[0]
     file_directory = os.path.dirname(filename)
     file_without_extension = os.path.splitext(os.path.basename(filename))[0]
-
 
     # encontra um sweep para atender a lista de distancias com base no mdc da lista
     if len(source_depth) > 1:
@@ -229,7 +279,6 @@ def estimate_transfer_function(description: lps_channel.Description,
     ranges = Sweep(start=lps_qty.Distance.m(0),
                    step=lps_qty.Distance.m(step),
                    n_steps=n_steps)
-
 
     export_dat_file(description=description,
             sample_frequency=sample_frequency,
@@ -260,34 +309,4 @@ def estimate_transfer_function(description: lps_channel.Description,
     if stderr_output:
         raise UnboundLocalError(f"Erro: {stderr_output.strip()}")
 
-    h_freqs, freqs, dt = trf_reader(filename)
-
-    fs = 1 / dt
-    df = freqs[1] - freqs[0]
-
-    frequencies = np.arange(0, (fs+df), df)
-    frequencies = np.round(frequencies * 1000) / 1000
-    freqs = np.round(freqs * 1000) / 1000
-
-    n_samples = len(frequencies)
-    times = np.arange(0, n_samples * dt, dt)
-
-    h_f_tau = np.zeros((h_freqs.shape[0], h_freqs.shape[1], n_samples), dtype=np.complex128)
-    h_t_tau = np.zeros((h_freqs.shape[0], h_freqs.shape[1], n_samples), dtype=np.complex128)
-
-    indexes = np.isin(frequencies, freqs).nonzero()[0]
-
-    for d in range(h_freqs.shape[0]): # depths
-        for r in range(h_freqs.shape[1]):# ranges
-            h_f_tau[d, r, indexes] = h_freqs[d, r, :]
-            h_t_tau[d, r, :] = len(times) / np.sqrt(2) * np.fft.ifft(h_f_tau[d, r, :])
-
-    # for file in glob.glob(f"{file_without_extension}.*"):
-    #     os.remove(file)
-    #     print(f"Removido: {file}")
-
-
-    return h_t_tau, \
-            depths.get_all(), ranges.get_all(), \
-            [lps_qty.Frequency.hz(f) for f in frequencies], \
-            [lps_qty.Time.s(t) for t in times]
+    return trf_impulse_response_reader(filename)

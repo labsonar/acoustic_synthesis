@@ -3,10 +3,10 @@
 import os
 import enum
 import typing
-
-import numpy as np
 import pickle
 import bisect
+
+import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as scipy
 
@@ -106,9 +106,9 @@ class ImpulseResponse():
 
         h_t_tau = self.h_t_tau[depth_index].T[::-1]
 
-        time_response = h_t_tau.shape[0]
+        n_samples = h_t_tau.shape[0]
 
-        x = np.concatenate((np.zeros(time_response-1), input_data))
+        x = np.concatenate((np.zeros(n_samples-1), input_data))
         y = np.zeros_like(input_data, dtype=np.complex_)
 
         dists = [np.abs(d.get_m()) for d in distance]
@@ -124,7 +124,7 @@ class ImpulseResponse():
             interp_factor = (dists[y_i] - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
 
             ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
-            y[y_i] = np.dot(x[y_i:y_i + time_response], ir)
+            y[y_i] = np.dot(x[y_i:y_i + n_samples], ir)
 
         y = np.real(y)
 
@@ -137,21 +137,35 @@ class ImpulseResponse():
         Args:
             filename: The file path where the image should be saved.
         """
-        plt.imshow(abs(self.h_t_tau[source_id,:,:]), aspect='auto',
-                    cmap='jet', interpolation='none',
-                    extent=[
-                                    self.times[0].get_s(),
-                                    self.times[-1].get_s(),
-                                    self.ranges[-1].get_m(),
-                                    self.ranges[0].get_m()]
-                    )
-
+        time = [t.get_s() for t in self.times]
+        plt.figure()
+        for r in range(self.h_t_tau.shape[1]):
+            if self.ranges[r] == lps_qty.Distance.m(0):
+                continue
+            plt.plot(time, self.h_t_tau[source_id, r, :], label=f"{self.ranges[r]}")
         plt.xlabel("Time (s)")
-        plt.ylabel("Distance (m)")
-        plt.colorbar()
+        plt.ylabel("Amplitude")
+        plt.grid(True)
+        plt.legend(title="Range")
         plt.tight_layout()
         plt.savefig(filename)
         plt.close()
+
+        # plt.imshow(abs(self.h_t_tau[source_id,:,:]), aspect='auto',
+        #             cmap='jet', interpolation='none',
+        #             extent=[
+        #                             self.times[0].get_s(),
+        #                             self.times[-1].get_s(),
+        #                             self.ranges[-1].get_m(),
+        #                             self.ranges[0].get_m()]
+        #             )
+
+        # plt.xlabel("Time (s)")
+        # plt.ylabel("Distance (m)")
+        # plt.colorbar()
+        # plt.tight_layout()
+        # plt.savefig(filename)
+        # plt.close()
 
 
 class Model(enum.Enum):

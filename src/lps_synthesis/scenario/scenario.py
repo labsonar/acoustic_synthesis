@@ -351,7 +351,7 @@ class CavitationNoise(NoiseSource):
             intensities.append(np.max(intensity,0))
 
         intensities = np.array(intensities)
-        A0 =  np.sum(intensities)/mod_ind
+        A0 =  np.sum(intensities)/max(mod_ind, 1e-2)
 
         total_energy = A0**2 + np.sum(intensities**2)/2
 
@@ -439,7 +439,6 @@ class CavitationNoise(NoiseSource):
         n_samples = len(broadband)
 
         rpms = self.estimate_rpm(speeds)
-        # modulation_indices = self.estimate_modulation(rpms)
         rpms = np.array([rpm.get_hz() for rpm in rpms])
 
         if n_samples != len(rpms):
@@ -447,15 +446,37 @@ class CavitationNoise(NoiseSource):
                               np.linspace(0, 1, len(speeds)),
                               rpms)
 
-        A0, A = CavitationNoise.generate_harmonic_intensities(n_blades=self.n_blades, mod_ind=0.8) #TODO couple mod_ind to estimate_modulation
+        discrete_rpms = np.round(rpms).astype(int)
+        rpms_values = np.unique(discrete_rpms)
+        mod_inds = self.estimate_modulation([lps_qty.Frequency.hz(r) for r in rpms_values])
+
+        rpm_to_harmonics = {}
+        for rpm_val, mod_ind in zip(rpms_values, mod_inds):
+            A0, A = CavitationNoise.generate_harmonic_intensities(
+                n_blades=self.n_blades, mod_ind=mod_ind)
+            rpm_to_harmonics[rpm_val] = (A0, A)
+
 
         delta_t = 1 / fs.get_hz()
+        phase_accum = 2 * np.pi * np.cumsum(rpms) * delta_t
 
-        narrowband = np.ones(n_samples) * A0
+        narrowband = np.zeros(n_samples)
+        for i in range(n_samples):
+            A0_i, A_i = rpm_to_harmonics[discrete_rpms[i]]
 
-        for n, An in enumerate(A):
-            phase = 2 * np.pi * (1 + n) * np.cumsum(rpms) * delta_t
-            narrowband += An * np.cos(phase)
+            narrowband[i] += A0_i
+            for n, An in enumerate(A_i):
+                narrowband[i] += An * np.cos(phase_accum[i] * (1+n))
+
+        # A0, A = CavitationNoise.generate_harmonic_intensities(n_blades=self.n_blades, mod_ind=0.8) #TODO couple mod_ind to estimate_modulation
+
+        # delta_t = 1 / fs.get_hz()
+
+        # narrowband = np.ones(n_samples) * A0
+
+        # for n, An in enumerate(A):
+        #     phase = 2 * np.pi * (1 + n) * np.cumsum(rpms) * delta_t
+        #     narrowband += An * np.cos(phase)
 
         modulated_signal = narrowband * broadband
         return modulated_signal, narrowband

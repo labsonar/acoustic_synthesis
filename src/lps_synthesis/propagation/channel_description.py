@@ -39,7 +39,8 @@ class Description():
         if len(self.layers) == 0:
             raise UnboundLocalError("Should not export an empty channel")
 
-        ret = f"{len(self.layers) + 1}\n"
+        n_layers = len(self.layers) + (1 if self.air_sea is not None else 0)
+        ret = f"{n_layers}\n"
         for depth, layer in self:
             ret += f"{depth.get_m():6f} {layer.to_oases_format()}\n"
         return ret[:-1]
@@ -52,7 +53,7 @@ class Description():
 
     def __iter__(self) -> \
         typing.Iterator[typing.Tuple[lps_qty.Distance, lps_layer.AcousticalLayer]]:
-        all_layers = [(lps_qty.Distance.m(0), self.air_sea)]
+        all_layers = [(lps_qty.Distance.m(0), self.air_sea)] if self.air_sea is not None else []
         all_layers += sorted(self.layers.items())
         return iter(all_layers)
 
@@ -78,6 +79,10 @@ class Description():
         """ Remove a layer to the channel description at a specific depth. """
         if depth in self.layers:
             self.layers.pop(depth)
+
+    def remove_air_sea_interface(self) -> None:
+        """ Remove the layer of air at 0 depth. """
+        self.air_sea = None
 
     def export_ssp(self, filename: str) -> None:
         """
@@ -228,6 +233,7 @@ class Description():
 
     @staticmethod
     def load(file_path: str) -> 'Description':
+        """ Load Channel description from a file. """
 
         with open(file_path, 'r', encoding="utf-8") as f:
             data = json.load(f)
