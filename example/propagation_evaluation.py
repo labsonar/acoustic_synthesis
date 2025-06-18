@@ -40,7 +40,7 @@ distances = list(range(100, 600, 100))
 
 fig, axes = plt.subplots(len(distances) + 1, 1, figsize=(12, 2.5 * (len(distances) + 1)), sharex=True)
 
-axes[0].plot(t[:250], input_signal[:250], label="Original", color="black", alpha=0.7)
+axes[0].plot(t[0:8000], input_signal[0:8000], label="Original", color="black", alpha=0.7)
 axes[0].set_title("Original signal")
 axes[0].set_ylabel("Amplitude")
 axes[0].grid(True)
@@ -49,12 +49,12 @@ for i, d in enumerate(distances):
     r_t = [lps_qty.Distance.m(d) for _ in range(len(input_signal))]
     propag_signal = channel.propagate(input_signal, channel.source_depths[0], r_t)
 
-    axes[i + 1].plot(t[:250], propag_signal[:250], label=f"{d} m", alpha=0.7)
+    axes[i + 1].plot(t[0:8000], propag_signal[0:8000], label=f"{d} m", alpha=0.7)
     axes[i + 1].set_title(f"Propagated signal at {d} m")
     axes[i + 1].set_ylabel("Amplitude")
     axes[i + 1].grid(True)
 
-    rms = np.sqrt(np.mean(propag_signal**2))
+    rms = np.sqrt(np.mean(propag_signal[20000:]**2))
     rms_values.append(rms)
 
 axes[-1].set_xlabel("Time [s]")

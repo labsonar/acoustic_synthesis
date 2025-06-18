@@ -109,7 +109,8 @@ class ImpulseResponse():
         n_samples = h_t_tau.shape[0]
 
         x = np.concatenate((np.zeros(n_samples-1), input_data))
-        y = np.zeros_like(input_data, dtype=np.complex_)
+        # y = np.zeros_like(input_data, dtype=np.complex_)
+        y = np.zeros_like(input_data)
 
         dists = [np.abs(d.get_m()) for d in distance]
         if len(input_data) != len(dists):
@@ -119,16 +120,51 @@ class ImpulseResponse():
 
         ranges = [r.get_m() for r in self.ranges]
 
-        for y_i in range(len(input_data)):
-            r_i = bisect.bisect_right(ranges, dists[y_i])
-            interp_factor = (dists[y_i] - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
+        last_distance = None
+        ir = None
 
-            ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
+        for y_i in range(len(input_data)):
+            if last_distance != dists[y_i]:
+                r_i = bisect.bisect_right(ranges, dists[y_i])
+                interp_factor = (dists[y_i] - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
+                interp_factor = int(interp_factor*1000)/1000
+
+                ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
+                ir = ir - np.mean(ir)
+
+                last_distance = dists[y_i]
+
             y[y_i] = np.dot(x[y_i:y_i + n_samples], ir)
 
-        y = np.real(y)
-
         return y
+
+    def get_h_t(self,
+                  source_depth: lps_qty.Distance,
+                  distance: lps_qty.Distance) -> np.array:
+
+        depth_index = bisect.bisect_left(self.depths, source_depth)
+
+        if depth_index == len(self.depths):
+            depth_index -= 1
+        elif depth_index != 0 and (self.depths[depth_index] - source_depth > \
+                                   source_depth - self.depths[depth_index - 1]):
+            depth_index -= 1
+
+        h_t_tau = self.h_t_tau[depth_index].T[::-1]
+
+        ranges = [r.get_m() for r in self.ranges]
+
+        r_i = bisect.bisect_right(ranges, distance)
+        interp_factor = (distance - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
+        interp_factor = int(interp_factor*1000)/1000
+
+        ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
+
+        ir = ir - np.mean(ir)
+
+        print(r_i, ": ", interp_factor, " -> ", np.mean(ir))
+
+        return ir
 
     def print_h_t_tau(self, filename: str, source_id: int = 0) -> None:
         """
