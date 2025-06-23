@@ -18,7 +18,7 @@ for i in range(num_profiles):
         if isinstance(layer, lps_layer.Water):
             depths.append(depth.get_m())
             speeds.append(layer.get_compressional_speed().get_m_s())
-        if isinstance(layer, lps_layer.SeabedType):
+        if isinstance(layer, lps_layer.Seabed):
             print(layer)
 
     plt.plot(speeds, depths, label=f'Perfil {i+1}')

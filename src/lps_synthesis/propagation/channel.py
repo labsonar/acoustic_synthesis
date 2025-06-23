@@ -124,9 +124,10 @@ class Channel():
 class PredefinedChannel(enum.Enum):
     """ Enum class to represent predefined and preestimated channels. """
     BASIC = 0
-    DUMMY = 1
-    DEEPSHIP = 2
-    DELTA_NODE = 2
+    SPHERICAL = 1
+    CYLINDRICAL = 2
+    DEEPSHIP = 3
+    DELTA_NODE = 3
 
     def get_channel(self):
         """ Return the estimated channel"""
@@ -146,7 +147,7 @@ class PredefinedChannel(enum.Enum):
                             model = lps_model.Model.OASES,
                             hash_id=self.name.lower())
 
-        if self == PredefinedChannel.DUMMY:
+        if self == PredefinedChannel.SPHERICAL:
 
             desc = lps_desc.Description()
             desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
@@ -156,6 +157,34 @@ class PredefinedChannel(enum.Enum):
             return Channel(description = desc,
                             sensor_depth = lps_qty.Distance.m(500),
                             source_depths = [lps_qty.Distance.m(500)],
+                            max_distance = lps_qty.Distance.m(1000),
+                            max_distance_points = 110,
+                            sample_frequency = lps_qty.Frequency.khz(16),
+                            frequency_range = None,
+                            model = lps_model.Model.OASES,
+                            hash_id=self.name.lower())
+
+        if self == PredefinedChannel.CYLINDRICAL:
+
+            void_layer = lps_layer.AcousticalLayer(
+                    compressional_speed = lps_qty.Speed.m_s(0),
+                    shear_speed = lps_qty.Speed.m_s(0),
+                    compressional_attenuation = 0,
+                    shear_attenuation = 0,
+                    density = lps_qty.Density.g_cm3(0),
+                    rms_roughness = lps_qty.Distance.m(0))
+
+            desc = lps_desc.Description()
+            desc.add(lps_qty.Distance.m(0), void_layer)
+            desc.add(lps_qty.Distance.m(0.01), lps_qty.Speed.m_s(1500))
+            desc.add(lps_qty.Distance.m(50), lps_qty.Speed.m_s(1500))
+            desc.add(lps_qty.Distance.m(50.01), void_layer)
+            desc.remove_air_sea_interface()
+
+
+            return Channel(description = desc,
+                            sensor_depth = lps_qty.Distance.m(20),
+                            source_depths = [lps_qty.Distance.m(25)],
                             max_distance = lps_qty.Distance.m(1000),
                             max_distance_points = 110,
                             sample_frequency = lps_qty.Frequency.khz(16),
@@ -180,7 +209,7 @@ class PredefinedChannel(enum.Enum):
             for depth in range(termocline_depth, 200, 10):
                 desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1495 + depth * 0.1))
 
-            desc.add(lps_qty.Distance.m(200), lps_layer.SeabedType.SILT)
+            desc.add(lps_qty.Distance.m(200), lps_layer.Seabed(lps_layer.SeabedType.SILT))
 
             return Channel(description = desc,
                             sensor_depth = lps_qty.Distance.m(140),

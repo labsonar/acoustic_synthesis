@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.channel as lps_channel
 
-lps_channel.DEFAULT_DIR = "./result/propagation"
-
 def get_sin(freq: lps_qty.Frequency):
     sample_frequency = lps_qty.Frequency.khz(16)
     ts = 1 / sample_frequency.get_hz()
@@ -28,7 +26,7 @@ def get_white_noise():
     return ret_t, noise
 
 sin_frequency = lps_qty.Frequency.hz(500)
-channel = lps_channel.PredefinedChannel.DUMMY.get_channel()
+channel = lps_channel.PredefinedChannel.SPHERICAL.get_channel()
 
 channel.get_ir().print_h_t_tau("./result/h_t_tau.png")
 

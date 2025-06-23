@@ -22,8 +22,19 @@ import numpy as np
 import pandas as pd
 
 import lps_sp.acoustical.broadband as lps
+import lps_utils.quantities as lps_qty
 
 def one_third_octave_frequencies(lower_bound = -20, upper_bound = -20) -> np.array:
+    """ Get the central frequencies for a 1/3 octave, following the norm IEC 61260-1
+    https://cdn.standards.iteh.ai/samples/13383/3c4ae3e762b540cc8111744cb8f0ae8e/IEC-61260-1-2014.pdf
+
+    Args:
+        lower_bound (int, optional): Number of frequencies lower than 1 kHz. Defaults to -20.
+        upper_bound (int, optional): Number of frequencies higher than 1 kHz. Defaults to -20.
+
+    Returns:
+        np.array: frequencies in Hz
+    """
     return np.array([1e3 * 2**(i/3) for i in range(lower_bound, upper_bound + 1)])
 
 
@@ -131,8 +142,9 @@ class Rain(enum.Enum):
         if self == Rain.NONE:
             return "without rain"
         return str(self.name).rsplit(".", maxsplit=1)[-1].lower().replace("_", " ")
-    
+
     def to_mm_p_h(self) -> float:
+        """ Get rain intensity in mm/h. """
         value_dict = {
             Rain.NONE: 0,
             Rain.LIGHT: 1,
@@ -176,7 +188,7 @@ class Rain(enum.Enum):
         if isinstance(value, Rain):
             return value.get_psd()
 
-        if not 0 <= value <= 7:
+        if not 0 <= value <= 4:
             raise ValueError("Rain level noise must be between 0 and 4.")
 
         lower_state = Rain(int(np.floor(value)))
@@ -260,6 +272,34 @@ class Sea(enum.Enum):
 
         return frequencies, interpolated_psd
 
+    def get_wind_speed(self) -> lps_qty.Speed:
+        """ Return the mean wind speed of the air. """
+        ret_dict = {
+            Sea.STATE_0: 0,
+            Sea.STATE_1: 2.45,
+            Sea.STATE_2: 4.4,
+            Sea.STATE_3: 6.7,
+            Sea.STATE_4: 9.35,
+            Sea.STATE_5: 12.3,
+            Sea.STATE_6: 17.3,
+        }
+        return lps_qty.Speed.m_s(ret_dict[self])
+
+    def get_rms_roughness(self) -> lps_qty.Distance:
+        """ Return the rms roughness of the air-sea interface. """
+
+        """BYE, “On the Variability of the Charnock ...” doi: 10.1007/s10236-014-0735-4"""
+        friction_speed = self.get_wind_speed() * 0.045 - lps_qty.Speed.m_s(0.07)
+        if friction_speed.get_m_s() < 0:
+            return lps_qty.Distance.m(0)
+
+
+        """WU “A Review of Surface Swell Waves ...” doi: 10.1016/j.ocemod.2024."""
+        charnock_constant = 0.0185
+        gravitational_acceleration = lps_qty.Acceleration.m_s2(9.81)
+
+        return charnock_constant * gravitational_acceleration** 2 / gravitational_acceleration
+
 class Environment():
     """Class to represent an acoustical environment background."""
 
@@ -310,7 +350,10 @@ class Environment():
         frequencies2, spectrum2 = Sea.get_interpolated_psd(self.sea_value)
         frequencies3, spectrum3 = Shipping.get_interpolated_psd(self.shipping_value)
 
-        all_frequencies = np.unique(np.concatenate([frequencies0, frequencies1, frequencies2, frequencies3]))
+        all_frequencies = np.unique(np.concatenate([frequencies0,
+                                                    frequencies1,
+                                                    frequencies2,
+                                                    frequencies3]))
 
         interpolated_spectrum0 = np.interp(all_frequencies, frequencies0, spectrum0,
                                                 left=0, right=0)

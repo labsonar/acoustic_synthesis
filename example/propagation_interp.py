@@ -1,10 +1,10 @@
+""" Example of use of propagation module plotting interpolation of impulse response
+"""
 import matplotlib.pyplot as plt
 
 import lps_synthesis.propagation.channel as lps_channel
 
-lps_channel.DEFAULT_DIR = "./result/propagation"
-
-channel = lps_channel.PredefinedChannel.DUMMY.get_channel()
+channel = lps_channel.PredefinedChannel.SPHERICAL.get_channel()
 
 distances = [100, 102.5, 105, 107.5, 110]
 
