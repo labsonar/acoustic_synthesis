@@ -413,8 +413,10 @@ class RelativeElement():
 
         heading = state.velocity.get_azimuth().get_eccw_rad()
 
-        rotated_x = self.rel_position.x * math.cos(heading) - self.rel_position.y * math.sin(heading)
-        rotated_y = self.rel_position.x * math.sin(heading) + self.rel_position.y * math.cos(heading)
+        rotated_x = self.rel_position.x * math.cos(heading) - \
+                        self.rel_position.y * math.sin(heading)
+        rotated_y = self.rel_position.x * math.sin(heading) + \
+                        self.rel_position.y * math.cos(heading)
 
         state.position = state.position + Displacement(rotated_x, rotated_y, self.rel_position.z)
 
@@ -428,5 +430,5 @@ class RelativeElement():
 
     def check(self):
         """ Check if reference element is set, If not raise UnboundLocalError. """
-        if (self is None):
+        if self is None:
             raise UnboundLocalError("Relative item must be set before use")

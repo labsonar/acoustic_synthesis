@@ -71,7 +71,8 @@ class Shaded(Directivity):
     def get_gain(self, relative_angle: lps_qty.RelativeBearing):
         """ return the directional gain for an specific angle. """
         max_gain = math.sqrt((self.d / 2**self.m) * ((1 + 1)**self.m))
-        gain = math.sqrt((self.d/2**self.m) * ((1 + math.cos(relative_angle.get_ccw_rad()))**self.m))
+        gain = math.sqrt((self.d/2**self.m) *
+                         ((1 + math.cos(relative_angle.get_ccw_rad()))**self.m))
         return gain/max_gain
 
 

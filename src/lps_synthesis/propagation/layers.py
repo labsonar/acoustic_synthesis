@@ -118,6 +118,7 @@ class SeabedType(enum.Enum):
         """ Get a valid acoustical layer for this SeabedType. """
         return Seabed(self)
 
+
 class Seabed(AcousticalLayer):
     """
     Class to represent a acoustical layer of a seabed type.
@@ -132,7 +133,7 @@ class Seabed(AcousticalLayer):
             compressional_attenuation = self._sort_compressional_attenuations(),
             shear_attenuation = self._sort_shear_attenuations(),
             density = self._sort_density_ratios(),
-            rms_roughness = self._sort_rms_roughness(),
+            rms_roughness = self._draw_rms_roughness(),
         )
 
     def __str__(self) -> str:
@@ -207,7 +208,7 @@ class Seabed(AcousticalLayer):
         }
         return lps_qty.Density.g_cm3(1) * density_ratios[self]
 
-    def _sort_rms_roughness(self) -> lps_qty.Distance:
+    def _draw_rms_roughness(self) -> lps_qty.Distance:
         """Returns a valid RMS roughness value for the seabed surface."""
         roughness_range = {
             SeabedType.CLAY: (0, 9.75e-6),

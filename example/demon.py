@@ -2,6 +2,7 @@ import math
 import numpy as np
 
 import matplotlib.pyplot as plt
+import tikzplotlib as tikz
 from scipy.io.wavfile import read
 from librosa import fft_frequencies, frames_to_time, stft
 from sympy import factorint
@@ -45,7 +46,7 @@ def get_demon_steps(fs_in, fs_out=50):
         else:
             decimate_ratio1 = decimate_ratio1 * part2
             decimate_ratio2 = decimate_ratio2 * part1
-        
+
         add_one = not add_one
 
     return [decimate_ratio1, decimate_ratio2]
@@ -138,11 +139,12 @@ else:
     plt.imshow(S, aspect='auto', extent=[
                                         f[0] * 60,
                                         f[-1] * 60,
-                                        t[0],
-                                        t[-1]]
+                                        t[-1],
+                                        t[0]]
                         )
     plt.ylabel('Time')
 
 plt.title('Demon')
 plt.xlabel('Frequency [rpm]')
 plt.savefig("./plot/scenario_0/demon.png")
+tikz.save("./plot/scenario_0/demon.tex")
