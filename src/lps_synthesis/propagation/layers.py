@@ -154,7 +154,7 @@ class Seabed(AcousticalLayer):
             SeabedType.LIMESTONE: 2,
             SeabedType.BASALT: 3.5,
         }
-        return lps_qty.Speed.m_s(1500 * speed_ratios[self])
+        return lps_qty.Speed.m_s(1500 * speed_ratios[self.seabed_type])
 
     def _sort_shear_speeds(self) -> lps_qty.Speed:
         shear_speeds = {
@@ -167,7 +167,7 @@ class Seabed(AcousticalLayer):
             SeabedType.LIMESTONE: 1500,
             SeabedType.BASALT: 2500,
         }
-        return lps_qty.Speed.m_s(shear_speeds[self])
+        return lps_qty.Speed.m_s(shear_speeds[self.seabed_type])
 
     def _sort_compressional_attenuations(self) -> float:
         compressional_attenuations = {
@@ -180,7 +180,7 @@ class Seabed(AcousticalLayer):
             SeabedType.LIMESTONE: 0.1,
             SeabedType.BASALT: 0.1,
         }
-        return compressional_attenuations[self]
+        return compressional_attenuations[self.seabed_type]
 
     def _sort_shear_attenuations(self) -> float:
         shear_attenuations = {
@@ -193,7 +193,7 @@ class Seabed(AcousticalLayer):
             SeabedType.LIMESTONE: 0.2,
             SeabedType.BASALT: 0.2,
         }
-        return shear_attenuations[self]
+        return shear_attenuations[self.seabed_type]
 
     def _sort_density_ratios(self) -> lps_qty.Density:
         density_ratios = {
@@ -206,7 +206,7 @@ class Seabed(AcousticalLayer):
             SeabedType.LIMESTONE: 2.4,
             SeabedType.BASALT: 2.7,
         }
-        return lps_qty.Density.g_cm3(1) * density_ratios[self]
+        return lps_qty.Density.g_cm3(1) * density_ratios[self.seabed_type]
 
     def _draw_rms_roughness(self) -> lps_qty.Distance:
         """Returns a valid RMS roughness value for the seabed surface."""
@@ -221,7 +221,7 @@ class Seabed(AcousticalLayer):
             SeabedType.BASALT: (99, 259),
         }
         rng = random.Random(id(self))
-        value = rng.uniform(*(roughness_range[self]))
+        value = rng.uniform(*(roughness_range[self.seabed_type]))
         return lps_qty.Distance.m(value)
 
 # Aliasing SeabedType to BottomType for easier reference.

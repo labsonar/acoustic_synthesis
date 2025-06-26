@@ -1,11 +1,15 @@
 """Oases test
 """
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 
 import lps_synthesis.propagation.oases as oases
+import lps_synthesis.propagation.channel as lps_channel
 
-h_t_tau, depths, r, freqs, t = oases.trf_impulse_response_reader("./result/propagation/dummy.trf")
+trf_filename = os.path.join(lps_channel.DEFAULT_DIR, f"{lps_channel.PredefinedChannel.CYLINDRICAL.name.lower()}.trf")
+
+h_t_tau, depths, r, freqs, t = oases.trf_impulse_response_reader(trf_filename)
 
 gain = 20*np.log10(np.max(h_t_tau[0,:,:], axis=1))
 

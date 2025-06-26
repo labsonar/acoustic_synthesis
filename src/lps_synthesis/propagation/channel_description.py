@@ -71,9 +71,11 @@ class Description():
             self.add(depth=depth, layer=lps_layer.Water(sound_speed=layer))
         elif isinstance(layer, lps_layer.AcousticalLayer):
             self.layers[depth] = layer
+        elif isinstance(layer, lps_layer.SeabedType):
+            self.layers[depth] = layer.get_acoustical_layer()
         else:
             raise ValueError(("For add in AcousticalChannel, use lps_qty.Speed"
-                             " or lps_layer.AcousticalLayer"))
+                             f" or lps_layer.AcousticalLayer: using {type(layer)}"))
 
     def remove(self, depth: lps_qty.Distance) -> None:
         """ Remove a layer to the channel description at a specific depth. """

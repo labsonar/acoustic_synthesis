@@ -9,14 +9,12 @@ import lps_sp.acoustical.broadband as lps_bb
 import lps_sp.signal as lps_signal
 
 
-def save_wav(signal: np.ndarray, fs: int, filename: str):
-    """Salva o sinal como um arquivo WAV após normalizar."""
-
+def _save_wav(signal: np.ndarray, fs: int, filename: str):
     normalized = lps_signal.Normalization.MIN_MAX_ZERO_CENTERED(signal)
     wav_signal = (normalized * 32767).astype(np.int16)
     wav_write(filename, fs, wav_signal)
 
-def plot_spectrogram(signal, fs_hz, title, filename):
+def _plot_spectrogram(signal, fs_hz, title, filename):
     plt.figure()
     plt.specgram(signal, NFFT=1024, Fs=fs_hz, noverlap=512, cmap='viridis')
     plt.title(title)
@@ -25,6 +23,56 @@ def plot_spectrogram(signal, fs_hz, title, filename):
     plt.colorbar(label="dB")
     plt.tight_layout()
     plt.savefig(filename)
+    plt.close()
+
+def _plot_psd(bb_noise, modulated_noise, fs, name, base_dir):
+
+    f_bb, i_bb = lps_bb.psd(bb_noise, fs=fs.get_hz())
+    f_mod, i_mod = lps_bb.psd(modulated_noise, fs=fs.get_hz())
+
+    plt.figure()
+    plt.semilogy(f_bb, i_bb, label="Broadband Noise")
+    plt.semilogy(f_mod, i_mod, label="Modulated Noise", linestyle='--')
+    plt.xlabel("Frequência (Hz)")
+    plt.ylabel("PSD (Pa²/Hz)")
+    plt.title(f"PSD - {name}")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    fig_path = os.path.join(base_dir, f"psd_{name.lower()}.png")
+    plt.savefig(fig_path)
+    plt.close()
+
+def _plot_time_signals(bb_noise, modulating_noise, modulated_noise, fs, name, base_dir):
+    t = np.arange(len(bb_noise)) / fs.get_hz()
+
+    show_interval = lps_qty.Time.s(3)
+    samples = range(int(min(show_interval * fs,len(t))))
+
+    plt.figure(figsize=(12, 8))
+
+    plt.subplot(3, 1, 1)
+    plt.plot(t[samples], modulating_noise[samples])
+    plt.title('Sinal de Banda Estreita (Soma dos Harmônicos)')
+    plt.xlabel('Tempo [s]')
+    plt.ylabel('Amplitude')
+
+    plt.subplot(3, 1, 2)
+    plt.plot(t[samples], bb_noise[samples])
+    plt.title('Ruído de Banda Larga (Gaussiano)')
+    plt.xlabel('Tempo [s]')
+    plt.ylabel('Amplitude')
+
+    plt.subplot(3, 1, 3)
+    plt.plot(t[samples], modulated_noise[samples])
+    plt.title('Sinal Modulado (Banda Estreita + Ruído)')
+    plt.xlabel('Tempo [s]')
+    plt.ylabel('Amplitude')
+
+    plt.tight_layout()
+    time_fig_path = os.path.join(base_dir, f"time_signals_{name.lower()}.png")
+    plt.savefig(time_fig_path)
     plt.close()
 
 def main():
@@ -41,31 +89,23 @@ def main():
         container = lps_noise.Ship(ship_id=str(ship_type), propulsion=noise_source)
         container.move(lps_qty.Time.s(1), 15)
 
-        bb_noise, _ = noise_source.generate_broadband_noise(fs)
-        mod_noise = noise_source.generate_noise(fs)
+        bb_noise, speeds = noise_source.generate_broadband_noise(fs)
+        modulated_noise, modulating_noise = noise_source.modulate_noise(broadband=bb_noise,
+                                                                        speeds=speeds,
+                                                                        fs=fs)
 
-        f_bb, i_bb = lps_bb.psd(bb_noise, fs=fs.get_hz())
-        f_mod, i_mod = lps_bb.psd(mod_noise, fs=fs.get_hz())
-
-        plt.figure()
-        plt.semilogy(f_bb, i_bb, label="Broadband Noise")
-        plt.semilogy(f_mod, i_mod, label="Modulated Noise", linestyle='--')
-        plt.xlabel("Frequência (Hz)")
-        plt.ylabel("PSD (Pa²/Hz)")
-        plt.title(f"PSD - {ship_type.name}")
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-
-        fig_path = os.path.join(base_dir, f"psd_{ship_type.name.lower()}.png")
-        plt.savefig(fig_path)
-        plt.close()
+        _plot_psd(bb_noise, modulated_noise, fs, ship_type.name, base_dir)
+        _plot_time_signals(bb_noise, modulating_noise, modulated_noise, fs,
+                          ship_type.name, base_dir)
 
         wav_bb_path = os.path.join(base_dir, f"{ship_type.name.lower()}_broadband.wav")
         wav_mod_path = os.path.join(base_dir, f"{ship_type.name.lower()}_modulated.wav")
 
-        save_wav(bb_noise, int(fs.get_hz()), wav_bb_path)
-        save_wav(mod_noise, int(fs.get_hz()), wav_mod_path)
+        _save_wav(bb_noise, int(fs.get_hz()), wav_bb_path)
+        _save_wav(modulated_noise, int(fs.get_hz()), wav_mod_path)
+
+    sin_noise = lps_noise.NarrowBandNoise(frequency=lps_qty.Frequency.khz(2),
+                                               amp_db_p_upa=150)
 
     brownian_noise = lps_noise.NarrowBandNoise.with_brownian_modulation(
                                                     frequency=lps_qty.Frequency.khz(2),
@@ -93,35 +133,42 @@ def main():
                                                     tx_duration = lps_qty.Time.s(0.8))
 
     container = lps_noise.NoiseContainer("")
+    container.add_source(sin_noise)
     container.add_source(brownian_noise)
     container.add_source(am_noise)
     container.add_source(fm_noise)
     container.add_source(fm_chirp)
     container.move(lps_qty.Time.s(1), 15)
 
+    sin = sin_noise.generate_noise(fs)
     brownian = brownian_noise.generate_noise(fs)
     am = am_noise.generate_noise(fs)
     fm = fm_noise.generate_noise(fs)
     chirp = fm_chirp.generate_noise(fs)
 
-    save_wav(brownian, int(fs.get_hz()), os.path.join(base_dir, "narrowband_brownian.wav"))
-    save_wav(am, int(fs.get_hz()), os.path.join(base_dir, "narrowband_am.wav"))
-    save_wav(fm, int(fs.get_hz()), os.path.join(base_dir, "narrowband_fm.wav"))
-    save_wav(chirp, int(fs.get_hz()), os.path.join(base_dir, "narrowband_chirp.wav"))
+    _save_wav(sin, int(fs.get_hz()), os.path.join(base_dir, "narrowband_sin.wav"))
+    _save_wav(brownian, int(fs.get_hz()), os.path.join(base_dir, "narrowband_brownian.wav"))
+    _save_wav(am, int(fs.get_hz()), os.path.join(base_dir, "narrowband_am.wav"))
+    _save_wav(fm, int(fs.get_hz()), os.path.join(base_dir, "narrowband_fm.wav"))
+    _save_wav(chirp, int(fs.get_hz()), os.path.join(base_dir, "narrowband_chirp.wav"))
 
-    plot_spectrogram(brownian, fs.get_hz(),
+    _plot_spectrogram(sin, fs.get_hz(),
+                     "Spectrogram - Narrowband Sinusoidal",
+                     os.path.join(base_dir, "spec_narrowband_sin.png"))
+
+    _plot_spectrogram(brownian, fs.get_hz(),
                      "Spectrogram - Narrowband Brownian",
                      os.path.join(base_dir, "spec_narrowband_brownian.png"))
 
-    plot_spectrogram(am, fs.get_hz(),
+    _plot_spectrogram(am, fs.get_hz(),
                      "Spectrogram - Narrowband AM",
                      os.path.join(base_dir, "spec_narrowband_am.png"))
 
-    plot_spectrogram(fm, fs.get_hz(),
+    _plot_spectrogram(fm, fs.get_hz(),
                      "Spectrogram - Narrowband FM",
                      os.path.join(base_dir, "spec_narrowband_fm.png"))
 
-    plot_spectrogram(chirp, fs.get_hz(),
+    _plot_spectrogram(chirp, fs.get_hz(),
                      "Spectrogram - Narrowband FM chirp",
                      os.path.join(base_dir, "spec_narrowband_chirp.png"))
 

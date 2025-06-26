@@ -452,7 +452,7 @@ class CavitationNoise(NoiseSource):
     def modulate_noise(self,
                         broadband: np.array,
                         speeds: typing.List[lps_qty.Speed],
-                        fs = lps_qty.Frequency):
+                        fs = lps_qty.Frequency) -> typing.Tuple[np.array, np.array]:
         """
         Modulate broadband noise based on ship speeds.
 
@@ -462,6 +462,7 @@ class CavitationNoise(NoiseSource):
 
         Returns:
             Array of modulated noise.
+            Array of modulating noise.
         """
 
         n_samples = len(broadband)
@@ -542,30 +543,6 @@ class CavitationNoise(NoiseSource):
         modulated_noise, _ = self.modulate_noise(broadband=broadband, speeds=speeds, fs=fs)
         return modulated_noise
 
-class Sin(NoiseSource):
-    """ Simple noise source that add a sin. """
-
-    def __init__(self,
-                 frequency: lps_qty.Frequency,
-                 amp_db_p_upa: float,
-                 rel_position: lps_dynamic.Displacement = \
-                         lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))):
-        super().__init__(source_id=f"Sin [{frequency}]", rel_position=rel_position)
-        self.frequency = frequency
-        self.amp = 10**(amp_db_p_upa/20)
-
-    @abc.abstractmethod
-    def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
-        """ Generate noise based on simulated steps. """
-        accum_interval = lps_qty.Time.s(0)
-        for _, interval in self.ref_element.get_simulated_steps():
-            accum_interval = accum_interval + interval
-
-        n_samples = int(accum_interval * fs)
-        t = np.linspace(0, accum_interval.get_s(), n_samples, endpoint=False)
-
-        return np.sin(2 * np.pi * self.frequency.get_hz() * t) * self.amp
-
 class NarrowBandNoise(NoiseSource):
     """
     Narrowband noise source of the form:
@@ -574,13 +551,16 @@ class NarrowBandNoise(NoiseSource):
     JAN LI... “Review of PM and AM Noise Measurement Systems” doi: 10.1109/ICMMT.1998.768259.
     ε(t) -> disturbance amplitude in %
     φ(t) -> between 0 and 2π
+
+    Note:
+        Default case, simple tonal noise
     """
 
     def __init__(self,
                  frequency: lps_qty.Frequency,
                  amp_db_p_upa: float,
-                 epsilon_fn: typing.Callable[[np.ndarray], np.ndarray],
-                 phi_fn: typing.Callable[[np.ndarray], np.ndarray],
+                 epsilon_fn: typing.Callable[[np.ndarray], np.ndarray] = np.zeros_like,
+                 phi_fn: typing.Callable[[np.ndarray], np.ndarray] = np.zeros_like,
                  rel_position: lps_dynamic.Displacement =
                         lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))):
         super().__init__(source_id=f"NarrowBand [{frequency}]", rel_position=rel_position)
