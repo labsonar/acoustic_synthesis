@@ -16,6 +16,17 @@ def save_wav(signal: np.ndarray, fs: int, filename: str):
     wav_signal = (normalized * 32767).astype(np.int16)
     wav_write(filename, fs, wav_signal)
 
+def plot_spectrogram(signal, fs_hz, title, filename):
+    plt.figure()
+    plt.specgram(signal, NFFT=1024, Fs=fs_hz, noverlap=512, cmap='viridis')
+    plt.title(title)
+    plt.xlabel("Tempo (s)")
+    plt.ylabel("Frequência (Hz)")
+    plt.colorbar(label="dB")
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+
 def main():
     """main function of test noise_source."""
 
@@ -55,6 +66,64 @@ def main():
 
         save_wav(bb_noise, int(fs.get_hz()), wav_bb_path)
         save_wav(mod_noise, int(fs.get_hz()), wav_mod_path)
+
+    brownian_noise = lps_noise.NarrowBandNoise.with_brownian_modulation(
+                                                    frequency=lps_qty.Frequency.khz(2),
+                                                    amp_db_p_upa=150,
+                                                    amp_std = 0,
+                                                    phase_std = 0.3)
+
+    am_noise = lps_noise.NarrowBandNoise.with_sine_am_modulation(
+                                                    frequency=lps_qty.Frequency.khz(2),
+                                                    amp_db_p_upa=150,
+                                                    am_freq=lps_qty.Frequency.hz(1),
+                                                    am_depth=0.4)
+
+    fm_noise = lps_noise.NarrowBandNoise.with_sine_fm_modulation(
+                                                    frequency = lps_qty.Frequency.khz(2),
+                                                    amp_db_p_upa = 150,
+                                                    oscilation_freq = lps_qty.Frequency.hz(1),
+                                                    deviation_freq = lps_qty.Frequency.khz(1))
+
+    fm_chirp = lps_noise.NarrowBandNoise.with_fm_chirp(
+                                                    amp_db_p_upa = 150,
+                                                    start_frequency = lps_qty.Frequency.khz(2),
+                                                    end_frequency = lps_qty.Frequency.khz(4),
+                                                    tx_interval = lps_qty.Time.s(1),
+                                                    tx_duration = lps_qty.Time.s(0.8))
+
+    container = lps_noise.NoiseContainer("")
+    container.add_source(brownian_noise)
+    container.add_source(am_noise)
+    container.add_source(fm_noise)
+    container.add_source(fm_chirp)
+    container.move(lps_qty.Time.s(1), 15)
+
+    brownian = brownian_noise.generate_noise(fs)
+    am = am_noise.generate_noise(fs)
+    fm = fm_noise.generate_noise(fs)
+    chirp = fm_chirp.generate_noise(fs)
+
+    save_wav(brownian, int(fs.get_hz()), os.path.join(base_dir, "narrowband_brownian.wav"))
+    save_wav(am, int(fs.get_hz()), os.path.join(base_dir, "narrowband_am.wav"))
+    save_wav(fm, int(fs.get_hz()), os.path.join(base_dir, "narrowband_fm.wav"))
+    save_wav(chirp, int(fs.get_hz()), os.path.join(base_dir, "narrowband_chirp.wav"))
+
+    plot_spectrogram(brownian, fs.get_hz(),
+                     "Spectrogram - Narrowband Brownian",
+                     os.path.join(base_dir, "spec_narrowband_brownian.png"))
+
+    plot_spectrogram(am, fs.get_hz(),
+                     "Spectrogram - Narrowband AM",
+                     os.path.join(base_dir, "spec_narrowband_am.png"))
+
+    plot_spectrogram(fm, fs.get_hz(),
+                     "Spectrogram - Narrowband FM",
+                     os.path.join(base_dir, "spec_narrowband_fm.png"))
+
+    plot_spectrogram(chirp, fs.get_hz(),
+                     "Spectrogram - Narrowband FM chirp",
+                     os.path.join(base_dir, "spec_narrowband_chirp.png"))
 
 if __name__ == "__main__":
     main()

@@ -218,7 +218,7 @@ class ShipType(enum.Enum):
             ShipType.RESEARCH: (100, 300),
             ShipType.NAVAL: (120, 300),
             ShipType.PASSENGER: (100, 180),
-            ShipType.RECREATIONAL: (200, 1000),
+            ShipType.RECREATIONAL: (200, 500),
             ShipType.TANKER: (60, 100),
             ShipType.TUG: (200, 600),
             ShipType.VEHICLE_CARRIER: (70, 110),
@@ -597,7 +597,7 @@ class NarrowBandNoise(NoiseSource):
         n_samples = int(accum_interval * fs)
         t = np.linspace(0, accum_interval.get_s(), n_samples, endpoint=False)
 
-        amplitude = self.amp * self.epsilon_fn(t)
+        amplitude = self.amp * (1+self.epsilon_fn(t))
         phase = self.phi_fn(t)
 
         return amplitude * np.cos(2 * np.pi * self.frequency.get_hz() * t + phase)
@@ -606,34 +606,141 @@ class NarrowBandNoise(NoiseSource):
     def with_sine_am_modulation(cls,
                                 frequency: lps_qty.Frequency,
                                 amp_db_p_upa: float,
-                                am_freq_hz: float,
+                                am_freq: lps_qty.Frequency,
                                 am_depth: float = 0.1,
                                 rel_position: lps_dynamic.Displacement =
                                         lps_dynamic.Displacement(lps_qty.Distance.m(0),
                                                                  lps_qty.Distance.m(0))):
-        """ Create a NarrowBandNoise source with sinusoidal amplitude modulation (AM)."""
+        """
+        Creates a NarrowBandNoise source with sinusoidal amplitude modulation (AM).
+
+        The generated signal is:
+            V(t) = A * [1 + m * sin(2π f_m t)] * cos(2π f_c t)
+
+        Where:
+            - f_c = carrier frequency (`frequency`)
+            - f_m = modulation frequency (`am_freq`)
+            - m   = modulation depth (`am_depth`, 0 ≤ m ≤ 1)
+            - A   = amplitude corresponding to `amp_db_p_upa`
+        """
         return cls(frequency,
                    amp_db_p_upa,
-                   lambda t: am_depth * np.sin(2 * np.pi * am_freq_hz * t),
+                   lambda t: am_depth * np.sin(2 * np.pi * am_freq.get_hz() * t),
                    np.zeros_like,
                    rel_position)
+
+    @classmethod
+    def with_sine_fm_modulation(cls,
+                        frequency: lps_qty.Frequency,
+                        amp_db_p_upa: float,
+                        oscilation_freq: lps_qty.Frequency,
+                        deviation_freq: lps_qty.Frequency,
+                        rel_position: lps_dynamic.Displacement = lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))):
+        """
+        Creates a NarrowBandNoise source with sinusoidal frequency modulation (FM).
+
+        The generated signal is:
+            V(t) = A * cos(2π f_c t + β * sin(2π f_m t))
+
+        Where:
+            - f_c = carrier frequency (`frequency`)
+            - f_m = modulation frequency (`oscilation_freq`)
+            - β   = frequency deviation / modulation frequency = Δf / f_m
+            - Δf  = peak frequency deviation (`deviation_freq`)
+            - A   = amplitude corresponding to `amp_db_p_upa`
+        """
+        return cls(frequency,
+                   amp_db_p_upa,
+                   np.zeros_like,
+                   lambda t: deviation_freq/oscilation_freq * np.sin(2 * np.pi * oscilation_freq.get_hz() * t),
+                   rel_position)
+
+    @classmethod
+    def with_fm_chirp(cls,
+                        amp_db_p_upa: float,
+                        start_frequency: lps_qty.Frequency,
+                        end_frequency: lps_qty.Frequency,
+                        tx_interval: lps_qty.Time,
+                        tx_duration: lps_qty.Time,
+                        rel_position: lps_dynamic.Displacement = lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))):
+        """
+        Creates a NarrowBandNoise source with linear frequency modulated chirp.
+
+        The generated signal is:
+            V(t) = A * cos(2π (f₀ t + ½ k t²)), for 0 ≤ t < tx_duration
+            V(t) = 0, otherwise (within each tx_interval period)
+
+        Where:
+            - f₀ = start_frequency
+            - f₁ = end_frequency
+            - k  = (f₁ - f₀) / tx_duration
+            - A  = amplitude corresponding to `amp_db_p_upa`
+            - The signal repeats every `tx_interval` seconds,
+            and is silent during the pause (`tx_interval - tx_duration`)
+        """
+
+        def phi_fn(t: np.ndarray) -> np.ndarray:
+            k = (end_frequency - start_frequency).get_hz() / tx_duration.get_s()
+            t_mod = np.mod(t, tx_interval.get_s())
+            phase = np.zeros_like(t)
+
+            active = t_mod < tx_duration.get_s()
+            t_active = t_mod[active]
+
+            phase[active] = 2 * np.pi * (0.5 * k * t_active ** 2)
+            return phase
+
+        def epsilon_fn(t: np.ndarray) -> np.ndarray:
+            t_mod = np.mod(t, tx_interval.get_s())
+            active = t_mod < tx_duration.get_s()
+            return np.where(active, 0.0, -1.0)
+
+        return cls(start_frequency,
+                   amp_db_p_upa,
+                   epsilon_fn,
+                   phi_fn,
+                   rel_position)
+
     @classmethod
     def with_brownian_modulation(cls,
-                                 frequency: lps_qty.Frequency,
-                                 amp_db_p_upa: float,
-                                 seed: int = 0,
-                                 rel_position: lps_dynamic.Displacement =
-                                        lps_dynamic.Displacement(lps_qty.Distance.m(0),
-                                                                 lps_qty.Distance.m(0))):
-        """ Create a NarrowBandNoise source with Brownian (random walk) modulation
-            in both amplitude and phase"""
+                                frequency: lps_qty.Frequency,
+                                amp_db_p_upa: float,
+                                amp_std: float = 0.02,
+                                phase_std: float = 0.02,
+                                seed: int = None,
+                                rel_position: lps_dynamic.Displacement =
+                                    lps_dynamic.Displacement(lps_qty.Distance.m(0),
+                                                            lps_qty.Distance.m(0))):
+        """
+        Creates a NarrowBandNoise source with Brownian (random walk) modulation
+        applied independently to amplitude and phase.
+
+        The generated signal is:
+            V(t) = A * [1 + ε(t)] * cos(2π f_c t + φ(t))
+
+        Where:
+            - f_c = carrier frequency (`frequency`)
+            - ε(t): cumulative sum of Gaussian noise (amplitude modulation)
+            - φ(t): cumulative sum of Gaussian noise (phase modulation)
+            - A = amplitude corresponding to `amp_db_p_upa`
+
+        Notes:
+            - The randomness is seeded for reproducibility (`seed`)
+            - The `amp_std` controls the standard deviation of each step in ε(t)
+            - The `phase_std` controls the same for φ(t)
+        """
         rng = np.random.default_rng(seed)
 
-        def brownian_noise(t):
-            steps = rng.normal(scale=0.02, size=len(t))
-            return np.cumsum(steps)
+        def make_brownian(scale: float) -> typing.Callable[[np.ndarray], np.ndarray]:
+            def brownian_fn(t: np.ndarray) -> np.ndarray:
+                steps = rng.normal(scale=scale, size=len(t))
+                return np.cumsum(steps)
+            return brownian_fn
 
-        return cls(frequency, amp_db_p_upa, brownian_noise, brownian_noise, rel_position)
+        epsilon_fn = make_brownian(amp_std)
+        phi_fn = make_brownian(phase_std)
+
+        return cls(frequency, amp_db_p_upa, epsilon_fn, phi_fn, rel_position)
 
 
 
