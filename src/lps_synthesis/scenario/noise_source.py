@@ -6,12 +6,14 @@ import typing
 import math
 import random
 import abc
+import concurrent.futures as future_lib
 
+import tqdm
 import overrides
-
 import numpy as np
 
 import lps_utils.quantities as lps_qty
+import lps_synthesis.propagation.models as lps_model
 import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_sp.acoustical.broadband as lps_bb
 
@@ -51,6 +53,58 @@ class NoiseContainer(lps_dynamic.Element):
         if len(self.noise_sources) == 1:
             return self.container_id
         return f"{self.container_id}[{len(self.noise_sources)}]"
+
+class NoiseCompiler():
+    """ Class to compile and group multiple noise sources based on their spatial reference.
+
+    Using:
+        __iter__():
+            Iterates over compiled noise groups, yielding (signal, depth, source list) tuples.
+    """
+
+    def __init__(self, noise_containers: typing.List[NoiseContainer], fs: lps_qty.Frequency):
+        self.keys = []
+        self.signal_dict = {}
+        self.depth_dict = {}
+        self.source_list_dict = {}
+
+        with future_lib.ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [
+                executor.submit(NoiseCompiler._process_noise_source, noise_source, fs)
+                for container in noise_containers
+                for noise_source in container.noise_sources
+            ]
+
+            for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
+                                    desc="Noise Sources", leave=False, ncols=120):
+                noise, depth, noise_source, key = future.result()
+
+                if key not in self.keys:
+                    self.keys.append(key)
+                    self.signal_dict[key] = noise
+                    self.depth_dict[key] = depth
+                    self.source_list_dict[key] = [noise_source]
+                else:
+                    self.signal_dict[key] += noise
+                    self.source_list_dict[key].append(noise_source)
+
+    def __iter__(self) -> typing.Iterator[typing.Tuple[np.ndarray, lps_qty.Distance, typing.List[NoiseSource]]]:
+        """Iterate over (signal, depth, source_list) triplets."""
+        for key in self.keys:
+            yield (self.signal_dict[key],
+                   self.depth_dict[key],
+                   self.source_list_dict[key])
+
+    def __len__(self):
+        return len(self.keys)
+
+    @staticmethod
+    def _process_noise_source(noise_source: NoiseSource, fs: lps_qty.Frequency):
+        noise = noise_source.generate_noise(fs=fs)
+        depth = noise_source.get_depth()
+        key = (id(noise_source.ref_element), str(noise_source.rel_position))
+        return noise, depth, noise_source, key
+
 
 class ShipType(enum.Enum):
     " Enum class representing the possible ship types (https://www.mdpi.com/2077-1312/9/4/369)"
@@ -721,7 +775,6 @@ class NarrowBandNoise(NoiseSource):
         phi_fn = make_brownian(phase_std)
 
         return cls(frequency, amp_db_p_upa, epsilon_fn, phi_fn, rel_position)
-
 
 
 class Ship(NoiseContainer):

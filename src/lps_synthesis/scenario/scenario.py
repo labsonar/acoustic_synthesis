@@ -258,12 +258,6 @@ class Scenario():
             plt.clf()
         plt.close()
 
-    @staticmethod
-    def _process_noise_source(noise_source, fs):
-        source_id = noise_source.get_id()
-        noise = noise_source.generate_noise(fs=fs)
-        depth = noise_source.get_depth()
-        return source_id, noise, depth, noise_source
 
     def _calculate_sensor_signal(self,
                                  sensor,
@@ -337,28 +331,10 @@ class Scenario():
     def get_sonar_audio(self, sonar_id: str, fs: lps_qty.Frequency):
         """ Returns the calculated scan data for the selected sonar. """
 
-        print(f"##### Getting sonar audio for {sonar_id} sonar #####")
         sonar = self.sonars[sonar_id]
 
-        source_ids = []
-        noises_dict = {}
-        depth_dict = {}
-        noise_dict = {}
-
-        with future_lib.ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [
-                executor.submit(Scenario._process_noise_source, noise_source, fs)
-                for container in self.noise_containers
-                for noise_source in container.noise_sources
-            ]
-
-            for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
-                                    desc="Noise Sources", leave=False, ncols=120):
-                source_id, noise, depth, noise_source = future.result()
-                source_ids.append(source_id)
-                noises_dict[source_id] = noise
-                depth_dict[source_id] = depth
-                noise_dict[source_id] = noise_source
+        print(f"##### Getting sonar audio for {sonar_id} sonar #####")
+        compiler = lps_noise.NoiseCompiler(self.noise_containers, fs=fs)
 
         print(f"##### Audio for {len(source_ids)} sources generated #####")
 
