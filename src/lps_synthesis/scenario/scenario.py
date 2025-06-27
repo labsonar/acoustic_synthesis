@@ -362,7 +362,6 @@ class Scenario():
 
         print(f"##### Audio for {len(source_ids)} sources generated #####")
 
-        # Parallelize sensor signal calculations
         sonar_signals = []
         with future_lib.ThreadPoolExecutor(max_workers=16) as executor:
             futures = [
@@ -378,7 +377,6 @@ class Scenario():
                                     desc="Sensors", leave=False, ncols=120):
                 sonar_signals.append(future.result())
 
-        # Align all signals to the minimum length
         min_size = min(signal.shape[0] for signal in sonar_signals)
         signals = [signal[:min_size] for signal in sonar_signals]
         signals = np.column_stack(signals)

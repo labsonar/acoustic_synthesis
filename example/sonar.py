@@ -24,7 +24,7 @@ adc = lps_sonar.ADConverter(input_limits=(-5, 5), resolution=16)
 sensor = lps_sonar.AcousticSensor(sensitivity=sensitivity, gain_db=80, adc=adc)
 
 
-digital_signal = sensor.apply(signal)
+digital_signal = sensor.transduce(signal)
 
 scipy.wavfile.write(os.path.join(base_dir,"background_noise.wav"), int(fs.get_hz()), digital_signal)
 

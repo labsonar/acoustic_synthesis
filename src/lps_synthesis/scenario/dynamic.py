@@ -389,6 +389,10 @@ class Element():
         """ Return the associated states and simulation steps. """
         return zip(self.state_list, self.step_interval)
 
+    def get_n_steps(self) -> int:
+        """ Return the number of simulation steps. """
+        return len(self.state_list)
+
 class RelativeElement():
     """ Class to represent any element that moves in the simulation """
 
