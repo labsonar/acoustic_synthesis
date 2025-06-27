@@ -1,6 +1,7 @@
 """
 Module for representing the scenario and their elements
 """
+import os
 import enum
 import typing
 import math
@@ -11,9 +12,11 @@ import concurrent.futures as future_lib
 import tqdm
 import overrides
 import numpy as np
+import matplotlib.pyplot as plt
+import scipy.io.wavfile as wavfile
 
 import lps_utils.quantities as lps_qty
-import lps_synthesis.propagation.models as lps_model
+import lps_sp.signal as lps_signal
 import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_sp.acoustical.broadband as lps_bb
 
@@ -67,6 +70,7 @@ class NoiseCompiler():
         self.signal_dict = {}
         self.depth_dict = {}
         self.source_list_dict = {}
+        self.fs = fs
 
         with future_lib.ThreadPoolExecutor(max_workers=16) as executor:
             futures = [
@@ -76,7 +80,7 @@ class NoiseCompiler():
             ]
 
             for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
-                                    desc="Noise Sources", leave=False, ncols=120):
+                                    desc="Compiling noise sources", leave=False, ncols=120):
                 noise, depth, noise_source, key = future.result()
 
                 if key not in self.keys:
@@ -88,7 +92,9 @@ class NoiseCompiler():
                     self.signal_dict[key] += noise
                     self.source_list_dict[key].append(noise_source)
 
-    def __iter__(self) -> typing.Iterator[typing.Tuple[np.ndarray, lps_qty.Distance, typing.List[NoiseSource]]]:
+    def __iter__(self) -> typing.Iterator[typing.Tuple[np.ndarray,
+                                                       lps_qty.Distance,
+                                                       typing.List[NoiseSource]]]:
         """Iterate over (signal, depth, source_list) triplets."""
         for key in self.keys:
             yield (self.signal_dict[key],
@@ -104,6 +110,52 @@ class NoiseCompiler():
         depth = noise_source.get_depth()
         key = (id(noise_source.ref_element), str(noise_source.rel_position))
         return noise, depth, noise_source, key
+
+    def save_plot(self, filename: str) -> None:
+        """Save a plot with the PSD of all noise signals in the compiler."""
+
+        plt.figure(figsize=(12, 6))
+
+        for i, (signal, _, _) in enumerate(self):
+
+            freqs, psd_vals = lps_bb.psd(
+                signal=signal,
+                fs=self.fs.get_hz()
+            )
+
+            plt.plot(freqs, psd_vals, label=f"Signal {i}")
+
+        plt.title("PSD of All Noise Signals")
+        plt.xlabel("Frequency [Hz]")
+        plt.ylabel("dB re 1μPa²/Hz")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
+
+    def show_details(self) -> str:
+        """ Show the noise in the compiler. """
+
+        for signal, depth, source_list in self:
+
+            ids = [src.get_id() for src in source_list]
+
+            print(f" - Sources: {ids}")
+            print(f"\tDepth: {depth}, N samples: {len(signal)}")
+
+    def save_wavs(self, base_dir: str) -> None:
+        """ Save all noise as .wav. """
+
+        for i, (signal, _, _) in enumerate(self):
+
+            normalized = lps_signal.Normalization.MIN_MAX_ZERO_CENTERED(signal)
+            wav_signal = (normalized * 32767).astype(np.int16)
+
+            wavfile.write(
+                filename=os.path.join(base_dir, f"source_{i}.wav"),
+                rate=int(self.fs.get_hz()),
+                data=wav_signal)
+
 
 
 class ShipType(enum.Enum):
@@ -799,8 +851,11 @@ class Ship(NoiseContainer):
         super().__init__(container_id=ship_id, initial_state=initial_state)
         self.add_source(propulsion)
 
-
     @overrides.overrides
     def get_depth(self) -> lps_qty.Distance:
         """ Return the starting depth of the element. """
         return self.draft
+
+    @classmethod
+    def by_type(cls, ship_type = ShipType) -> 'Ship':
+        return Ship(ship_id=str(ship_type), propulsion=CavitationNoise(ship_type))

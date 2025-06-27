@@ -30,10 +30,10 @@ def main():
 
     scenario = lps_scenario.Scenario(channel = channel,
                                     environment = environment,
-                                    step_interval=lps_qty.Time.s(0.5))
+                                    step_interval=lps_qty.Time.s(1))
 
     sonar = lps_sonar.Sonar.hidrofone(
-            sensitivity=lps_qty.Sensitivity.db_v_p_upa(-165),
+            sensitivity=lps_qty.Sensitivity.db_v_p_upa(-150),
             initial_state=lps_dynamic.State(
                     position = lps_dynamic.Displacement(
                             lps_qty.Distance.m(0),
@@ -48,14 +48,13 @@ def main():
                     propulsion=lps_noise.CavitationNoise(
                         ship_type=lps_noise.ShipType.BULKER
                     ),
-                    draft=lps_qty.Distance.m(2),
                     initial_state=lps_dynamic.State(
                             position = lps_dynamic.Displacement(
                                     lps_qty.Distance.km(-0.1),
                                     lps_qty.Distance.km(-0.2)),
                             velocity = lps_dynamic.Velocity(
-                                    lps_qty.Speed.kt(5),
-                                    lps_qty.Speed.kt(5)),
+                                    lps_qty.Speed.kt(10),
+                                    lps_qty.Speed.kt(10)),
                             acceleration = lps_dynamic.Acceleration(
                                     lps_qty.Acceleration.m_s2(0),
                                     lps_qty.Acceleration.m_s2(0.02))
@@ -63,16 +62,16 @@ def main():
             )
 
     ship1.add_source(lps_noise.NarrowBandNoise(frequency=lps_qty.Frequency.khz(4),
-                                               amp_db_p_upa=90))
+                                               amp_db_p_upa=80))
     ship1.add_source(lps_noise.NarrowBandNoise(frequency=lps_qty.Frequency.khz(4.05),
-                                               amp_db_p_upa=90,
+                                               amp_db_p_upa=80,
                                                rel_position=lps_dynamic.Displacement(
                                                     lps_qty.Distance.m(50),
                                                     lps_qty.Distance.m(0))))
 
     scenario.add_noise_container(ship1)
 
-    scenario.simulate(10)
+    scenario.simulate(60)
 
     scenario.geographic_plot(os.path.join(base_dir,"geographic.png"))
     scenario.relative_distance_plot(os.path.join(base_dir,"distance.png"))
@@ -103,7 +102,8 @@ def main():
     f, t, S = scipy.spectrogram(float_signal[:,0], fs=sample_frequency.get_hz(), nperseg=2048)
 
     plt.figure(figsize=(10, 6))
-    # plt.imshow(20 * np.log10(np.abs(np.clip(S, 1e-10, None))), interpolation='none', aspect='auto',
+    # plt.imshow(20 * np.log10(np.abs(np.clip(S, 1e-10, None))),
+    #            interpolation='none', aspect='auto',
     #            extent=[t.min(), t.max(), f.max(), f.min()])
 
     plt.pcolormesh(t, f, 20 * np.log10(np.clip(S, 1e-10, None)), shading='gouraud')

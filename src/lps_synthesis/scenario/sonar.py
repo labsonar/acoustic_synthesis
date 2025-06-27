@@ -2,8 +2,10 @@
 import typing
 import math
 import abc
-import overrides
+import concurrent.futures as future_lib
 
+import tqdm
+import overrides
 import numpy as np
 import scipy.signal as scipy
 import matplotlib.pyplot as plt
@@ -11,6 +13,9 @@ import matplotlib.pyplot as plt
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.noise_source as lps_noise
+import lps_synthesis.environment.environment as lps_env
+import lps_synthesis.propagation.channel as lps_channel
+import lps_synthesis.propagation.models as lps_model
 
 class Directivity():
     """ Class to represent the gain of a polar diagram for an acoustic sensor. """
@@ -194,8 +199,6 @@ class ADConverter():
 
         raise NotImplementedError(f"ADConverter for {self.resolution} bits")
 
-
-
 class SignalConditioning():
     """ Class to represent the signal conditioning of an acoustic sensor. """
 
@@ -216,14 +219,13 @@ class IdealAmplifier(SignalConditioning):
         return input_data * 10**(self.gain_db / 20)
 
 
-
 class Sonar(lps_dynamic.Element):
     """ Class to represent a Sonar (with multiple acoustic sensors) in the scenario """
 
     def __init__(self,
                  sensors: typing.List[AcousticSensor],
-                 adc: ADConverter = ADConverter(),
                  signal_conditioner: SignalConditioning = IdealAmplifier(40),
+                 adc: ADConverter = ADConverter(),
                  initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
         super().__init__(initial_state=initial_state)
         self.sensors = sensors
@@ -292,3 +294,107 @@ class Sonar(lps_dynamic.Element):
                      adc = adc,
                      signal_conditioner = signal_conditioner,
                      initial_state=initial_state)
+
+    def get_data(self,
+                 noise_compiler: lps_noise.NoiseCompiler,
+                 channel: lps_channel.Channel,
+                 environment: lps_env.Environment) -> np.array:
+        """
+        Computes the received signals for each sensor using multithreading.
+        Each sensor’s received signal is computed taking into account the noise sources,
+        propagation channel, and environmental conditions.
+
+        Args:
+            noise_compiler (lps_noise.NoiseCompiler): Compiled noise object containing the signal,
+                source positions, and depths.
+            channel (lps_channel.Channel): Acoustic propagation model that simulates how signals
+                travel through the channel.
+            environment (lps_env.Environment): Environmental context noise.
+
+        Returns:
+            np.array: (n_samples, n_sensors) sonar data
+        """
+
+        sonar_signals = []
+        with future_lib.ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [
+                executor.submit(
+                    self._calculate_sensor_signal,
+                    sensor, noise_compiler, channel, environment
+                )
+                for sensor in self.sensors
+            ]
+
+            for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
+                                    desc="Propagating noises", leave=False, ncols=120):
+                sonar_signals.append(future.result())
+
+        min_size = min(signal.shape[0] for signal in sonar_signals)
+        signals = [signal[:min_size] for signal in sonar_signals]
+        signals = np.column_stack(signals)
+        return signals
+
+    def _calculate_sensor_signal(self,
+                                 sensor: AcousticSensor,
+                                 noise_compiler: lps_noise.NoiseCompiler,
+                                 channel: lps_channel.Channel,
+                                 environment: lps_env.Environment):
+
+        noises = []
+
+        # for signal, depth, source_list in tqdm.tqdm(noise_compiler,
+        #                                             desc="Propagating signals from sources",
+        #                                             leave=False,
+        #                                             ncols=120):
+
+        for signal, depth, source_list in noise_compiler:
+
+            noise_source = source_list[0]
+
+            rel_distance = []
+            source_doppler_list = []
+            sensor_doppler_list = []
+
+            for step_id in range(self.get_n_steps()):
+                rel_distance.append(
+                    (noise_source[step_id].position - sensor[step_id].position).get_magnitude())
+                source_doppler_list.append(
+                    noise_source[step_id].get_relative_speed(sensor[step_id]))
+                sensor_doppler_list.append(
+                    sensor[step_id].get_relative_speed(noise_source[step_id]))
+
+            source_ss = channel.description.get_speed_at(depth)
+            sensor_ss = channel.description.get_speed_at(channel.sensor_depth)
+
+            doppler_noise = lps_model.apply_doppler(
+                input_data = signal,
+                speeds = source_doppler_list,
+                sound_speed = source_ss
+            )
+
+            propag_noise = channel.propagate(
+                input_data = doppler_noise,
+                source_depth = depth,
+                distance = rel_distance
+            )
+
+            doppler_noise = lps_model.apply_doppler(
+                input_data=propag_noise,
+                speeds=sensor_doppler_list,
+                sound_speed=sensor_ss
+            )
+
+            env_noise = environment.generate_bg_noise(len(doppler_noise),
+                                                      fs=noise_compiler.fs.get_hz())
+
+            noises.append(sensor.transduce(input_data=doppler_noise + env_noise,
+                                           noise_source=noise_source,
+                                           fs=noise_compiler.fs))
+
+        min_size = min(signal.shape[0] for signal in noises)
+        signals = [signal[:min_size] for signal in noises]
+        ship_signal = np.sum(np.column_stack(signals), axis=1)
+
+        cond_signal = self.signal_conditioner.convert(ship_signal, fs=noise_compiler.fs)
+
+        return self.adc.apply(cond_signal)

@@ -1,13 +1,14 @@
+""" Noise Compiler test script """
 import os
-import numpy as np
-import matplotlib.pyplot as plt
 
 import lps_utils.quantities as lps_qty
-import lps_synthesis.scenario.noise_source as lps_noise
 import lps_synthesis.scenario.dynamic as lps_dynamic
+import lps_synthesis.scenario.noise_source as lps_noise
 
 
 def main():
+    """ Test main function. """
+
     base_dir = "./result/noise_sources"
     os.makedirs(base_dir, exist_ok=True)
 
@@ -68,28 +69,8 @@ def main():
     container2.move(lps_qty.Time.s(1), 10)
 
     compiler = lps_noise.NoiseCompiler([container1, container2], fs)
-
-    _, axs = plt.subplots(len(compiler), 1, figsize=(10, 2.5 * len(compiler)), sharex=True)
-
-    if len(compiler) == 1:
-        axs = [axs]
-
-    for i, (signal, depth, source_list) in enumerate(compiler):
-
-        t = np.arange(signal.size) / fs.get_hz()
-        axs[i].plot(t, signal)
-        ids = [src.get_id() for src in source_list]
-        axs[i].set_title(f"Sources: {ids}")
-        axs[i].grid(True)
-
-        print(f" - Fonte: {ids}")
-        print(f"\tProfundidade: {depth}, N amostras: {len(signal)}")
-
-    axs[-1].set_xlabel("Tempo [s]")
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(base_dir, "noise_compiler.png"))
-    plt.close()
+    compiler.save_plot(os.path.join(base_dir, "noise_compiler.png"))
+    compiler.show_details()
 
 
 if __name__ == "__main__":

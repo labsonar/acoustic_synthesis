@@ -15,7 +15,6 @@ import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.scenario.noise_source as lps_noise
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.propagation.channel as lps_channel
-import lps_synthesis.propagation.models as lps_model
 
 
 class Scenario():
@@ -258,104 +257,8 @@ class Scenario():
             plt.clf()
         plt.close()
 
-
-    def _calculate_sensor_signal(self,
-                                 sensor,
-                                 sonar,
-                                 source_ids,
-                                 noises_dict,
-                                 depth_dict,
-                                 noise_dict,
-                                 fs,
-                                 channel,
-                                 environment,
-                                 n_steps):
-        distance_dict = {}
-        gain_dict = {}
-
-        for container in self.noise_containers:
-            for noise_source in container.noise_sources:
-                distance_dict[noise_source.get_id()] = [
-                    (noise_source[step_id].position - sensor[step_id].position).get_magnitude()
-                    for step_id in range(n_steps)
-                ]
-                gain_dict[noise_source.get_id()] = [
-                    sensor.direction_gain(step_id, noise_source[step_id].position)
-                    for step_id in range(n_steps)
-                ]
-
-        noises = []
-
-        for source_id in tqdm.tqdm(source_ids,
-                                desc="Propagating signals from sources",
-                                leave=False,
-                                ncols=120):
-            sound_speed = channel.description.get_speed_at(depth_dict[source_id])
-
-            source_doppler_list = [
-                noise_dict[source_id][step_i].get_relative_speed(sonar[step_i])
-                for step_i in range(n_steps)
-            ]
-            sensor_doppler_list = [
-                sonar[step_i].get_relative_speed(noise_dict[source_id][step_i])
-                for step_i in range(n_steps)
-            ]
-
-            gain = scipy.resample(gain_dict[source_id], len(noises_dict[source_id]))
-
-            doppler_noise = lps_model.apply_doppler(
-                input_data=noises_dict[source_id] * gain,
-                speeds=source_doppler_list,
-                sound_speed=sound_speed
-            )
-
-            propag_noise = channel.propagate(
-                input_data=doppler_noise,
-                source_depth=depth_dict[source_id],
-                distance=distance_dict[source_id]
-            )
-
-            noises.append(lps_model.apply_doppler(
-                input_data=propag_noise,
-                speeds=sensor_doppler_list,
-                sound_speed=sound_speed
-            ))
-
-        min_size = min(signal.shape[0] for signal in noises)
-        signals = [signal[:min_size] for signal in noises]
-        ship_signal = np.sum(np.column_stack(signals), axis=1)
-        env_noise = environment.generate_bg_noise(len(ship_signal), fs=fs.get_hz())
-
-        return sensor.apply(ship_signal + env_noise)
-
     def get_sonar_audio(self, sonar_id: str, fs: lps_qty.Frequency):
         """ Returns the calculated scan data for the selected sonar. """
-
         sonar = self.sonars[sonar_id]
-
-        print(f"##### Getting sonar audio for {sonar_id} sonar #####")
         compiler = lps_noise.NoiseCompiler(self.noise_containers, fs=fs)
-
-        print(f"##### Audio for {len(source_ids)} sources generated #####")
-
-        sonar_signals = []
-        with future_lib.ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [
-                executor.submit(
-                    self._calculate_sensor_signal,
-                    sensor, sonar, source_ids, noises_dict, depth_dict,
-                    noise_dict, fs, self.channel, self.environment, self.n_steps
-                )
-                for sensor in sonar.sensors
-            ]
-
-            for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
-                                    desc="Sensors", leave=False, ncols=120):
-                sonar_signals.append(future.result())
-
-        min_size = min(signal.shape[0] for signal in sonar_signals)
-        signals = [signal[:min_size] for signal in sonar_signals]
-        signals = np.column_stack(signals)
-        print(f"##### Audio compiled totalizing {signals.shape} samples #####")
-
-        return signals
+        return sonar.get_data(compiler, self.channel, self.environment)

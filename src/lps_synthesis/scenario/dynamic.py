@@ -5,6 +5,9 @@ import typing
 import math
 import copy
 
+import numpy as np
+import matplotlib.pyplot as plt
+
 import lps_utils.quantities as lps_qty
 
 
@@ -392,6 +395,46 @@ class Element():
     def get_n_steps(self) -> int:
         """ Return the number of simulation steps. """
         return len(self.state_list)
+
+    @staticmethod
+    def plot_trajectories(elements : typing.List['Element'], filename: str):
+        """
+        Plots the trajectory of multiple elements.
+
+        Args:
+        elements (list): List of elements.
+        filename (str): Name of the output file.
+        """
+
+        def get_trajectory(element):
+            """Extrai as posições x e y ao longo do tempo de um elemento dinâmico."""
+            x = [state.position.x.get_m() for state in element.state_list]
+            y = [state.position.y.get_m() for state in element.state_list]
+            return np.array(x), np.array(y)
+
+        plt.figure(figsize=(8, 8))
+        colors = plt.cm.get_cmap('tab10', len(elements))
+
+        for i, element in enumerate(elements):
+            x, y = get_trajectory(element)
+
+            try:
+                label = element.get_id()
+            except AttributeError:
+                label = f"Element {i}"
+
+            plt.plot(x, y, label=label, color=colors(i))
+            plt.scatter(x[-1], y[-1], color=colors(i), marker='o')
+
+        plt.xlabel("x (m)")
+        plt.ylabel("y (m)")
+        plt.title("Trajetórias dos Elementos na Simulação")
+        plt.axis('equal')
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
 
 class RelativeElement():
     """ Class to represent any element that moves in the simulation """

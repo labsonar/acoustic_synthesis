@@ -20,6 +20,7 @@ import random
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 import lps_sp.acoustical.broadband as lps
 import lps_utils.quantities as lps_qty
@@ -49,7 +50,6 @@ def turbulence_psd() -> typing.Tuple[np.array, np.array]:
     """
     frequencies = one_third_octave_frequencies(-30, 0)
     spectrum = np.array([107 - 30 * np.log10(f) for f in frequencies])
-    print(frequencies[0], " ", frequencies[-1])
     return frequencies, spectrum
 
 class Shipping(enum.Enum):
@@ -398,3 +398,17 @@ class Environment():
                                     n_samples=n_samples, fs = fs)
 
         return turb_noise + rain_noise + sea_noise + shipping_noise
+
+    def save_plot(self, filename: str) -> None:
+        """ Save the expected PSD of this Enviroment. """
+        f, p = self.to_psd()
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(f, p)
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel("Power Spectral Density (dB ref 1 µPa / √Hz)")
+        plt.semilogx()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
