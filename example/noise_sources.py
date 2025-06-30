@@ -8,12 +8,6 @@ import lps_synthesis.scenario.noise_source as lps_noise
 import lps_sp.acoustical.broadband as lps_bb
 import lps_sp.signal as lps_signal
 
-
-def _save_wav(signal: np.ndarray, fs: int, filename: str):
-    normalized = lps_signal.Normalization.MIN_MAX_ZERO_CENTERED(signal)
-    wav_signal = (normalized * 32767).astype(np.int16)
-    wav_write(filename, fs, wav_signal)
-
 def _plot_spectrogram(signal, fs_hz, title, filename):
     plt.figure()
     plt.specgram(signal, NFFT=1024, Fs=fs_hz, noverlap=512, cmap='viridis')
@@ -101,8 +95,8 @@ def main():
         wav_bb_path = os.path.join(base_dir, f"{ship_type.name.lower()}_broadband.wav")
         wav_mod_path = os.path.join(base_dir, f"{ship_type.name.lower()}_modulated.wav")
 
-        _save_wav(bb_noise, int(fs.get_hz()), wav_bb_path)
-        _save_wav(modulated_noise, int(fs.get_hz()), wav_mod_path)
+        lps_signal.save_normalized_wav(bb_noise, fs, wav_bb_path)
+        lps_signal.save_normalized_wav(modulated_noise, fs, wav_mod_path)
 
     sin_noise = lps_noise.NarrowBandNoise(frequency=lps_qty.Frequency.khz(2),
                                                amp_db_p_upa=150)
@@ -146,11 +140,21 @@ def main():
     fm = fm_noise.generate_noise(fs)
     chirp = fm_chirp.generate_noise(fs)
 
-    _save_wav(sin, int(fs.get_hz()), os.path.join(base_dir, "narrowband_sin.wav"))
-    _save_wav(brownian, int(fs.get_hz()), os.path.join(base_dir, "narrowband_brownian.wav"))
-    _save_wav(am, int(fs.get_hz()), os.path.join(base_dir, "narrowband_am.wav"))
-    _save_wav(fm, int(fs.get_hz()), os.path.join(base_dir, "narrowband_fm.wav"))
-    _save_wav(chirp, int(fs.get_hz()), os.path.join(base_dir, "narrowband_chirp.wav"))
+    lps_signal.save_normalized_wav(sin,
+                                   fs,
+                                   os.path.join(base_dir, "narrowband_sin.wav"))
+    lps_signal.save_normalized_wav(brownian,
+                                   fs,
+                                   os.path.join(base_dir, "narrowband_brownian.wav"))
+    lps_signal.save_normalized_wav(am,
+                                   fs,
+                                   os.path.join(base_dir, "narrowband_am.wav"))
+    lps_signal.save_normalized_wav(fm,
+                                   fs,
+                                   os.path.join(base_dir, "narrowband_fm.wav"))
+    lps_signal.save_normalized_wav(chirp,
+                                   fs,
+                                   os.path.join(base_dir, "narrowband_chirp.wav"))
 
     _plot_spectrogram(sin, fs.get_hz(),
                      "Spectrogram - Narrowband Sinusoidal",

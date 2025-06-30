@@ -128,11 +128,11 @@ class Seabed(AcousticalLayer):
     def __init__(self, seabed_type: SeabedType):
         self.seabed_type = seabed_type
         super().__init__(
-            compressional_speed = self._sort_speed_ratios(),
+            compressional_speed = self._sort_compressional_speed(),
             shear_speed = self._sort_shear_speeds(),
             compressional_attenuation = self._sort_compressional_attenuations(),
             shear_attenuation = self._sort_shear_attenuations(),
-            density = self._sort_density_ratios(),
+            density = self._sort_density(),
             rms_roughness = self._draw_rms_roughness(),
         )
 
@@ -143,7 +143,7 @@ class Seabed(AcousticalLayer):
         """ More complete print """
         return f"{self.seabed_type} layer with speed {str(self.get_compressional_speed())}"
 
-    def _sort_speed_ratios(self) -> lps_qty.Speed:
+    def _sort_compressional_speed(self) -> lps_qty.Speed:
         speed_ratios = {
             SeabedType.CLAY: 1,
             SeabedType.SILT: 1.05,
@@ -195,7 +195,7 @@ class Seabed(AcousticalLayer):
         }
         return shear_attenuations[self.seabed_type]
 
-    def _sort_density_ratios(self) -> lps_qty.Density:
+    def _sort_density(self) -> lps_qty.Density:
         density_ratios = {
             SeabedType.CLAY: 1.5,
             SeabedType.SILT: 1.7,
@@ -210,19 +210,20 @@ class Seabed(AcousticalLayer):
 
     def _draw_rms_roughness(self) -> lps_qty.Distance:
         """Returns a valid RMS roughness value for the seabed surface."""
-        roughness_range = {
-            SeabedType.CLAY: (0, 9.75e-6),
-            SeabedType.SILT: (9.75e-6, 1.5625e-3),
-            SeabedType.SAND: (1.5625e-4, 5e-3),
-            SeabedType.GRAVEL: (5e-3, 625e-3),
-            SeabedType.MORAINE: (0.5, 4),
-            SeabedType.CHALK: (0, 2.5e-6),
-            SeabedType.LIMESTONE: (0.396, 0.492),
-            SeabedType.BASALT: (99, 259),
-        }
-        rng = random.Random(id(self))
-        value = rng.uniform(*(roughness_range[self.seabed_type]))
-        return lps_qty.Distance.m(value)
+        # roughness_range = {
+        #     SeabedType.CLAY: (0, 9.75e-6),
+        #     SeabedType.SILT: (9.75e-6, 1.5625e-3),
+        #     SeabedType.SAND: (1.5625e-4, 5e-3),
+        #     SeabedType.GRAVEL: (5e-3, 625e-3),
+        #     SeabedType.MORAINE: (0.5, 4),
+        #     SeabedType.CHALK: (0, 2.5e-6),
+        #     SeabedType.LIMESTONE: (0.396, 0.492),
+        #     SeabedType.BASALT: (99, 259),
+        # }
+        # rng = random.Random(id(self))
+        # value = rng.uniform(*(roughness_range[self.seabed_type]))
+        # return lps_qty.Distance.m(value)
+        return lps_qty.Distance.m(0)
 
 # Aliasing SeabedType to BottomType for easier reference.
 BottomType = SeabedType

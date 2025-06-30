@@ -147,14 +147,9 @@ class NoiseCompiler():
         """ Save all noise as .wav. """
 
         for i, (signal, _, _) in enumerate(self):
-
-            normalized = lps_signal.Normalization.MIN_MAX_ZERO_CENTERED(signal)
-            wav_signal = (normalized * 32767).astype(np.int16)
-
-            wavfile.write(
-                filename=os.path.join(base_dir, f"source_{i}.wav"),
-                rate=int(self.fs.get_hz()),
-                data=wav_signal)
+            lps_signal.save_normalized_wav(signal,
+                                           self.fs,
+                                           os.path.join(base_dir, f"source_{i}.wav"))
 
 
 
@@ -309,7 +304,7 @@ class ShipType(enum.Enum):
             ShipType.OTHER: (5, 25),
         }
         rng = random.Random(seed)
-        value = rng.uniform(*(speed_range[self]))
+        value = rng.uniform(*(speed_range[self]))*10//1/10
         return lps_qty.Speed.kt(value)
 
     def draw_cruising_rotacional_frequency(self, seed: int) -> lps_qty.Frequency:
@@ -331,7 +326,7 @@ class ShipType(enum.Enum):
             ShipType.OTHER: (60, 600),
         }
         rng = random.Random(seed)
-        value = rng.uniform(*(rpm_range[self]))
+        value = rng.uniform(*(rpm_range[self]))*10//1/10
         return lps_qty.Frequency.rpm(value)
 
     def draw_length(self, seed: int) -> lps_qty.Distance:
@@ -353,7 +348,7 @@ class ShipType(enum.Enum):
             ShipType.OTHER: (10, 400),
         }
         rng = random.Random(seed)
-        value = rng.uniform(*(length_ranges[self]))
+        value = rng.uniform(*(length_ranges[self]))*10//1/10
         return lps_qty.Distance.m(value)
 
     def draw_draft(self, seed: int) -> lps_qty.Distance:
@@ -375,7 +370,7 @@ class ShipType(enum.Enum):
             ShipType.OTHER: (3, 12),
         }
         rng = random.Random(seed)
-        value = rng.uniform(*(draft_ranges[self]))
+        value = rng.randint(*(draft_ranges[self]))
         return lps_qty.Distance.m(value)
 
     def draw_n_blades(self, seed: int) -> int:
@@ -474,15 +469,15 @@ class CavitationNoise(NoiseSource):
                                    harmonic_std : float = None)-> \
                                         typing.Tuple[float, np.array]:
 
-        if mod_ind == 1e-3:
-            return 1, np.zeros(n_harmonics)
-
         rng = np.random.default_rng(seed=id(self))
-
         n_harmonics = n_harmonics if n_harmonics is not None else rng.integers(6,20)
         blade_gain = blade_gain if blade_gain is not None else rng.uniform(1.1, 2)
         decay = decay if decay is not None else rng.uniform(1.2,1.8)
         harmonic_std = harmonic_std if harmonic_std is not None else rng.uniform(0.05,0.2)
+
+        if mod_ind < 1e-3:
+            return 1, np.zeros(n_harmonics)
+
 
         n_k = rng.normal(1, harmonic_std, self.n_blades)
         decays = decay + rng.normal(0, decay * 0.01, self.n_blades)
@@ -510,6 +505,19 @@ class CavitationNoise(NoiseSource):
 
         return a0, np.array(intensities)
 
+    def _check_rotacional_coeficient(self, speeds):
+        non_zero_speeds = [abs(s) for s in speeds if s != lps_qty.Speed.kt(0)]
+        if not non_zero_speeds:
+            return False
+
+        min_speed = min(non_zero_speeds)
+        min_coef = (min_speed - self.cruise_speed)/\
+                    (lps_qty.Frequency.rpm(15) - self.cruise_rotacional_frequency)
+
+        if self.rotacional_coeficient < min_coef:
+            self.rotacional_coeficient = min_coef
+        return True
+
     def estimate_rpm(self, speeds: typing.List[lps_qty.Speed]) -> typing.List[lps_qty.Frequency]:
         """
         Estimate RPM based on ship speed.
@@ -520,8 +528,11 @@ class CavitationNoise(NoiseSource):
         Returns:
             List of estimated RPM (lps_qty.Frequency).
         """
-        return [(abs(s) - self.cruise_speed)/self.rotacional_coeficient +
-                    self.cruise_rotacional_frequency for s in speeds]
+        if self._check_rotacional_coeficient(speeds):
+            return [(abs(s) - self.cruise_speed)/self.rotacional_coeficient +
+                        self.cruise_rotacional_frequency for s in speeds]
+        else:
+            return [lps_qty.Frequency.rpm(0)] * len(speeds)
 
     def estimate_modulation(self, speeds: typing.List[lps_qty.Speed]) -> typing.List[float]:
         """
@@ -574,7 +585,7 @@ class CavitationNoise(NoiseSource):
         n_samples = len(broadband)
 
         rpms = self.estimate_rpm(speeds)
-        rpms = np.array([rpm.get_hz() for rpm in rpms])
+        rpms = np.array([rpm.get_rpm() for rpm in rpms])
 
         if n_samples != len(rpms):
             rpms = np.interp(np.linspace(0, 1, n_samples),
@@ -583,15 +594,14 @@ class CavitationNoise(NoiseSource):
 
         discrete_rpms = np.round(rpms).astype(int)
         rpms_values = np.unique(discrete_rpms)
-        mod_inds = self.estimate_modulation([lps_qty.Frequency.hz(r) for r in rpms_values])
+        mod_inds = self.estimate_modulation([lps_qty.Frequency.rpm(r) for r in rpms_values])
 
         rpm_to_harmonics = {}
         for rpm_val, mod_ind in zip(rpms_values, mod_inds):
             a0, an = self._draw_harmonic_intensities(mod_ind=mod_ind)
             rpm_to_harmonics[rpm_val] = (a0, an)
 
-
-        delta_t = 1 / fs.get_hz()
+        delta_t = 1 / fs.get_rpm()
         phase_accum = 2 * np.pi * np.cumsum(rpms) * delta_t
 
         narrowband = np.zeros(n_samples)
@@ -844,9 +854,10 @@ class Ship(NoiseContainer):
 
         if initial_state is None:
             initial_state = lps_dynamic.State()
-            initial_state.max_speed = propulsion.max_speed
             initial_state.velocity.x = propulsion.cruise_speed
             initial_state.position.x = -1 * lps_qty.Time.s(5) * propulsion.cruise_speed
+
+        initial_state.max_speed = propulsion.max_speed
 
         super().__init__(container_id=ship_id, initial_state=initial_state)
         self.add_source(propulsion)
