@@ -6,7 +6,7 @@ environments.
 The module uses `lps_utils.quantities` to represent physical quantities.
 """
 import enum
-import random
+# import random
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.environment.environment as lps_environment
@@ -125,7 +125,9 @@ class Seabed(AcousticalLayer):
 
     Based on Table 1.3 - Computational Ocean Acoustics, Jensen
     """
-    def __init__(self, seabed_type: SeabedType):
+    def __init__(self, seabed_type: SeabedType, seed: int = None):
+        self.seed = seed if seed is not None else id(self)
+
         self.seabed_type = seabed_type
         super().__init__(
             compressional_speed = self._sort_compressional_speed(),
@@ -220,7 +222,7 @@ class Seabed(AcousticalLayer):
         #     SeabedType.LIMESTONE: (0.396, 0.492),
         #     SeabedType.BASALT: (99, 259),
         # }
-        # rng = random.Random(id(self))
+        # rng = random.Random(self.seed)
         # value = rng.uniform(*(roughness_range[self.seabed_type]))
         # return lps_qty.Distance.m(value)
         return lps_qty.Distance.m(0)

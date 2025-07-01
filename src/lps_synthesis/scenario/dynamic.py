@@ -407,7 +407,6 @@ class Element():
         """
 
         def get_trajectory(element):
-            """Extrai as posições x e y ao longo do tempo de um elemento dinâmico."""
             x = [state.position.x.get_m() for state in element.state_list]
             y = [state.position.y.get_m() for state in element.state_list]
             return np.array(x), np.array(y)
@@ -428,13 +427,43 @@ class Element():
 
         plt.xlabel("x (m)")
         plt.ylabel("y (m)")
-        plt.title("Trajetórias dos Elementos na Simulação")
         plt.axis('equal')
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
         plt.savefig(filename)
         plt.close()
+
+    @staticmethod
+    def relative_distance_plot(ref_element: 'Element',
+                               elements : typing.List['Element'],
+                               filename: str) -> None:
+        """ Make plots with relative distances between ref_element and elements. """
+        n_steps = ref_element.get_n_steps()
+
+        dt = np.array([s.get_s() for s in ref_element.step_interval])
+        t = np.concatenate(([0.0], np.cumsum(dt)))
+
+        for i, element in enumerate(elements):
+
+            try:
+                label = element.get_id()
+            except AttributeError:
+                label = f"Element {i}"
+
+            dist = []
+            for step_i in range(n_steps):
+                diff = element[step_i].position - ref_element[step_i].position
+                dist.append(diff.get_magnitude_xy().get_km())
+
+            plt.plot(t, dist, label=label)
+
+        plt.xlabel('Time (seconds)')
+        plt.ylabel('Distance (km)')
+        plt.legend()
+        plt.savefig(filename)
+        plt.close()
+
 
 class RelativeElement():
     """ Class to represent any element that moves in the simulation """

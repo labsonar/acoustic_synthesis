@@ -306,7 +306,8 @@ class Environment():
     def __init__(self,
                  rain_value: typing.Union[float, Rain],
                  sea_value: typing.Union[float, Sea],
-                 shipping_value: typing.Union[float, Shipping]) -> None:
+                 shipping_value: typing.Union[float, Shipping],
+                 seed: int = None) -> None:
         """
         Args:
             rain_value (typing.Union[float, Rain]): Rain level value between 0 and 4.
@@ -316,6 +317,7 @@ class Environment():
         self.rain_value = rain_value
         self.sea_value = sea_value
         self.shipping_value = shipping_value
+        self.seed = seed if seed is not None else id(self)
 
     def __str__(self) -> str:
         return (f'Rain[{self.rain_value:.1f}], '
@@ -323,17 +325,19 @@ class Environment():
                 f'Shipping[{self.shipping_value:.1f}]')
 
     @classmethod
-    def random(cls) -> 'Environment':
+    def random(cls, seed: int = None) -> 'Environment':
         """
         Generate a sorted Background.
 
         Returns:
             Background: sorted Background.
         """
+        rng = random.Random(seed)
         return Environment(
-            rain_value=random.uniform(Rain.NONE.value, Rain.VERY_HEAVY.value),
-            sea_value=random.uniform(Sea.STATE_0.value, Sea.STATE_6.value),
-            shipping_value=random.uniform(Shipping.NONE.value, Shipping.LEVEL_7.value)
+            rain_value = rng.uniform(Rain.NONE.value, Rain.VERY_HEAVY.value),
+            sea_value = rng.uniform(Sea.STATE_0.value, Sea.STATE_6.value),
+            shipping_value = rng.uniform(Shipping.NONE.value, Shipping.LEVEL_7.value),
+            seed = seed
         )
 
     def to_psd(self) -> typing.Tuple[np.array, np.array]:
@@ -389,13 +393,13 @@ class Environment():
         freq_shipping, psd_shipping = Shipping.get_interpolated_psd(self.shipping_value)
 
         turb_noise = lps.generate(frequencies = freq_turb, psd_db = psd_turb,
-                                    n_samples=n_samples, fs = fs)
+                                    n_samples=n_samples, fs = fs, seed = self.seed)
         rain_noise = lps.generate(frequencies = freq_rain, psd_db = psd_rain,
-                                    n_samples=n_samples, fs = fs)
+                                    n_samples=n_samples, fs = fs, seed = self.seed)
         sea_noise = lps.generate(frequencies = freq_sea, psd_db = psd_sea,
-                                    n_samples=n_samples, fs = fs)
+                                    n_samples=n_samples, fs = fs, seed = self.seed)
         shipping_noise = lps.generate(frequencies = freq_shipping, psd_db = psd_shipping,
-                                    n_samples=n_samples, fs = fs)
+                                    n_samples=n_samples, fs = fs, seed = self.seed)
 
         return turb_noise + rain_noise + sea_noise + shipping_noise
 

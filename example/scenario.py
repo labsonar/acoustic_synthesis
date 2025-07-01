@@ -32,7 +32,7 @@ def main():
                                     environment = environment,
                                     step_interval=lps_qty.Time.s(1))
 
-    sonar = lps_sonar.Sonar.hidrofone(
+    sonar = lps_sonar.Sonar.hydrophone(
             sensitivity=lps_qty.Sensitivity.db_v_p_upa(-150),
             initial_state=lps_dynamic.State(
                     position = lps_dynamic.Displacement(

@@ -38,9 +38,15 @@ def apply_doppler(input_data: np.array,
     for i_block in range(num_blocks):
         doppler_factor = (sound_speed + speeds[i_block]) / sound_speed
 
-        scaled_data = scipy.resample(
+        # scaled_data = scipy.resample(
+        #         input_data[i_block * samples_per_block:(i_block+1) * samples_per_block - 1],
+        #         int(samples_per_block//doppler_factor))
+
+        scaled_data = scipy.resample_poly(
                 input_data[i_block * samples_per_block:(i_block+1) * samples_per_block - 1],
-                int(samples_per_block//doppler_factor))
+                int(samples_per_block//doppler_factor),
+                int(samples_per_block))
+
 
         output = np.concatenate((output, scaled_data))
 
@@ -122,14 +128,34 @@ class ImpulseResponse():
 
         last_distance = None
         ir = None
+        outside_range_limits = False
 
         for y_i in range(len(input_data)):
             if last_distance != dists[y_i]:
-                r_i = bisect.bisect_right(ranges, dists[y_i])
-                interp_factor = (dists[y_i] - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
-                interp_factor = int(interp_factor*1000)/1000
 
-                ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
+                if dists[y_i] < ranges[0]:
+                    ir = h_t_tau[:, 0]
+
+                    if not outside_range_limits:
+                        print(f"Warning: {dists[y_i]} below the {ranges[0]} limit.")
+                        outside_range_limits = True
+
+                elif dists[y_i] > ranges[-1]:
+                    ir = h_t_tau[:, -1]
+
+                    if not outside_range_limits:
+                        print(f"Warning: {dists[y_i]} above the {ranges[-1]} limit.")
+                        outside_range_limits = True
+
+                else:
+
+                    r_i = bisect.bisect_right(ranges, dists[y_i])
+
+                    interp_factor = (dists[y_i] - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
+                    interp_factor = int(interp_factor*1000)/1000
+
+                    ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
+
                 ir = ir - np.mean(ir)
 
                 last_distance = dists[y_i]

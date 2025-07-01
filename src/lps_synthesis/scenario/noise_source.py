@@ -72,7 +72,7 @@ class NoiseCompiler():
         self.source_list_dict = {}
         self.fs = fs
 
-        with future_lib.ThreadPoolExecutor(max_workers=16) as executor:
+        with future_lib.ThreadPoolExecutor(max_workers=None) as executor:
             futures = [
                 executor.submit(NoiseCompiler._process_noise_source, noise_source, fs)
                 for container in noise_containers
@@ -430,33 +430,35 @@ class CavitationNoise(NoiseSource):
                  max_speed: lps_qty.Speed = None,
                  rotacional_coeficient: lps_qty.Distance = None, # expected to be around 5,34 m
                  cavitation_threshold: lps_qty.Frequency = None,
+                 seed : int = None
                  ):
+        self.seed = seed if seed is not None else id(self)
         self.ship_type = ship_type
         self.n_blades = n_blades if n_blades is not None else \
-                        ship_type.draw_n_blades(id(self))
+                        ship_type.draw_n_blades(self.seed)
         self.n_shafts = n_shafts if n_shafts is not None else \
-                        ship_type.draw_n_shafts(id(self))
+                        ship_type.draw_n_shafts(self.seed)
         self.length = length if length is not None else \
-                        ship_type.draw_length(id(self))
+                        ship_type.draw_length(self.seed)
         self.cruise_speed = cruise_speed if cruise_speed is not None else \
-                        ship_type.draw_cruising_speed(id(self))
+                        ship_type.draw_cruising_speed(self.seed)
         self.cruise_rotacional_frequency = cruise_rotacional_frequency \
                         if cruise_rotacional_frequency is not None else \
-                        ship_type.draw_cruising_rotacional_frequency(id(self))
+                        ship_type.draw_cruising_rotacional_frequency(self.seed)
         self.max_speed = max_speed if max_speed is not None else \
-                        ship_type.draw_max_speed(id(self))
+                        ship_type.draw_max_speed(self.seed)
         self.rotacional_coeficient = rotacional_coeficient \
                         if rotacional_coeficient is not None else \
-                        self._draw_rotacional_coeficient()
+                        self._draw_rotacional_coeficient(self.seed)
 
-        rng = random.Random(id(self))
+        rng = random.Random(self.seed)
         self.cavitation_threshold = cavitation_threshold if cavitation_threshold is not None else \
                         self.cruise_rotacional_frequency * rng.uniform(0.2,0.6)
 
         super().__init__(source_id="cavitation")
 
-    def _draw_rotacional_coeficient(self) -> lps_qty.Distance:
-        rng = random.Random(id(self))
+    def _draw_rotacional_coeficient(self, seed : int) -> lps_qty.Distance:
+        rng = random.Random(seed)
         value = 0.089 * (1 + rng.uniform(-0.2, 0.2))
         # constante original calculada com m min/s aplicação em m
         return lps_qty.Distance.m(value * 60)
@@ -469,7 +471,7 @@ class CavitationNoise(NoiseSource):
                                    harmonic_std : float = None)-> \
                                         typing.Tuple[float, np.array]:
 
-        rng = np.random.default_rng(seed=id(self))
+        rng = np.random.default_rng(seed = self.seed)
         n_harmonics = n_harmonics if n_harmonics is not None else rng.integers(6,20)
         blade_gain = blade_gain if blade_gain is not None else rng.uniform(1.1, 2)
         decay = decay if decay is not None else rng.uniform(1.2,1.8)
@@ -545,7 +547,7 @@ class CavitationNoise(NoiseSource):
             List of modulation indices (from 0 to 1).
         """
         modulation_indices = []
-        rng = np.random.default_rng(id(self))
+        rng = np.random.default_rng(self.seed)
         base_mod_index = rng.uniform(0.3, 0.5)
         cruise_mod_index = rng.uniform(0.6, 0.8)
 
@@ -616,11 +618,12 @@ class CavitationNoise(NoiseSource):
         return modulated_signal, narrowband
 
     @classmethod
-    def get_random(cls, ship_type: ShipType = None) -> 'CavitationNoise':
+    def get_random(cls, ship_type: ShipType = None, seed : int = None) -> 'CavitationNoise':
         """ Return a random propulsion based on ship type. """
         if ship_type is None:
-            return cls.get_random(random.choice(list(ShipType)))
-        return cls(ship_type = ship_type)
+            rng = random.Random(seed)
+            return cls.get_random(rng.choice(list(ShipType)))
+        return cls(ship_type = ship_type, seed = seed)
 
     def generate_broadband_noise(self, fs: lps_qty.Frequency) -> np.array:
         """
@@ -648,7 +651,8 @@ class CavitationNoise(NoiseSource):
             audio_signals.append(lps_bb.generate(frequencies=np.array(freqs_hz),
                                                  psd_db=psd,
                                                  n_samples=int(interval * fs),
-                                                 fs=fs.get_hz()))
+                                                 fs=fs.get_hz(),
+                                                 seed=self.seed))
 
         return np.concatenate(audio_signals), speeds
 
@@ -846,11 +850,15 @@ class Ship(NoiseContainer):
                  ship_id: str,
                  propulsion: CavitationNoise = None,
                  draft: lps_qty.Distance = None,
-                 initial_state: lps_dynamic.State = None) -> None:
+                 initial_state: lps_dynamic.State = None,
+                 seed: int = None) -> None:
 
-        self.propulsion = propulsion if propulsion is not None else CavitationNoise.get_random()
+        self.seed = seed if seed is not None else id(self)
+
+        self.propulsion = propulsion if propulsion is not None else \
+                            CavitationNoise.get_random(self.seed)
         self.ship_type = propulsion.ship_type
-        self.draft = draft if draft is not None else self.ship_type.draw_draft(id(self))
+        self.draft = draft if draft is not None else self.ship_type.draw_draft(self.seed)
 
         if initial_state is None:
             initial_state = lps_dynamic.State()
@@ -868,5 +876,6 @@ class Ship(NoiseContainer):
         return self.draft
 
     @classmethod
-    def by_type(cls, ship_type = ShipType) -> 'Ship':
-        return Ship(ship_id=str(ship_type), propulsion=CavitationNoise(ship_type))
+    def by_type(cls, ship_type = ShipType, seed: int = None) -> 'Ship':
+        """ Instanciate a Ship based on type. """
+        return Ship(ship_id=str(ship_type), propulsion=CavitationNoise(ship_type, seed=seed))

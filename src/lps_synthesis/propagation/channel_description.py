@@ -144,7 +144,7 @@ class Description():
         return last_speed
 
     @classmethod
-    def get_random(cls) -> 'Description':
+    def get_random(cls, seed: int = None) -> 'Description':
         """
         Creates a random acoustic channel description, with randomly generated depths,
         bottom types, and sound speed profiles. The number of layers and their properties
@@ -153,27 +153,28 @@ class Description():
         Returns:
             A Description object with randomly generated layers.
         """
+        rng = random.Random(seed)
         desc = cls()
 
-        max_depth = lps_qty.Distance.m(random.uniform(25, 1500))
+        max_depth = lps_qty.Distance.m(rng.uniform(25, 1500))
 
         current_depth = lps_qty.Distance.m(0)
-        speed = lps_qty.Speed.m_s(random.uniform(1480, 1530))
+        speed = lps_qty.Speed.m_s(rng.uniform(1480, 1530))
         desc.add(current_depth, speed)
 
-        profile_type = random.choice(['positive', 'negative', 'iso'])
+        profile_type = rng.choice(['positive', 'negative', 'iso'])
 
-        mixing_layer_depth = int(random.uniform(25, 75))
-        termocline_depth = int(random.uniform(mixing_layer_depth + 50,
+        mixing_layer_depth = int(rng.uniform(25, 75))
+        termocline_depth = int(rng.uniform(mixing_layer_depth + 50,
                                               np.min([max_depth.get_m(), 1000])))
 
-        mixing_n_layers = random.uniform(3, 10)
-        termocline_n_layers = random.uniform(3, 10)
-        depth_n_layers = random.uniform(3, 10)
+        mixing_n_layers = rng.uniform(3, 10)
+        termocline_n_layers = rng.uniform(3, 10)
+        depth_n_layers = rng.uniform(3, 10)
 
-        mixing_alpha = lps_qty.Speed.m_s(random.uniform(0.1, 0.3))
-        termocline_alpha = lps_qty.Speed.m_s(random.uniform(0.1, 0.3))
-        depth_alpha = lps_qty.Speed.m_s(random.uniform(0.1, 0.3))
+        mixing_alpha = lps_qty.Speed.m_s(rng.uniform(0.1, 0.3))
+        termocline_alpha = lps_qty.Speed.m_s(rng.uniform(0.1, 0.3))
+        depth_alpha = lps_qty.Speed.m_s(rng.uniform(0.1, 0.3))
 
         for depth in range(0, mixing_layer_depth, int(mixing_layer_depth/mixing_n_layers)):
             if depth >= max_depth.get_m():
@@ -206,7 +207,7 @@ class Description():
                 desc.add(lps_qty.Distance.m(depth), speed)
 
 
-            bottom_layer = random.choice([b for b in lps_layer.BottomType])
+            bottom_layer = rng.choice([b for b in lps_layer.BottomType])
             desc.add(max_depth, bottom_layer)
 
         return desc

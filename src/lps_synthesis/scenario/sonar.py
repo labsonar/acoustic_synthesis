@@ -2,6 +2,7 @@
 import typing
 import math
 import abc
+import os
 import concurrent.futures as future_lib
 
 import tqdm
@@ -84,7 +85,7 @@ class AcousticSensor(lps_dynamic.RelativeElement):
 
     def transduce(self,
               input_data: np.array,
-              noise_source: lps_noise.NoiseSource,
+              noise_source: typing.Union[lps_dynamic.Element, lps_dynamic.RelativeElement],
               fs: lps_qty.Frequency) -> np.array:
         """ Convert input data in micro Pascal (µPa) to signal in Volts (V)
                 using the sensor's sensitivity and directivity.
@@ -92,10 +93,16 @@ class AcousticSensor(lps_dynamic.RelativeElement):
         if self.ref_element is None:
             raise UnboundLocalError("Applying an acoustic sensor without an reference element")
 
+        if noise_source is None:
+            return self.sensitivity.convert(input_data=input_data, fs=fs)
+
         return self.sensitivity.convert(input_data=input_data, fs=fs) * \
                 self._get_directivity(len(input_data), noise_source=noise_source)
 
-    def _get_directivity(self, n_samples: int, noise_source: lps_noise.NoiseSource) -> np.array:
+    def _get_directivity(self,
+                n_samples: int,
+                noise_source: typing.Union[lps_dynamic.Element, lps_dynamic.RelativeElement]) \
+                    -> np.array:
         n_steps = self.ref_element.get_n_steps()
         directivity_gain = np.zeros(n_steps)
 
@@ -105,7 +112,7 @@ class AcousticSensor(lps_dynamic.RelativeElement):
             sensor_dir = current_state.velocity.get_azimuth() + self.rel_direction
             directivity_gain[step] = self.directivity.get_gain(wavefront_dir - sensor_dir)
 
-        directivity_gain = scipy.resample(directivity_gain, n_samples)
+        directivity_gain = scipy.resample_poly(directivity_gain, n_samples, len(directivity_gain))
         return directivity_gain
 
     def plot_response(self, filename: str, fs: lps_qty.Frequency):
@@ -236,7 +243,7 @@ class Sonar(lps_dynamic.Element):
             sensor.set_base_element(self)
 
     @staticmethod
-    def hidrofone(
+    def hydrophone(
                  sensitivity: lps_qty.Sensitivity,
                  adc: ADConverter = ADConverter(),
                  signal_conditioner: SignalConditioning = IdealAmplifier(40),
@@ -315,86 +322,109 @@ class Sonar(lps_dynamic.Element):
             np.array: (n_samples, n_sensors) sonar data
         """
 
-        sonar_signals = []
-        with future_lib.ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [
+        sonar_signals = [None] * len(self.sensors)
+        with future_lib.ThreadPoolExecutor(max_workers=len(self.sensors)) as executor:
+            futures = {
                 executor.submit(
                     self._calculate_sensor_signal,
-                    sensor, noise_compiler, channel, environment
-                )
-                for sensor in self.sensors
-            ]
+                    sensor, noise_compiler, channel, environment): idx
+                for idx, sensor in enumerate(self.sensors)
+            }
 
             for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
-                                    desc="Propagating noises", leave=False, ncols=120):
-                sonar_signals.append(future.result())
+                                    desc="Estimating signal for sensors", leave=False, ncols=120):
+                idx = futures[future]
+                sonar_signals[idx] = future.result()
 
         min_size = min(signal.shape[0] for signal in sonar_signals)
         signals = [signal[:min_size] for signal in sonar_signals]
         signals = np.column_stack(signals)
         return signals
 
+    def _process_source_for_sensor(self,
+                                signal: np.ndarray,
+                                depth: lps_qty.Distance,
+                                noise_source: typing.Union[lps_dynamic.Element,lps_dynamic.RelativeElement],
+                                sensor: AcousticSensor,
+                                channel: lps_channel.Channel,
+                                noise_fs: lps_qty.Frequency) -> np.ndarray:
+        """Processa um único ruído para um sensor"""
+        rel_distance = []
+        source_doppler_list = []
+        sensor_doppler_list = []
+
+        for step_id in range(self.get_n_steps()):
+            rel_distance.append(
+                (noise_source[step_id].position - sensor[step_id].position).get_magnitude())
+            source_doppler_list.append(
+                noise_source[step_id].get_relative_speed(sensor[step_id]))
+            sensor_doppler_list.append(
+                sensor[step_id].get_relative_speed(noise_source[step_id]))
+
+        source_ss = channel.description.get_speed_at(depth)
+        sensor_ss = channel.description.get_speed_at(channel.sensor_depth)
+
+        doppler_noise = lps_model.apply_doppler(
+            input_data=signal,
+            speeds=source_doppler_list,
+            sound_speed=source_ss
+        )
+
+        propag_noise = channel.propagate(
+            input_data=doppler_noise,
+            source_depth=depth,
+            distance=rel_distance
+        )
+
+        doppler_noise = lps_model.apply_doppler(
+            input_data=propag_noise,
+            speeds=sensor_doppler_list,
+            sound_speed=sensor_ss
+        )
+
+        return sensor.transduce(input_data=doppler_noise,
+                                noise_source=noise_source,
+                                fs=noise_fs)
+
+
     def _calculate_sensor_signal(self,
                                  sensor: AcousticSensor,
                                  noise_compiler: lps_noise.NoiseCompiler,
                                  channel: lps_channel.Channel,
-                                 environment: lps_env.Environment):
+                                 environment: lps_env.Environment,
+                                 without_digitalization : bool = False):
 
-        noises = []
+        with future_lib.ThreadPoolExecutor(max_workers=len(noise_compiler)) as executor:
+            futures = [
+                executor.submit(
+                    self._process_source_for_sensor,
+                    signal, depth, source_list[0], sensor, channel, noise_compiler.fs
+                )
+                for signal, depth, source_list in noise_compiler
+            ]
 
-        # for signal, depth, source_list in tqdm.tqdm(noise_compiler,
-        #                                             desc="Propagating signals from sources",
-        #                                             leave=False,
-        #                                             ncols=120):
-
-        for signal, depth, source_list in noise_compiler:
-
-            noise_source = source_list[0]
-
-            rel_distance = []
-            source_doppler_list = []
-            sensor_doppler_list = []
-
-            for step_id in range(self.get_n_steps()):
-                rel_distance.append(
-                    (noise_source[step_id].position - sensor[step_id].position).get_magnitude())
-                source_doppler_list.append(
-                    noise_source[step_id].get_relative_speed(sensor[step_id]))
-                sensor_doppler_list.append(
-                    sensor[step_id].get_relative_speed(noise_source[step_id]))
-
-            source_ss = channel.description.get_speed_at(depth)
-            sensor_ss = channel.description.get_speed_at(channel.sensor_depth)
-
-            doppler_noise = lps_model.apply_doppler(
-                input_data = signal,
-                speeds = source_doppler_list,
-                sound_speed = source_ss
-            )
-
-            propag_noise = channel.propagate(
-                input_data = doppler_noise,
-                source_depth = depth,
-                distance = rel_distance
-            )
-
-            doppler_noise = lps_model.apply_doppler(
-                input_data=propag_noise,
-                speeds=sensor_doppler_list,
-                sound_speed=sensor_ss
-            )
-
-            env_noise = environment.generate_bg_noise(len(doppler_noise),
-                                                      fs=noise_compiler.fs.get_hz())
-
-            noises.append(sensor.transduce(input_data=doppler_noise + env_noise,
-                                           noise_source=noise_source,
-                                           fs=noise_compiler.fs))
+        noises = [f.result() for f in tqdm.tqdm(future_lib.as_completed(futures),
+                                                total=len(futures),
+                                                desc="Propagating noises",
+                                                leave=False,
+                                                ncols=120)]
 
         min_size = min(signal.shape[0] for signal in noises)
         signals = [signal[:min_size] for signal in noises]
-        ship_signal = np.sum(np.column_stack(signals), axis=1)
+        signal = np.sum(np.column_stack(signals), axis=1)
 
-        cond_signal = self.signal_conditioner.convert(ship_signal, fs=noise_compiler.fs)
+        if environment is not None:
+            env_noise = environment.generate_bg_noise(min_size,
+                                                    fs=noise_compiler.fs.get_hz())
+            env_noise = sensor.transduce(input_data=env_noise,
+                                        noise_source=None,
+                                        fs=noise_compiler.fs)
+            signal = signal + env_noise
 
-        return self.adc.apply(cond_signal)
+        cond_signal = self.signal_conditioner.convert(signal,
+                                                      fs = noise_compiler.fs)
+
+        if without_digitalization:
+            return cond_signal
+        else:
+            return self.adc.apply(cond_signal)
