@@ -114,15 +114,23 @@ class ImpulseResponse():
 
         n_samples = h_t_tau.shape[0]
 
-        x = np.concatenate((np.zeros(n_samples-1), input_data))
-        # y = np.zeros_like(input_data, dtype=np.complex_)
+
+        if input_data.ndim == 1:
+            data = input_data
+        elif input_data.ndim == 2 and input_data.shape[1] == 1:
+            data = input_data[:, 0]  # Flatten para vetor 1D
+        else:
+            raise ValueError(f"input_data must be shape (N,) or (N,1), got {input_data.shape}")
+
+        x = np.concatenate((np.zeros(n_samples-1), data))
         y = np.zeros_like(input_data)
 
-        dists = [np.abs(d.get_m()) for d in distance]
+        dists = [d.get_m() for d in distance]
         if len(input_data) != len(dists):
             dists = np.interp(np.linspace(0, 1, len(input_data)),
                               np.linspace(0, 1, len(dists)),
                               dists)
+        dists = abs(dists)
 
         ranges = [r.get_m() for r in self.ranges]
 

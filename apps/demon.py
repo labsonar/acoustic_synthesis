@@ -10,10 +10,10 @@ from librosa import fft_frequencies, frames_to_time, stft
 from sympy import factorint
 from scipy.signal import cheb2ord, cheby2, decimate, hilbert, lfilter
 
-from lps_sp.signal import tpsw
+import lps_sp.signal as lps_signal
 
 
-def get_demon_steps(fs_in, fs_out=50):
+def _get_demon_steps(fs_in, fs_out=50):
     if (fs_in % fs_out) != 0:
         raise ValueError("fs_in não divisível por fs_out")
 
@@ -45,8 +45,10 @@ def get_demon_steps(fs_in, fs_out=50):
 
     return [decimate_ratio1, decimate_ratio2]
 
-def demon(data, fs, n_fft=512, max_freq=50, overlap_ratio=0.25, apply_bandpass=True, bandpass_specs=None, method='abs'):
-    [decimate_ratio1, decimate_ratio2] = get_demon_steps(fs, max_freq)
+def _demon(data, fs, n_fft=512, max_freq=50, overlap_ratio=0.25, apply_bandpass=True,
+          bandpass_specs=None, method='abs'):
+
+    [decimate_ratio1, decimate_ratio2] = _get_demon_steps(fs, max_freq)
     x = data.copy()
 
     nyq = fs / 2
@@ -101,7 +103,7 @@ def main(wav_path: str, save_mode: str) -> None:
     output_base = os.path.splitext(os.path.basename(wav_path))[0]
 
     fs, signal = read(wav_path)
-    S, f, t = demon(signal, fs)
+    S, f, t = _demon(signal, fs)
 
     output_path = os.path.join(output_dir, f"{output_base}_demon")
 

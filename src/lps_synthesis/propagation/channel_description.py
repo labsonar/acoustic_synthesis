@@ -154,6 +154,7 @@ class Description():
             A Description object with randomly generated layers.
         """
         rng = random.Random(seed)
+
         desc = cls()
 
         max_depth = lps_qty.Distance.m(rng.uniform(25, 1500))

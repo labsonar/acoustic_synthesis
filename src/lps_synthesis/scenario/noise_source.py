@@ -472,14 +472,14 @@ class CavitationNoise(NoiseSource):
                                         typing.Tuple[float, np.array]:
 
         rng = np.random.default_rng(seed = self.seed)
-        n_harmonics = n_harmonics if n_harmonics is not None else rng.integers(6,20)
-        blade_gain = blade_gain if blade_gain is not None else rng.uniform(1.1, 2)
-        decay = decay if decay is not None else rng.uniform(1.2,1.8)
+        n_harmonics = n_harmonics if n_harmonics is not None else \
+                        (rng.integers(3,6) * self.n_blades)
+        blade_gain = blade_gain if blade_gain is not None else rng.uniform(2, 2.5)
+        decay = decay if decay is not None else rng.uniform(0.4,1)
         harmonic_std = harmonic_std if harmonic_std is not None else rng.uniform(0.05,0.2)
 
         if mod_ind < 1e-3:
             return 1, np.zeros(n_harmonics)
-
 
         n_k = rng.normal(1, harmonic_std, self.n_blades)
         decays = decay + rng.normal(0, decay * 0.01, self.n_blades)
@@ -639,6 +639,9 @@ class CavitationNoise(NoiseSource):
 
         audio_signals = []
         speeds = []
+        filter_state = None
+
+        rng = np.random.default_rng(seed = self.seed)
 
         for state, interval in self.ref_element.get_simulated_steps():
             speeds.append(state.velocity.get_magnitude())
@@ -648,11 +651,13 @@ class CavitationNoise(NoiseSource):
 
             freqs_hz = [f.get_hz() for f in frequencies]
 
-            audio_signals.append(lps_bb.generate(frequencies=np.array(freqs_hz),
+            noise, filter_state = lps_bb.generate(frequencies=np.array(freqs_hz),
                                                  psd_db=psd,
                                                  n_samples=int(interval * fs),
                                                  fs=fs.get_hz(),
-                                                 seed=self.seed))
+                                                 filter_state=filter_state,
+                                                 seed=rng)
+            audio_signals.append(noise)
 
         return np.concatenate(audio_signals), speeds
 
@@ -878,4 +883,4 @@ class Ship(NoiseContainer):
     @classmethod
     def by_type(cls, ship_type = ShipType, seed: int = None) -> 'Ship':
         """ Instanciate a Ship based on type. """
-        return Ship(ship_id=str(ship_type), propulsion=CavitationNoise(ship_type, seed=seed))
+        return Ship(ship_id=str(ship_type), propulsion=CavitationNoise(ship_type, seed=seed), seed=seed)

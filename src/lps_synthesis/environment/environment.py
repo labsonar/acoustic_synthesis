@@ -318,6 +318,7 @@ class Environment():
         self.sea_value = sea_value
         self.shipping_value = shipping_value
         self.seed = seed if seed is not None else id(self)
+        self.rng = np.random.default_rng(seed = self.seed)
 
     def __str__(self) -> str:
         return (f'Rain[{self.rain_value:.1f}], '
@@ -392,14 +393,14 @@ class Environment():
         freq_sea, psd_sea = Sea.get_interpolated_psd(self.sea_value)
         freq_shipping, psd_shipping = Shipping.get_interpolated_psd(self.shipping_value)
 
-        turb_noise = lps.generate(frequencies = freq_turb, psd_db = psd_turb,
-                                    n_samples=n_samples, fs = fs, seed = self.seed)
-        rain_noise = lps.generate(frequencies = freq_rain, psd_db = psd_rain,
-                                    n_samples=n_samples, fs = fs, seed = self.seed)
-        sea_noise = lps.generate(frequencies = freq_sea, psd_db = psd_sea,
-                                    n_samples=n_samples, fs = fs, seed = self.seed)
-        shipping_noise = lps.generate(frequencies = freq_shipping, psd_db = psd_shipping,
-                                    n_samples=n_samples, fs = fs, seed = self.seed)
+        turb_noise, _ = lps.generate(frequencies = freq_turb, psd_db = psd_turb,
+                                    n_samples=n_samples, fs = fs, seed = self.rng)
+        rain_noise, _ = lps.generate(frequencies = freq_rain, psd_db = psd_rain,
+                                    n_samples=n_samples, fs = fs, seed = self.rng)
+        sea_noise, _ = lps.generate(frequencies = freq_sea, psd_db = psd_sea,
+                                    n_samples=n_samples, fs = fs, seed = self.rng)
+        shipping_noise, _ = lps.generate(frequencies = freq_shipping, psd_db = psd_shipping,
+                                    n_samples=n_samples, fs = fs, seed = self.rng)
 
         return turb_noise + rain_noise + sea_noise + shipping_noise
 

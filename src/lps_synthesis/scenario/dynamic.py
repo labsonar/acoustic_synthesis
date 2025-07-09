@@ -7,6 +7,7 @@ import copy
 
 import numpy as np
 import matplotlib.pyplot as plt
+import tikzplotlib as tikz
 
 import lps_utils.quantities as lps_qty
 
@@ -431,7 +432,12 @@ class Element():
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(filename)
+
+        if filename.lower().endswith(".tex"):
+            tikz.save(filename)
+        else:
+            plt.savefig(filename, dpi=300)
+
         plt.close()
 
     @staticmethod
@@ -461,7 +467,46 @@ class Element():
         plt.xlabel('Time (seconds)')
         plt.ylabel('Distance (km)')
         plt.legend()
-        plt.savefig(filename)
+
+        if filename.lower().endswith(".tex"):
+            tikz.save(filename)
+        else:
+            plt.savefig(filename, dpi=300)
+
+        plt.close()
+
+    @staticmethod
+    def relative_speed_plot(ref_element: 'Element',
+                               elements : typing.List['Element'],
+                               filename: str) -> None:
+        """ Make plots with relative distances between ref_element and elements. """
+        n_steps = ref_element.get_n_steps()
+
+        dt = np.array([s.get_s() for s in ref_element.step_interval])
+        t = np.concatenate(([0.0], np.cumsum(dt)))
+
+        for i, element in enumerate(elements):
+
+            try:
+                label = element.get_id()
+            except AttributeError:
+                label = f"Element {i}"
+
+            speeds = []
+            for step_i in range(n_steps):
+                speeds.append((element[step_i].get_relative_speed(ref_element[step_i])).get_kt())
+
+            plt.plot(t, speeds, label=label)
+
+        plt.xlabel('Time (seconds)')
+        plt.ylabel('Speed (knot)')
+        plt.legend()
+
+        if filename.lower().endswith(".tex"):
+            tikz.save(filename)
+        else:
+            plt.savefig(filename, dpi=300)
+
         plt.close()
 
 
