@@ -15,18 +15,18 @@ class AcousticalLayer():
     """Generic class to represent an acoustical layer for channel modeling."""
 
     def __init__(self,
-                 compressional_speed: lps_qty.Speed = lps_qty.Speed.m_s(0),
-                 shear_speed: lps_qty.Speed = lps_qty.Speed.m_s(0),
+                 compressional_speed: lps_qty.Speed = None,
+                 shear_speed: lps_qty.Speed = None,
                  compressional_attenuation: float = 0,
                  shear_attenuation: float = 0,
-                 density: lps_qty.Density = lps_qty.Density.g_cm3(0),
-                 rms_roughness: lps_qty.Distance = lps_qty.Distance.m(0)) -> None:
-        self.compressional_speed = compressional_speed
-        self.shear_speed = shear_speed
+                 density: lps_qty.Density = None,
+                 rms_roughness: lps_qty.Distance = None) -> None:
+        self.compressional_speed = compressional_speed or lps_qty.Speed.m_s(0)
+        self.shear_speed = shear_speed or lps_qty.Speed.m_s(0)
         self.compressional_attenuation = compressional_attenuation
         self.shear_attenuation = shear_attenuation
-        self.density = density
-        self.rms_roughness = rms_roughness
+        self.density = density or lps_qty.Density.g_cm3(0)
+        self.rms_roughness = rms_roughness or lps_qty.Distance.m(0)
         self._name = type(self).__name__
 
     def to_oases_format(self) -> str:
@@ -74,8 +74,10 @@ class AcousticalLayer():
 class Water(AcousticalLayer):
     """ Represents water as an acoustical layer. """
     def __init__(self,
-                 sound_speed: lps_qty.Speed = lps_qty.Speed.m_s(1500),
-                 density: lps_qty.Density = lps_qty.Density.g_cm3(1)) -> None:
+                 sound_speed: lps_qty.Speed = None,
+                 density: lps_qty.Density = None) -> None:
+        sound_speed = sound_speed or lps_qty.Speed.m_s(1500)
+        density = density or lps_qty.Density.g_cm3(1)
         super().__init__(
             compressional_speed=sound_speed,
             shear_speed=lps_qty.Speed.m_s(0),
@@ -88,7 +90,8 @@ class Water(AcousticalLayer):
 class Air(AcousticalLayer):
     """ Represents air as an acoustical layer. """
 
-    def __init__(self, sea_state: lps_environment.Sea = lps_environment.Sea.STATE_0)-> None:
+    def __init__(self, sea_state: lps_environment.Sea = None)-> None:
+        sea_state = sea_state or lps_environment.Sea.STATE_0
         super().__init__(
             compressional_speed=lps_qty.Speed.m_s(340),
             shear_speed=lps_qty.Speed.m_s(0),

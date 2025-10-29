@@ -23,9 +23,12 @@ import lps_sp.acoustical.broadband as lps_bb
 class NoiseSource(lps_dynamic.RelativeElement):
     """ Abstract class to represent a point source of noise. """
 
-    def __init__(self, source_id: str, rel_position: lps_dynamic.Displacement = \
-                 lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))):
+    def __init__(self,
+                 source_id: str,
+                 rel_position: lps_dynamic.Displacement = None):
         self.source_id = source_id
+        rel_position = rel_position or lps_dynamic.Displacement(lps_qty.Distance.m(0),
+                                                                lps_qty.Distance.m(0))
         super().__init__(rel_position=rel_position)
 
     @abc.abstractmethod
@@ -41,7 +44,10 @@ class NoiseSource(lps_dynamic.RelativeElement):
 class NoiseContainer(lps_dynamic.Element):
     """ Base class to represent an element with multiple point noise sources. """
 
-    def __init__(self, container_id: str, initial_state: lps_dynamic.State = lps_dynamic.State()):
+    def __init__(self,
+                 container_id: str,
+                 initial_state: lps_dynamic.State = None):
+        initial_state = initial_state or lps_dynamic.State()
         super().__init__(initial_state)
         self.container_id = container_id
         self.noise_sources = []
@@ -686,8 +692,9 @@ class NarrowBandNoise(NoiseSource):
                  amp_db_p_upa: float,
                  epsilon_fn: typing.Callable[[np.ndarray], np.ndarray] = np.zeros_like,
                  phi_fn: typing.Callable[[np.ndarray], np.ndarray] = np.zeros_like,
-                 rel_position: lps_dynamic.Displacement =
-                        lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))):
+                 rel_position: lps_dynamic.Displacement = None):
+        rel_position = rel_position or lps_dynamic.Displacement(lps_qty.Distance.m(0),
+                                                                lps_qty.Distance.m(0))
         super().__init__(source_id=f"NarrowBand [{frequency}]", rel_position=rel_position)
         self.frequency = frequency
         self.amp = 10 ** (amp_db_p_upa / 20)

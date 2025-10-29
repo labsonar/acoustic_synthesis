@@ -158,10 +158,10 @@ class Point():
     """ Class to represent a point in the globe. """
 
     def __init__(self,
-                 latitude: lps_qty.Latitude = lps_qty.Latitude.rad(0),
-                 longitude: lps_qty.Longitude = lps_qty.Longitude.rad(0)) -> None:
-        self.latitude = latitude
-        self.longitude = longitude
+                 latitude: lps_qty.Latitude = None,
+                 longitude: lps_qty.Longitude = None) -> None:
+        self.latitude = latitude or lps_qty.Latitude.rad(0)
+        self.longitude = longitude or lps_qty.Longitude.rad(0)
 
     @classmethod
     def rad(cls, lat: float, lon: float) -> 'Point':
@@ -317,7 +317,7 @@ class State():
                  position: Displacement = None,
                  velocity: Velocity = None,
                  acceleration: Acceleration = None,
-                 max_speed: lps_qty.Speed = lps_qty.Speed.kt(50)) -> None:
+                 max_speed: lps_qty.Speed = None) -> None:
 
         self.position = position if position is not None else \
             Displacement(lps_qty.Distance.m(0),
@@ -331,7 +331,7 @@ class State():
             Acceleration(lps_qty.Acceleration.m_s2(0),
                          lps_qty.Acceleration.m_s2(0))
 
-        self.max_speed = max_speed
+        self.max_speed = max_speed or lps_qty.Speed.kt(50)
 
     def estimate(self, dt: lps_qty.Time) -> 'State':
         """ Estimate state after a delta time """

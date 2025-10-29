@@ -72,15 +72,15 @@ class AcousticSensor(lps_dynamic.RelativeElement):
     """ Class to represent an AcousticSensor in the scenario """
 
     def __init__(self,
-                 sensitivity: Sensitivity = FlatBand(lps_qty.Sensitivity.db_v_p_upa(-200)),
-                 directivity: Directivity = Omnidirectional(),
-                 rel_direction: lps_qty.RelativeBearing = lps_qty.RelativeBearing.ccw_rad(0),
-                 rel_position: lps_dynamic.Displacement = \
-                        lps_dynamic.Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))
-                 ) -> None:
-        self.sensitivity = sensitivity
-        self.directivity = directivity
-        self.rel_direction = rel_direction
+                 sensitivity: Sensitivity = None,
+                 directivity: Directivity = None,
+                 rel_direction: lps_qty.RelativeBearing = None,
+                 rel_position: lps_dynamic.Displacement = None) -> None:
+        self.sensitivity = sensitivity or FlatBand(lps_qty.Sensitivity.db_v_p_upa(-200))
+        self.directivity = directivity or Omnidirectional()
+        self.rel_direction = rel_direction or lps_qty.RelativeBearing.ccw_rad(0)
+        rel_position = rel_position or lps_dynamic.Displacement(lps_qty.Distance.m(0),
+                                                                lps_qty.Distance.m(0))
         super().__init__(rel_position=rel_position)
 
     def transduce(self,
@@ -231,13 +231,13 @@ class Sonar(lps_dynamic.Element):
 
     def __init__(self,
                  sensors: typing.List[AcousticSensor],
-                 signal_conditioner: SignalConditioning = IdealAmplifier(40),
-                 adc: ADConverter = ADConverter(),
-                 initial_state: lps_dynamic.State = lps_dynamic.State()) -> None:
+                 signal_conditioner: SignalConditioning = None,
+                 adc: ADConverter = None,
+                 initial_state: lps_dynamic.State = None) -> None:
         super().__init__(initial_state=initial_state)
-        self.sensors = sensors
-        self.adc = adc
-        self.signal_conditioner = signal_conditioner
+        self.sensors = sensors or IdealAmplifier(40)
+        self.adc = adc or ADConverter()
+        self.signal_conditioner = signal_conditioner or lps_dynamic.State()
 
         for sensor in sensors:
             sensor.set_base_element(self)

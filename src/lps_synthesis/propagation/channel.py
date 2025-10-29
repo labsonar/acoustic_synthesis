@@ -30,24 +30,23 @@ class Channel():
     def __init__(self,
                  description: lps_desc.Description,
                  sensor_depth: lps_qty.Distance,
-                 source_depths: typing.List[lps_qty.Distance] =
-                                [lps_qty.Distance.m(d) for d in np.arange(3, 25, 2)],
-                 max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
+                 source_depths: typing.List[lps_qty.Distance] = None,
+                 max_distance: lps_qty.Distance = None,
                  max_distance_points: int = 128,
-                 sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
+                 sample_frequency: lps_qty.Frequency = None,
                  frequency_range: typing.Tuple[lps_qty.Frequency] = None,
-                 model: lps_model.Model = lps_model.Model.OASES,
+                 model: lps_model.Model = None,
                  channel_dir: typing.Optional[str] = None,
                  hash_id: str = None):
 
         self.description = description
-        self.source_depths = source_depths
+        self.source_depths = source_depths or [lps_qty.Distance.m(d) for d in np.arange(3, 25, 2)]
         self.sensor_depth = sensor_depth
-        self.max_distance = max_distance
+        self.max_distance = max_distance or lps_qty.Distance.km(1)
         self.max_distance_points = max_distance_points
-        self.sample_frequency = sample_frequency
+        self.sample_frequency = sample_frequency or lps_qty.Frequency.khz(16)
         self.frequency_range = frequency_range
-        self.model = model
+        self.model = model or lps_model.Model.OASES
         self.channel_dir = channel_dir if channel_dir is not None else DEFAULT_DIR
         self.hash_id = hash_id
 
