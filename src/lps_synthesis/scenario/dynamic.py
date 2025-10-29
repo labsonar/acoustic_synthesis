@@ -310,21 +310,27 @@ def global_displacement(p: Point, d: Displacement) -> Point:
 
     return Point.rad(phi2,_l2)
 
-
 class State():
     """ Class to represent any element dynamic state in the simulation """
 
     def __init__(self,
-                position: Displacement = Displacement(lps_qty.Distance.m(0),
-                                        lps_qty.Distance.m(0),
-                                        lps_qty.Distance.m(0)),
-                velocity: Velocity = Velocity(lps_qty.Speed.m_s(0), lps_qty.Speed.m_s(0)),
-                acceleration: Acceleration = Acceleration(lps_qty.Acceleration.m_s2(0),
-                                                          lps_qty.Acceleration.m_s2(0)),
-                max_speed: lps_qty.Speed = lps_qty.Speed.kt(50)) -> None:
-        self.position = position
-        self.velocity = velocity
-        self.acceleration = acceleration
+                 position: Displacement = None,
+                 velocity: Velocity = None,
+                 acceleration: Acceleration = None,
+                 max_speed: lps_qty.Speed = lps_qty.Speed.kt(50)) -> None:
+
+        self.position = position if position is not None else \
+            Displacement(lps_qty.Distance.m(0),
+                         lps_qty.Distance.m(0),
+                         lps_qty.Distance.m(0))
+
+        self.velocity = velocity if velocity is not None else \
+            Velocity(lps_qty.Speed.m_s(0), lps_qty.Speed.m_s(0))
+
+        self.acceleration = acceleration if acceleration is not None else \
+            Acceleration(lps_qty.Acceleration.m_s2(0),
+                         lps_qty.Acceleration.m_s2(0))
+
         self.max_speed = max_speed
 
     def estimate(self, dt: lps_qty.Time) -> 'State':
@@ -484,6 +490,7 @@ class Element():
 
         dt = np.array([s.get_s() for s in ref_element.step_interval])
         t = np.concatenate(([0.0], np.cumsum(dt)))
+        speed_list = []
 
         for i, element in enumerate(elements):
 
@@ -496,10 +503,15 @@ class Element():
             for step_i in range(n_steps):
                 speeds.append((element[step_i].get_relative_speed(ref_element[step_i])).get_kt())
 
-            plt.plot(t, speeds, label=label)
+            # plt.plot(t, speeds, label=label)
+            speed_list.append(speeds)
 
-        plt.xlabel('Time (seconds)')
-        plt.ylabel('Speed (knot)')
+            plt.plot(speeds, t, label=label)
+        plt.ylabel('Time (second)')
+        plt.xlabel('Speed (knot)')
+        plt.gca().invert_yaxis()
+        # plt.xlabel('Time (seconds)')
+        # plt.ylabel('Speed (knot)')
         plt.legend()
 
         if filename.lower().endswith(".tex"):
@@ -508,6 +520,8 @@ class Element():
             plt.savefig(filename, dpi=300)
 
         plt.close()
+
+        return t, speed_list
 
 
 class RelativeElement():

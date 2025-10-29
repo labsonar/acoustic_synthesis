@@ -31,7 +31,7 @@ class Channel():
                  description: lps_desc.Description,
                  sensor_depth: lps_qty.Distance,
                  source_depths: typing.List[lps_qty.Distance] =
-                                [lps_qty.Distance.m(d) for d in np.arange(5, 25, 2)],
+                                [lps_qty.Distance.m(d) for d in np.arange(3, 25, 2)],
                  max_distance: lps_qty.Distance = lps_qty.Distance.km(1),
                  max_distance_points: int = 128,
                  sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
@@ -214,7 +214,7 @@ class PredefinedChannel(enum.Enum):
             return Channel(description = desc,
                             sensor_depth = lps_qty.Distance.m(140),
                             max_distance = lps_qty.Distance.km(1),
-                            max_distance_points = 128,
+                            max_distance_points = 1001,
                             sample_frequency = lps_qty.Frequency.khz(16),
                             frequency_range = None,
                             model = lps_model.Model.OASES,

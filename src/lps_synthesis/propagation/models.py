@@ -160,9 +160,17 @@ class ImpulseResponse():
                     r_i = bisect.bisect_right(ranges, dists[y_i])
 
                     interp_factor = (dists[y_i] - ranges[r_i-1])/(ranges[r_i] - ranges[r_i-1])
-                    interp_factor = int(interp_factor*1000)/1000
 
-                    ir = (1 - interp_factor) * h_t_tau[:, r_i - 1] + interp_factor * h_t_tau[:, r_i]
+                    if interp_factor > 0.5:
+                        ir = h_t_tau[:, r_i]
+                    else:
+                        ir = h_t_tau[:, r_i - 1]
+
+
+                    # interp_factor = int(interp_factor*1000)/1000
+
+                    # ir = (1 - interp_factor) * h_t_tau[:, r_i - 1]
+                    #  + interp_factor * h_t_tau[:, r_i]
 
                 ir = ir - np.mean(ir)
 

@@ -45,7 +45,7 @@ def _get_demon_steps(fs_in, fs_out=50):
 
     return [decimate_ratio1, decimate_ratio2]
 
-def _demon(data, fs, n_fft=512, max_freq=50, overlap_ratio=0.25, apply_bandpass=True,
+def _demon(data, fs, n_fft=1024, max_freq=50, overlap_ratio=0.50, apply_bandpass=True,
           bandpass_specs=None, method='abs'):
 
     [decimate_ratio1, decimate_ratio2] = _get_demon_steps(fs, max_freq)
@@ -112,7 +112,7 @@ def main(wav_path: str, save_mode: str) -> None:
         plt.plot(f * 60, np.mean(S, axis=0))
         plt.ylabel('Amplitude')
     else:
-        plt.imshow(S, aspect='auto', extent=[f[0] * 60, f[-1] * 60, t[-1], t[0]])
+        plt.imshow(S, aspect='auto', cmap='jet',  extent=[f[0] * 60, f[-1] * 60, t[-1], t[0]])
         plt.ylabel('Time')
 
     plt.title('DEMON')

@@ -107,8 +107,10 @@ class Scenario():
                     diff = container[step_i].position
                     diff_vel = container[step_i].velocity
 
-                    x.append(diff.x.get_km() - ref_x[-1])
-                    y.append(diff.y.get_km() - ref_y[-1])
+                    # x.append(diff.x.get_km() - ref_x[0])
+                    # y.append(diff.y.get_km() - ref_y[0])
+                    x.append(diff.x.get_km())
+                    y.append(diff.y.get_km())
                     last_angle = diff_vel.get_azimuth().get_deg()
 
 
@@ -118,9 +120,12 @@ class Scenario():
             ref_x = np.array(ref_x)
             ref_y = np.array(ref_y)
             limit = np.max([limit,
-                            np.max(np.abs(ref_x - ref_x[-1])),
-                            np.max(np.abs(ref_y - ref_y[-1]))])
-            plot_ship(ref_x - ref_x[-1], ref_y - ref_y[-1], ref_angle, "Sonar", 200)
+                            np.max(np.abs(ref_x)),
+                            np.max(np.abs(ref_y))])
+                            # np.max(np.abs(ref_x - ref_x[0])),
+                            # np.max(np.abs(ref_y - ref_y[0]))])
+            # plot_ship(ref_x - ref_x[0], ref_y - ref_y[0], ref_angle, "Sonar", 200)
+            plot_ship(ref_x, ref_y, ref_angle, "Sonar", 200)
 
             # cont = 0
             # for sensor in sonar.sensors:
@@ -174,10 +179,14 @@ class Scenario():
                     diff = container[step_i].position - sonar[step_i].position
                     dist.append(diff.get_magnitude_xy().get_km())
 
-                plt.plot(t, dist, label=container.get_id())
+                # plt.plot(t, dist, label=container.get_id())
+                plt.plot(dist, t, label=container.get_id())
 
-            plt.xlabel('Time (seconds)')
-            plt.ylabel('Distance (km)')
+            plt.ylabel('Time (seconds)')
+            plt.xlabel('Distance (km)')
+            plt.gca().invert_yaxis()
+            # plt.xlabel('Time (seconds)')
+            # plt.ylabel('Distance (km)')
             plt.legend()
 
             if len(self.sonars) == 1:
@@ -204,10 +213,14 @@ class Scenario():
             for step_i in range(self.n_steps):
                 speeds.append(container[step_i].velocity.get_magnitude_xy().get_kt())
 
-            plt.plot(t, speeds, label=container.get_id())
+            # plt.plot(t, speeds, label=container.get_id())
+            plt.plot(speeds, t, label=container.get_id())
 
-        plt.xlabel('Time (second)')
-        plt.ylabel('Speed (knot)')
+        plt.ylabel('Time (second)')
+        plt.xlabel('Speed (knot)')
+        plt.gca().invert_yaxis()
+        # plt.xlabel('Time (second)')
+        # plt.ylabel('Speed (knot)')
         plt.legend()
 
         output_filename = filename
@@ -230,7 +243,7 @@ class Scenario():
                 for step_i in range(self.n_steps):
                     speeds.append((container[step_i].get_relative_speed(sonar[step_i])).get_kt())
 
-                plt.plot(t, speeds, label=container.get_id())
+                # plt.plot(t, speeds, label=container.get_id())
 
                 # for source in container.noise_sources:
 
@@ -240,8 +253,90 @@ class Scenario():
 
                 #     plt.plot(t, speeds, label=source.get_id())
 
-            plt.xlabel('Time (second)')
-            plt.ylabel('Speed (knot)')
+                plt.plot(speeds, t, label=container.get_id())
+            plt.ylabel('Time (second)')
+            plt.xlabel('Speed (knot)')
+            plt.gca().invert_yaxis()
+            # plt.xlabel('Time (second)')
+            # plt.ylabel('Speed (knot)')
+            plt.legend()
+
+            if len(self.sonars) == 1:
+                output_filename = filename
+            else:
+                output_filename = f"{filename}{sonar_id}.png"
+
+            if output_filename[-4:] == ".tex":
+                tikz.save(output_filename)
+            else:
+                plt.savefig(output_filename)
+
+            plt.clf()
+        plt.close()
+
+    def bearing_plot(self, filename: str) -> None:
+        """ Make plots with absolute bearing. """
+
+        for sonar_id, sonar in self.sonars.items():
+
+            t = [(step_i * self.step_interval).get_s() for step_i in range(self.n_steps)]
+
+            for container in self.noise_containers:
+
+                angle = []
+                for step_i in range(self.n_steps):
+                    angle.append((container[step_i].position - sonar[step_i].position).get_azimuth().get_ncw_deg())
+
+                plt.plot(angle, t, label=container.get_id())
+
+            angle = []
+            for step_i in range(self.n_steps):
+                angle.append(sonar[step_i].velocity.get_azimuth().get_ncw_deg())
+
+            plt.plot(angle, t, label=sonar_id)
+
+
+            plt.ylabel('Time (second)')
+            plt.xlabel('Bearing (degree)')
+            plt.gca().invert_yaxis()
+            # plt.xlabel('Time (second)')
+            # plt.ylabel('Speed (knot)')
+            plt.legend()
+
+            if len(self.sonars) == 1:
+                output_filename = filename
+            else:
+                output_filename = f"{filename}{sonar_id}.png"
+
+            if output_filename[-4:] == ".tex":
+                tikz.save(output_filename)
+            else:
+                plt.savefig(output_filename)
+
+            plt.clf()
+        plt.close()
+
+    def relative_bearing_plot(self, filename: str) -> None:
+        """ Make plots with relative bearing. """
+
+        for sonar_id, sonar in self.sonars.items():
+
+            t = [(step_i * self.step_interval).get_s() for step_i in range(self.n_steps)]
+
+            for container in self.noise_containers:
+
+                angle = []
+                for step_i in range(self.n_steps):
+                    abs_angle = (container[step_i].position - sonar[step_i].position).get_azimuth()
+                    ref_angle = sonar[step_i].velocity.get_azimuth()
+                    rel_angle = abs_angle - ref_angle
+                    angle.append(rel_angle.get_ccw_deg())
+
+                plt.plot(angle, t, label=container.get_id())
+
+            plt.ylabel('Time (second)')
+            plt.xlabel('Bearing (degree)')
+            plt.gca().invert_yaxis()
             plt.legend()
 
             if len(self.sonars) == 1:

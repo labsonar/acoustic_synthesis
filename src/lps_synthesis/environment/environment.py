@@ -320,10 +320,16 @@ class Environment():
         self.seed = seed if seed is not None else id(self)
         self.rng = np.random.default_rng(seed = self.seed)
 
+    def _format_value(value) -> str:
+        """Helper to format float or Enum values."""
+        if isinstance(value, float):
+            return f"{value:.1f}"
+        return str(value)
+
     def __str__(self) -> str:
-        return (f'Rain[{self.rain_value:.1f}], '
-                f'Sea[{self.sea_value:.1f}], '
-                f'Shipping[{self.shipping_value:.1f}]')
+        return (f'Rain[{Environment._format_value(self.rain_value)}], '
+                f'Sea[{Environment._format_value(self.sea_value)}], '
+                f'Shipping[{Environment._format_value(self.shipping_value)}]')
 
     @classmethod
     def random(cls, seed: int = None) -> 'Environment':
