@@ -9,7 +9,9 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
-import lps_synthesis.scenario.dynamic as lps_dym
+import lps_utils.quantities as lps_qty
+import lps_synthesis.scenario.dynamic as lps_sce_dyn
+import lps_synthesis.dataset.dynamic as lps_db_dyn
 
 class Local(enum.Enum):
     """ Enumeration of reference oceanic and coastal locations. """
@@ -35,7 +37,7 @@ class Local(enum.Enum):
     TASMAN_SEA = enum.auto()
     BARENTS_SEA = enum.auto()
 
-    def get_point(self) -> lps_dym.Point:
+    def get_point(self) -> lps_sce_dyn.Point:
         """ Returns the latitude and longitude of the selected location. """
         latlon_dict = {
             Local.GUANABARA_BAY: [-22.93, -43.14],
@@ -59,7 +61,7 @@ class Local(enum.Enum):
             Local.TASMAN_SEA: [-40.00, 165.00],
             Local.BARENTS_SEA: [72.00, 40.00],
         }
-        return lps_dym.Point.deg(*latlon_dict[self])
+        return lps_sce_dyn.Point.deg(*latlon_dict[self])
 
     def to_string(self, language: str = "en_US") -> str:
         """ Returns the localized name of the location. """
@@ -201,61 +203,90 @@ class Month(enum.IntEnum):
 
 class AcousticScenario:
 
-    def __init__(self, local: Local, month: Month):
-        self.local = local
-        self.month = month
+    def __init__(self, local: Local = None, month: Month = None):
+        self.local = local or Local.rand()
+        self.month = month or Month.rand()
 
     def __str__(self):
         return f"{self.local} [{self.month.name.capitalize()}]"
 
-class ScenarioCatalog:
+class CatalogEntry:
 
-    def __init__(self, scenarios: typing.List[AcousticScenario] = None):
-        self._scenarios = scenarios or []
+    def __init__(self,
+                 scenario: AcousticScenario = None,
+                 dynamic: lps_db_dyn.SimulationDynamic = None):
+        self.scenario = scenario or AcousticScenario()
+        self.dynamic = dynamic or lps_db_dyn.SimulationDynamic.rand()
+
+    def __str__(self):
+        return f"{self.scenario} | {self.dynamic}"
+
+class Catalog:
+
+    def __init__(self, scenarios: typing.List[CatalogEntry] = None):
+        self._entries = scenarios or []
 
     def __len__(self):
-        return len(self._scenarios)
+        return len(self._entries)
 
     def __iter__(self):
-        for el in self._scenarios:
+        for el in self._entries:
             yield el
 
     def __getitem__(self, index):
-        return self._scenarios[index]
+        return self._entries[index]
 
     def to_df(self) -> pd.DataFrame:
         """Convert all scenarios into a DataFrame."""
         data = []
-        for scenario in self._scenarios:
+        for entry in self._entries:
             data.append({
-                "Local ID": scenario.local.value,
-                "Local Name": scenario.local.to_string(),
-                "Month": scenario.month.name.capitalize()
+                "Local ID": entry.scenario.local.value,
+                "Local Name": entry.scenario.local.to_string(),
+                "Month": entry.scenario.month.name.capitalize(),
+                "Dynamic": str(entry.dynamic.dynamic_type),
+                "Shortest Dist (m)": entry.dynamic.shortest.get_m()
             })
         df = pd.DataFrame(data)
         return df
 
-class ToyCatalog(ScenarioCatalog):
 
-    def __init__(self, seed: int = 42):
-        random.seed(seed)
-        super().__init__([
-            AcousticScenario(Local.GUANABARA_BAY, Month.rand()),
-            AcousticScenario(Local.GUANABARA_BAY, Month.rand()),
-            AcousticScenario(Local.SANTOS_BASIN, Month.rand()),
-            AcousticScenario(Local.SANTOS_BASIN, Month.rand()),
-            AcousticScenario(Local.VIGO_PORT, Month.rand()),
-            AcousticScenario(Local.VIGO_PORT, Month.rand()),
-            AcousticScenario(Local.STRAIT_OF_GEORGIA, Month.rand()),
-            AcousticScenario(Local.STRAIT_OF_GEORGIA, Month.rand())
-        ])
-
-
-class OlocumCatalog(ScenarioCatalog):
+class ToyCatalog(Catalog):
 
     def __init__(self, n_samples = 100, seed: int = 42):
+        selected_locals = [
+            Local.GUANABARA_BAY,
+            Local.SANTOS_BASIN,
+            Local.VIGO_PORT,
+            Local.STRAIT_OF_GEORGIA,
+            Local.QIANDAO_LAKE,
+        ]
+
         random.seed(seed)
-        super().__init__([AcousticScenario(Local.rand(), Month.rand()) for _ in range(n_samples)])
+        scenarios = []
+        for local in selected_locals:
+            months = random.sample(list(Month), 2)
+            for month in months:
+                scenarios.append(AcousticScenario(local, month))
+
+        random.seed(seed)
+        super().__init__([CatalogEntry(random.choice(scenarios)) for _ in range(n_samples)])
+
+
+class OlocumCatalog(Catalog):
+
+    def __init__(self, n_scenarios = 100, n_samples = 1000, seed: int = 42):
+        random.seed(seed)
+        all_scenarios = [
+            AcousticScenario(local, month)
+            for local in Local
+            for month in Month
+        ]
+        n_scenarios = min(n_scenarios, len(all_scenarios))
+        scenarios = random.sample(all_scenarios, n_scenarios)
+
+        random.seed(seed)
+        super().__init__([CatalogEntry(random.choice(scenarios)) for _ in range(n_samples)])
 
 
 def _main():
@@ -280,16 +311,26 @@ def _main():
     print("############")
     print(local_df)
 
+    count = toy_dataset_df.groupby(['Local ID','Month']).size().reset_index(name="Qty")
     print()
     print("############")
-    for scenario in toy_dataset:
-        print(scenario)
+    print(count)
 
+    count = toy_dataset_df.groupby(['Dynamic']).size().reset_index(name="Qty")
     print()
     print("############")
-    for scenario in olocum_dataset:
-        print(scenario)
+    print(count)
 
+    count = olocum_dataset_df.groupby(['Local ID','Month']).size().reset_index(name="Qty")
+    count = count.sort_values("Qty", ascending=False)
+    print()
+    print("############")
+    print(count)
+
+    count = olocum_dataset_df.groupby(['Dynamic']).size().reset_index(name="Qty")
+    print()
+    print("############")
+    print(count)
 
 if __name__ == "__main__":
     _main()
