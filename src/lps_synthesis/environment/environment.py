@@ -38,7 +38,6 @@ def one_third_octave_frequencies(lower_bound = -20, upper_bound = -20) -> np.arr
     """
     return np.array([1e3 * 2**(i/3) for i in range(lower_bound, upper_bound + 1)])
 
-
 def turbulence_psd() -> typing.Tuple[np.array, np.array]:
     """
     Get the PSD (Power Spectral Density) of the rain noise.
@@ -51,6 +50,7 @@ def turbulence_psd() -> typing.Tuple[np.array, np.array]:
     frequencies = one_third_octave_frequencies(-30, 0)
     spectrum = np.array([107 - 30 * np.log10(f) for f in frequencies])
     return frequencies, spectrum
+
 
 class Shipping(enum.Enum):
     """Enum representing Shipping level noise with various intensity levels."""
@@ -300,6 +300,7 @@ class Sea(enum.Enum):
 
         return charnock_constant * gravitational_acceleration** 2 / gravitational_acceleration
 
+
 class Environment():
     """Class to represent an acoustical environment background."""
 
@@ -320,6 +321,7 @@ class Environment():
         self.seed = seed if seed is not None else id(self)
         self.rng = np.random.default_rng(seed = self.seed)
 
+    @staticmethod
     def _format_value(value) -> str:
         """Helper to format float or Enum values."""
         if isinstance(value, float):

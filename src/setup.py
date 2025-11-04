@@ -31,5 +31,5 @@ setuptools.setup(
         # List your project dependencies here
     ],
     # Uncomment and specify package data if needed
-    package_data={package_name: ['data/*.csv']},
+    package_data={package_name: ['environment/data/*.csv']},
 )
