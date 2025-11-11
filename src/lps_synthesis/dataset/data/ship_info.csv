@@ -1,0 +1,18 @@
+class,subclass,ship_type,IARA_type,iara_ship_id,ship_name,brand,brand_type,model,propulsion,mcr_percent,max_speed_kt,cruising_speed_kt,rpm,length_m,draft_m,n_blades,n_shafts
+Cargo,Cargo,Bulker,Bulk Carrier,179,FIGALIA PRUDENCE,Hyundai Mipo Dockyard,Dry bulk/Kamsarmax,HMD 82K - Hyundai 82BC,MAN-B&W 6 Zylinder (6S60MC-C8),0.758,14.9,11.3,105,229,7.8-14.5,8,1
+Cargo,Cargo,Bulker,Bulk Carrier,125,CONDOR HAMBURG, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Cargo,Cargo,Bulker,Bulk Carrier,275,JOLANDA, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Cargo,Cargo,Vehicle_Carrier,Vehicles Carrier,193,FUJITRANS WORLD, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Cargo,Cargo,Containership,Container Ship,297,LOG IN PANTANAL, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Cargo,Cargo,Containership,Container Ship,303,LUCIO COSTA, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Cargo,Cargo,Containership,Container Ship,501,SAN FERNANDO, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Cargo,Cargo,Tanker,Tanker,186,FORTE DE SAO MARCOS, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Cargo,Cargo,Tanker,Tanker,497,SALLIE KNUTSEN, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,44,AURITA, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,626,VO NICACIO, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,580,TEMPERANCA, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Apoio e Uso Humano,Uso pessoal,Recreational,Pleasure Craft,439,PAPA GOLFE, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Apoio e Uso Humano,Serviços,Tug,Tug,161,ENCO, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Apoio e Uso Humano,Serviços,Tug,Tug,600,TS INCRIVEL, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Apoio e Uso Humano,Serviços,Dredger,Suction Dredger,444,PEARL RIVER, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+Apoio e Uso Humano,Serviços,Dredger,Suction Dredger,2,ABBOTSGRANGE, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1

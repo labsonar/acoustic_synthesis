@@ -1,3 +1,4 @@
+import abc
 import enum
 import os
 import typing
@@ -12,6 +13,7 @@ import cartopy.feature as cfeature
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_sce_dyn
 import lps_synthesis.dataset.dynamic as lps_db_dyn
+import lps_synthesis.dataset.ship as syn_ship
 
 class Local(enum.Enum):
     """ Enumeration of reference oceanic and coastal locations. """
@@ -164,18 +166,21 @@ class Local(enum.Enum):
         """Save all locations as a DataFrame and export to CSV."""
         data = []
         for local in Local:
-            p = local.get_point()
-            data.append({
-                "ID": local.value,
-                "Name (us)": local.to_string(),
+            data.append(local.as_dict())
+
+        df = pd.DataFrame(data)
+        return df
+
+    def as_dict(self):
+        p = self.get_point()
+        return {
+                "Local ID": self.value,
+                "Name (us)": self.to_string(),
                 "Latitude (deg)": p.latitude.get_deg(),
                 "Longitude (deg)": p.longitude.get_deg(),
                 "Latitude (dms)": str(p.latitude),
                 "Longitude (dms)": str(p.longitude),
-            })
-
-        df = pd.DataFrame(data)
-        return df
+            }
 
     @staticmethod
     def rand() -> "Local":
@@ -210,21 +215,48 @@ class AcousticScenario:
     def __str__(self):
         return f"{self.local} [{self.month.name.capitalize()}]"
 
+    def as_dict(self):
+        """Return the scenario as a dictionary joining Local and Month information."""
+        return {
+            **self.local.as_dict(),
+            "Month": self.month.name.capitalize(),
+        }
+
 class CatalogEntry:
 
     def __init__(self,
-                 scenario: AcousticScenario = None,
+                 ship_id: int,
+                 scenario_id: int,
                  dynamic: lps_db_dyn.SimulationDynamic = None):
-        self.scenario = scenario or AcousticScenario()
+        self.ship_id = ship_id
+        self.scenario_id = scenario_id
         self.dynamic = dynamic or lps_db_dyn.SimulationDynamic.rand()
 
     def __str__(self):
-        return f"{self.scenario} | {self.dynamic}"
+        return f"[{self.ship_id}] {self.scenario_id} | {self.dynamic}"
+
+    def as_dict(self):
+        return {
+                "Ship ID": self.ship_id,
+                "Scenario ID": self.scenario_id,
+                "Dynamic": str(self.dynamic.dynamic_type),
+                "Shortest Dist (m)": self.dynamic.shortest.get_m()
+            }
 
 class Catalog:
 
-    def __init__(self, scenarios: typing.List[CatalogEntry] = None):
-        self._entries = scenarios or []
+    def __init__(self,
+                 ship_catalog: syn_ship.ShipCatalog,
+                 scenario_catalog: typing.List[AcousticScenario],
+                 n_samples: int,
+                 seed: int = 42):
+        self.ship_catalog = ship_catalog
+        self.scenario_catalog = scenario_catalog
+
+        rng = random.Random(seed)
+        self._entries = [CatalogEntry(ship_id=rng.randrange(len(self.ship_catalog)),
+                                      scenario_id=rng.randrange(len(self.scenario_catalog)))
+                        for _ in range(n_samples)]
 
     def __len__(self):
         return len(self._entries)
@@ -237,19 +269,35 @@ class Catalog:
         return self._entries[index]
 
     def to_df(self) -> pd.DataFrame:
-        """Convert all scenarios into a DataFrame."""
         data = []
         for entry in self._entries:
-            data.append({
-                "Local ID": entry.scenario.local.value,
-                "Local Name": entry.scenario.local.to_string(),
-                "Month": entry.scenario.month.name.capitalize(),
-                "Dynamic": str(entry.dynamic.dynamic_type),
-                "Shortest Dist (m)": entry.dynamic.shortest.get_m()
-            })
+            data.append(entry.as_dict())
         df = pd.DataFrame(data)
         return df
 
+    def scenario_df(self) -> pd.DataFrame:
+
+        data = []
+        for i, scenario in enumerate(self.scenario_catalog):
+            data.append({
+                "Scenario ID": i,
+                **scenario.as_dict(),
+                })
+
+        df = pd.DataFrame(data)
+        return df
+
+    def export(self, output_dir: str):
+        os.makedirs(output_dir, exist_ok=True)
+
+        df = self.to_df()
+        df.to_csv(os.path.join(output_dir, "catalog.csv"), index=False, encoding="utf-8")
+
+        df = self.ship_catalog.to_df()
+        df.to_csv(os.path.join(output_dir, "ship_catalog.csv"), index=False, encoding="utf-8")
+
+        df = self.scenario_df()
+        df.to_csv(os.path.join(output_dir, "scenario_catalog.csv"), index=False, encoding="utf-8")
 
 class ToyCatalog(Catalog):
 
@@ -262,75 +310,35 @@ class ToyCatalog(Catalog):
             Local.QIANDAO_LAKE,
         ]
 
-        random.seed(seed)
+        rng = random.Random(seed)
         scenarios = []
         for local in selected_locals:
-            months = random.sample(list(Month), 2)
+            months = rng.sample(list(Month), 2)
             for month in months:
                 scenarios.append(AcousticScenario(local, month))
 
-        random.seed(seed)
-        super().__init__([CatalogEntry(random.choice(scenarios)) for _ in range(n_samples)])
+        super().__init__(ship_catalog=syn_ship.ShipCatalog(),
+                         scenario_catalog=scenarios,
+                         n_samples=n_samples,
+                         seed=seed)
+
 
 
 class OlocumCatalog(Catalog):
 
-    def __init__(self, n_scenarios = 100, n_samples = 1000, seed: int = 42):
-        random.seed(seed)
+    def __init__(self, n_scenarios = 100, n_ships = 50, n_samples = 1000, seed: int = 42):
+
+        rng = random.Random(seed)
         all_scenarios = [
             AcousticScenario(local, month)
             for local in Local
             for month in Month
         ]
         n_scenarios = min(n_scenarios, len(all_scenarios))
-        scenarios = random.sample(all_scenarios, n_scenarios)
+        scenarios = rng.sample(all_scenarios, n_scenarios)
 
-        random.seed(seed)
-        super().__init__([CatalogEntry(random.choice(scenarios)) for _ in range(n_samples)])
+        super().__init__(ship_catalog=syn_ship.ShipCatalog(n_samples=n_ships, seed=seed),
+                         scenario_catalog=scenarios,
+                         n_samples=n_samples,
+                         seed=seed)
 
-
-def _main():
-    out_dir = "./result"
-    os.makedirs(out_dir, exist_ok=True)
-
-    Local.plot(os.path.join(out_dir, "locals.png"))
-    local_df = Local.to_df()
-    local_df.to_csv(os.path.join(out_dir, "locals.csv"), index=False, encoding="utf-8")
-
-    toy_dataset = ToyCatalog()
-    toy_dataset_df = toy_dataset.to_df()
-    toy_dataset_df.to_csv(os.path.join(out_dir, "toy_dataset.csv"), index=False, encoding="utf-8")
-
-    olocum_dataset = OlocumCatalog()
-    olocum_dataset_df = olocum_dataset.to_df()
-    olocum_dataset_df.to_csv(os.path.join(out_dir, "olocum_dataset.csv"),
-                             index=False,
-                             encoding="utf-8")
-
-    print()
-    print("############")
-    print(local_df)
-
-    count = toy_dataset_df.groupby(['Local ID','Month']).size().reset_index(name="Qty")
-    print()
-    print("############")
-    print(count)
-
-    count = toy_dataset_df.groupby(['Dynamic']).size().reset_index(name="Qty")
-    print()
-    print("############")
-    print(count)
-
-    count = olocum_dataset_df.groupby(['Local ID','Month']).size().reset_index(name="Qty")
-    count = count.sort_values("Qty", ascending=False)
-    print()
-    print("############")
-    print(count)
-
-    count = olocum_dataset_df.groupby(['Dynamic']).size().reset_index(name="Qty")
-    print()
-    print("############")
-    print(count)
-
-if __name__ == "__main__":
-    _main()
