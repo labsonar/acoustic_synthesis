@@ -6,6 +6,13 @@ Define Collections and their generation process.
 import os
 import typing
 import random
+import tqdm
+
+import scipy.io.wavfile as sci_wave
+
+import lps_utils.quantities as lps_qty
+import lps_synthesis.scenario.scenario as lps_scenario
+import lps_synthesis.scenario.sonar as lps_sonar
 
 import lps_synthesis.database.dynamic as syndb_dynamic
 import lps_synthesis.database.scenario as syndb_scenario
@@ -37,6 +44,7 @@ class DatabaseEntry(syndb_core.CatalogEntry):
                 "Shortest Dist (m)": self.dynamic.shortest.get_m()
             }
 
+
 class Database(syndb_core.Catalog[DatabaseEntry]):
     """Defines a dataset catalog that links ships, scenarios, and dynamics."""
 
@@ -67,6 +75,44 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
         df = self.scenario_catalog.to_df()
         df.to_csv(os.path.join(output_dir, "scenario_catalog.csv"), index=False, encoding="utf-8")
+
+    def synthesize(self,
+                   output_dir: str,
+                   sonar: lps_sonar.Sonar,
+                   sample_frequency: lps_qty.Frequency,
+                   step_interval: lps_qty.Time =lps_qty.Time.s(1),
+                   simulation_steps: int = 10) -> None:
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        for i, entry in enumerate(tqdm.tqdm(self, desc="Synthesizing", leave=False, ncols=120)):
+            scenario = self.scenario_catalog[entry.scenario_id]
+            ship_info = self.ship_catalog[entry.ship_id]
+
+            channel = scenario.get_channel()
+            environment = scenario.get_env()
+
+            scenario = lps_scenario.Scenario(
+                step_interval=step_interval,
+                channel = channel,
+                environment = environment
+            )
+
+            scenario.add_sonar("main", sonar)
+
+            ship = ship_info.make_ship(dynamic=entry.dynamic,
+                                       interval=simulation_steps * step_interval)
+
+            scenario.add_noise_container(ship)
+
+            sonar.ref_state = entry.dynamic.get_sonar_initial_state(ship)
+
+            scenario.simulate(simulation_steps)
+
+            signal = scenario.get_sonar_audio("main", fs=sample_frequency)
+
+            filename = os.path.join(output_dir, f"{i}.wav")
+            sci_wave.write(filename, int(sample_frequency.get_hz()), signal)
 
 class ToyDatabase(Database):
     """Small-scale catalog for demonstration or testing purposes."""

@@ -13,6 +13,8 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
 import lps_synthesis.scenario.dynamic as lps_sce_dyn
+import lps_synthesis.environment.environment as lps_env
+import lps_synthesis.propagation.channel as lps_channel
 
 import lps_synthesis.database.catalog as syndb_core
 
@@ -225,3 +227,11 @@ class AcousticScenario(syndb_core.CatalogEntry):
             **self.local.as_dict(),
             "Month": self.month.name.capitalize(),
         }
+
+    def get_env(self) -> lps_env.Environment:
+        """ Return the lps_env.Environment to the AcousticScenario. """
+        raise NotImplementedError("AcousticScenario.get_env")
+
+    def get_channel(self) -> lps_channel.Channel:
+        """ Return the lps_channel.Channel to the AcousticScenario. """
+        raise NotImplementedError("AcousticScenario.get_channel")

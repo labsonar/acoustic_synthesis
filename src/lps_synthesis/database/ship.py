@@ -25,7 +25,6 @@ class ShipInfo(syndb_core.CatalogEntry):
         iara_ship_id: str,
         ship_name: str,
         mcr_percent: float,
-        max_speed: lps_qty.Speed,
         cruising_speed: lps_qty.Speed,
         rotacional_frequency: lps_qty.Frequency,
         length: lps_qty.Distance,
@@ -38,8 +37,8 @@ class ShipInfo(syndb_core.CatalogEntry):
         self.iara_ship_id = iara_ship_id
         self.ship_name = ship_name
         self.mcr_percent = mcr_percent
-        self.max_speed = max_speed
         self.cruising_speed = cruising_speed
+        self.max_speed = self.cruising_speed/self.mcr_percent
         self.rotacional_frequency = rotacional_frequency
         self.length = length
         self.draft = draft
@@ -71,11 +70,11 @@ class ShipInfo(syndb_core.CatalogEntry):
                 length=self.length,
                 cruise_speed=self.cruising_speed,
                 cruise_rotacional_frequency=self.rotacional_frequency,
-                max_speed=self.cruising_speed/self.mcr_percent,
+                max_speed=self.max_speed,
                 seed=self.ship_id
             ),
             draft=self.draft,
-            initial_state=dynamic.get_initial_state(speed=self.random_speed(),
+            initial_state=dynamic.get_ship_initial_state(speed=self.random_speed(),
                                                     interval=interval),
             seed=self.ship_id
         )
@@ -183,7 +182,6 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
             iara_ship_id = data["iara_ship_id"],
             ship_name = data["ship_name"],
             mcr_percent = data["mcr_percent"],
-            max_speed = lps_qty.Speed.kt(data["max_speed_kt"]),
             cruising_speed = lps_qty.Speed.kt(data["cruising_speed_kt"]),
             rotacional_frequency = lps_qty.Frequency.rpm(data["rpm"]),
             length = lps_qty.Distance.m(data["length_m"]),

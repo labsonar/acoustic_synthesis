@@ -255,7 +255,7 @@ class ShipType(enum.Enum):
         psd = np.zeros(len(frequencies))
 
         if speed_factor == 0 or lenght_factor == 0:
-            return psd, frequencies
+            return frequencies, psd
 
         psd = psd + 60*math.log10(speed_factor) + 20*math.log10(lenght_factor)
 
