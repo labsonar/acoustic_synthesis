@@ -1,3 +1,8 @@
+"""
+Dynamic Module
+
+Define the dynamics and their implementations for the synthetic dataset.
+"""
 import enum
 import random
 
@@ -33,6 +38,7 @@ class SimulationDynamic:
         return SimulationDynamic(dynamic_type, dist)
 
     def get_initial_state(self, speed: lps_qty.Speed, interval: lps_qty.Time) -> lps_dyn.State:
+        """ Define the initial state to fulfill the dynamics. """
 
         y_offset = self.shortest if self.dynamic_type != DynamicType.FAR_CPA \
                                  else lps_qty.Distance.m(0)

@@ -1,7 +1,9 @@
-import abc
+"""
+Scenario Module
+
+Define AcousticScenario and its components.
+"""
 import enum
-import os
-import typing
 import random
 
 import pandas as pd
@@ -10,10 +12,9 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
-import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_sce_dyn
-import lps_synthesis.dataset.dynamic as lps_db_dyn
-import lps_synthesis.dataset.ship as syn_ship
+
+import lps_synthesis.database.catalog as syndb_core
 
 class Local(enum.Enum):
     """ Enumeration of reference oceanic and coastal locations. """
@@ -139,6 +140,18 @@ class Local(enum.Enum):
     def __str__(self):
         return self.to_string()
 
+    def as_dict(self):
+        """ Return Local as dict to save local description. """
+        p = self.get_point()
+        return {
+                "Local ID": self.value,
+                "Name (us)": self.to_string(),
+                "Latitude (deg)": p.latitude.get_deg(),
+                "Longitude (deg)": p.longitude.get_deg(),
+                "Latitude (dms)": str(p.latitude),
+                "Longitude (dms)": str(p.longitude),
+            }
+
     @staticmethod
     def plot(filename: str):
         """ Plot all defined locations on a world map. """
@@ -171,23 +184,13 @@ class Local(enum.Enum):
         df = pd.DataFrame(data)
         return df
 
-    def as_dict(self):
-        p = self.get_point()
-        return {
-                "Local ID": self.value,
-                "Name (us)": self.to_string(),
-                "Latitude (deg)": p.latitude.get_deg(),
-                "Longitude (deg)": p.longitude.get_deg(),
-                "Latitude (dms)": str(p.latitude),
-                "Longitude (dms)": str(p.longitude),
-            }
-
     @staticmethod
     def rand() -> "Local":
         """Return a random Local."""
         return random.choice(list(Local))
 
 class Month(enum.IntEnum):
+    """ Enum to represent month. """
     JANUARY = 1
     FEBRUARY = 2
     MARCH = 3
@@ -206,7 +209,8 @@ class Month(enum.IntEnum):
         """Return a random month."""
         return random.choice(list(Month))
 
-class AcousticScenario:
+class AcousticScenario(syndb_core.CatalogEntry):
+    """ Class to represent an Acoustic Scenario"""
 
     def __init__(self, local: Local = None, month: Month = None):
         self.local = local or Local.rand()
@@ -221,124 +225,3 @@ class AcousticScenario:
             **self.local.as_dict(),
             "Month": self.month.name.capitalize(),
         }
-
-class CatalogEntry:
-
-    def __init__(self,
-                 ship_id: int,
-                 scenario_id: int,
-                 dynamic: lps_db_dyn.SimulationDynamic = None):
-        self.ship_id = ship_id
-        self.scenario_id = scenario_id
-        self.dynamic = dynamic or lps_db_dyn.SimulationDynamic.rand()
-
-    def __str__(self):
-        return f"[{self.ship_id}] {self.scenario_id} | {self.dynamic}"
-
-    def as_dict(self):
-        return {
-                "Ship ID": self.ship_id,
-                "Scenario ID": self.scenario_id,
-                "Dynamic": str(self.dynamic.dynamic_type),
-                "Shortest Dist (m)": self.dynamic.shortest.get_m()
-            }
-
-class Catalog:
-
-    def __init__(self,
-                 ship_catalog: syn_ship.ShipCatalog,
-                 scenario_catalog: typing.List[AcousticScenario],
-                 n_samples: int,
-                 seed: int = 42):
-        self.ship_catalog = ship_catalog
-        self.scenario_catalog = scenario_catalog
-
-        rng = random.Random(seed)
-        self._entries = [CatalogEntry(ship_id=rng.randrange(len(self.ship_catalog)),
-                                      scenario_id=rng.randrange(len(self.scenario_catalog)))
-                        for _ in range(n_samples)]
-
-    def __len__(self):
-        return len(self._entries)
-
-    def __iter__(self):
-        for el in self._entries:
-            yield el
-
-    def __getitem__(self, index):
-        return self._entries[index]
-
-    def to_df(self) -> pd.DataFrame:
-        data = []
-        for entry in self._entries:
-            data.append(entry.as_dict())
-        df = pd.DataFrame(data)
-        return df
-
-    def scenario_df(self) -> pd.DataFrame:
-
-        data = []
-        for i, scenario in enumerate(self.scenario_catalog):
-            data.append({
-                "Scenario ID": i,
-                **scenario.as_dict(),
-                })
-
-        df = pd.DataFrame(data)
-        return df
-
-    def export(self, output_dir: str):
-        os.makedirs(output_dir, exist_ok=True)
-
-        df = self.to_df()
-        df.to_csv(os.path.join(output_dir, "catalog.csv"), index=False, encoding="utf-8")
-
-        df = self.ship_catalog.to_df()
-        df.to_csv(os.path.join(output_dir, "ship_catalog.csv"), index=False, encoding="utf-8")
-
-        df = self.scenario_df()
-        df.to_csv(os.path.join(output_dir, "scenario_catalog.csv"), index=False, encoding="utf-8")
-
-class ToyCatalog(Catalog):
-
-    def __init__(self, n_samples = 100, seed: int = 42):
-        selected_locals = [
-            Local.GUANABARA_BAY,
-            Local.SANTOS_BASIN,
-            Local.VIGO_PORT,
-            Local.STRAIT_OF_GEORGIA,
-            Local.QIANDAO_LAKE,
-        ]
-
-        rng = random.Random(seed)
-        scenarios = []
-        for local in selected_locals:
-            months = rng.sample(list(Month), 2)
-            for month in months:
-                scenarios.append(AcousticScenario(local, month))
-
-        super().__init__(ship_catalog=syn_ship.ShipCatalog(),
-                         scenario_catalog=scenarios,
-                         n_samples=n_samples,
-                         seed=seed)
-
-
-
-class OlocumCatalog(Catalog):
-
-    def __init__(self, n_scenarios = 100, n_ships = 50, n_samples = 1000, seed: int = 42):
-
-        rng = random.Random(seed)
-        all_scenarios = [
-            AcousticScenario(local, month)
-            for local in Local
-            for month in Month
-        ]
-        n_scenarios = min(n_scenarios, len(all_scenarios))
-        scenarios = rng.sample(all_scenarios, n_scenarios)
-
-        super().__init__(ship_catalog=syn_ship.ShipCatalog(n_samples=n_ships, seed=seed),
-                         scenario_catalog=scenarios,
-                         n_samples=n_samples,
-                         seed=seed)
-

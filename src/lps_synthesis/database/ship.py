@@ -1,3 +1,8 @@
+"""
+Ship Module
+
+Define ShipInfo and ShipCatalog.
+"""
 import os
 import typing
 import random
@@ -6,9 +11,11 @@ import pandas as pd
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.noise_source as lps_ns
-import lps_synthesis.dataset.dynamic as lps_db_dyn
+import lps_synthesis.database.dynamic as syndb_dynamic
 
-class ShipInfo:
+import lps_synthesis.database.catalog as syndb_core
+
+class ShipInfo(syndb_core.CatalogEntry):
     """Container class for ship information."""
 
     def __init__(
@@ -45,18 +52,20 @@ class ShipInfo:
         return f"Ship {self.iara_ship_id} <{self.ship_name}>"
 
     def random_speed(self) -> lps_qty.Speed:
+        """ Generate a randomized speed. """
         sigma = self.sigma_factor * self.cruising_speed.get_kt()
         value = self.rng.gauss(self.cruising_speed.get_kt(), sigma)
         return lps_qty.Speed.kt(max(0, min(value, self.max_speed.get_kt())))
 
     def make_ship(self,
-                  dynamic: lps_db_dyn.SimulationDynamic,
+                  dynamic: syndb_dynamic.SimulationDynamic,
                   interval: lps_qty.Time) -> lps_ns.Ship:
+        """ Allocate the lps_ns.Ship based on ShipInfo. """
 
         return lps_ns.Ship(
             ship_id=self.ship_id,
             propulsion=lps_ns.CavitationNoise(
-                ship_type=self.max_speed,
+                ship_type=self.ship_type,
                 n_blades=self.n_blades,
                 n_shafts=self.n_shafts,
                 length=self.length,
@@ -71,8 +80,24 @@ class ShipInfo:
             seed=self.ship_id
         )
 
+    def as_dict(self):
+        return {
+            "ship_id": self.ship_id,
+            "ship_type": self.ship_type.name,
+            "iara_ship_id": self.iara_ship_id,
+            "ship_name": self.ship_name,
+            "mcr_percent": self.mcr_percent,
+            "max_speed_kt": self.max_speed.get_kt(),
+            "cruising_speed_kt": self.cruising_speed.get_kt(),
+            "rpm": self.rotacional_frequency.get_rpm(),
+            "length_m": self.length.get_m(),
+            "draft_m": self.draft.get_m(),
+            "n_blades": self.n_blades,
+            "n_shafts": self.n_shafts,
+            "sigma_factor": self.sigma_factor,
+        }
 
-class ShipCatalog:
+class ShipCatalog(syndb_core.Catalog[ShipInfo]):
     """Catalog of ships with optional random sampling and range variation."""
 
     NUMERIC_FIELDS = [
@@ -87,26 +112,19 @@ class ShipCatalog:
     ]
 
     def __init__(self, n_samples: typing.Optional[int] = None, seed: int = 42):
-        self.seed = seed
 
         csv_path = os.path.join(os.path.dirname(__file__), "data", "ship_info.csv")
-        self.df = pd.read_csv(csv_path)
+        df = pd.read_csv(csv_path)
 
         if n_samples is None:
-            rows = self.df
+            rows = df
         else:
-            rows = self.df.sample(n=n_samples, replace=True, random_state=seed)
+            rows = df.sample(n=n_samples, replace=True, random_state=seed)
 
-        self.ships = [self._make_shipinfo(row, i) for i, (_, row) in enumerate(rows.iterrows())]
+        ships = [self._make_shipinfo(row, i, seed) for i, (_, row) in enumerate(rows.iterrows())]
 
-    def __iter__(self):
-        return iter(self.ships)
-
-    def __len__(self):
-        return len(self.ships)
-
-    def __getitem__(self, index):
-        return self.ships[index]
+        super().__init__(entries=ships)
+        self.df = df
 
     @staticmethod
     def _parse_value(value: typing.Union[str, float, int], seed: int) -> typing.Union[float, int]:
@@ -134,7 +152,7 @@ class ShipCatalog:
                 else:
                     return int(value)
             except ValueError:
-                    return None
+                return None
 
     @staticmethod
     def parse_ship_type(name: str) -> lps_ns.ShipType:
@@ -148,14 +166,14 @@ class ShipCatalog:
         except KeyError:
             return lps_ns.ShipType.OTHER
 
-    def _make_shipinfo(self, row: pd.Series, ship_id: int) -> ShipInfo:
+    def _make_shipinfo(self, row: pd.Series, ship_id: int, seed: int) -> ShipInfo:
         """Build a ShipInfo object from a dataframe row."""
         data = {}
 
         for col in row.index:
             val = row[col]
             if col in self.NUMERIC_FIELDS:
-                data[col] = self._parse_value(val, self.seed + ship_id)
+                data[col] = self._parse_value(val, seed + ship_id)
             else:
                 data[col] = val
 
@@ -173,48 +191,3 @@ class ShipCatalog:
             n_blades = data["n_blades"],
             n_shafts = data["n_shafts"],
         )
-
-    def to_df(self) -> pd.DataFrame:
-        """Return a pandas DataFrame with the full ship catalog information."""
-        rows = []
-        for ship in self.ships:
-            rows.append({
-                "ship_id": ship.ship_id,
-                "ship_type": ship.ship_type.name,
-                "iara_ship_id": ship.iara_ship_id,
-                "ship_name": ship.ship_name,
-                "mcr_percent": ship.mcr_percent,
-                "max_speed_kt": ship.max_speed.get_kt(),
-                "cruising_speed_kt": ship.cruising_speed.get_kt(),
-                "rpm": ship.rotacional_frequency.get_rpm(),
-                "length_m": ship.length.get_m(),
-                "draft_m": ship.draft.get_m(),
-                "n_blades": ship.n_blades,
-                "n_shafts": ship.n_shafts,
-                "sigma_factor": ship.sigma_factor,
-            })
-        return pd.DataFrame(rows)
-
-if __name__ == "__main__":
-
-    catalog = ShipCatalog()
-    print(f"Loaded {len(catalog.ships)} ships")
-    for s in catalog:
-        print(s)
-
-    random_catalog = ShipCatalog(n_samples=50, seed=42)
-    print("\nRandomized sample:")
-    for s in random_catalog:
-        print(f"{s.ship_name}: {s.mcr_percent:.2f} %, {s.cruising_speed}, {s.n_blades} blades")
-
-    df = catalog.to_df()
-    df.to_csv("./result/ship_catalog.csv", index=False)
-
-    df = random_catalog.to_df()
-    df.to_csv("./result/ship_random_catalog.csv", index=False)
-
-    count = df.groupby(['iara_ship_id']).size().reset_index(name="Qty")
-    count = count.sort_values("Qty", ascending=False)
-    print()
-    print("############")
-    print(count)
