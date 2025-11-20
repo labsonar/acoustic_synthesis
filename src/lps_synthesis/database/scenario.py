@@ -21,50 +21,51 @@ import lps_synthesis.database.catalog as syndb_core
 class Local(enum.Enum):
     """ Enumeration of reference oceanic and coastal locations. """
 
+    ADRIATIC_SEA = enum.auto()
+    ANDFJORDEN = enum.auto()
+    ANTIGUA_BARBUDA = enum.auto()
+    BENGAL_BAY = enum.auto()
+    CARIBBEAN_SEA = enum.auto()
+    NORTH_SEA = enum.auto()
     GUANABARA_BAY = enum.auto()
-    VIGO_PORT = enum.auto()
-    QIANDAO_LAKE = enum.auto()
-    DOGGER_BANK = enum.auto()
-    CAMPECHE_BAY = enum.auto()
-    TOKYO_BAY = enum.auto()
-    STRAIT_OF_HORMUZ = enum.auto()
-    EXMOUTH_GULF = enum.auto()
+    GULF_OF_PENAS = enum.auto()
     GULF_OF_GUINEA = enum.auto()
     GULF_OF_THE_FARALLONES = enum.auto()
+    NARINDA_BAY = enum.auto()
+    WESTERN_PACIFIC_OCEAN_NORTH = enum.auto()
+    ONTONG_JAVA_PLATEAU = enum.auto()
+    AMUNDSEN_SEA = enum.auto()
     SANTOS_BASIN = enum.auto()
+    EASTERN_PACIFIC_OCEAN_SOUTH = enum.auto()
     STRAIT_OF_GEORGIA = enum.auto()
-    BERMUDA_RISE = enum.auto()
-    WALVIS_RIDGE = enum.auto()
-    MARIANA_BASIN = enum.auto()
-    HAWAII_RIDGE = enum.auto()
-    DRAKE_PASSAGE = enum.auto()
-    ARABIAN_SEA = enum.auto()
-    TASMAN_SEA = enum.auto()
-    BARENTS_SEA = enum.auto()
+    STRAIT_OF_HORMUZ = enum.auto()
+    TANPA_BAY = enum.auto()
+    RIA_DE_VIGO = enum.auto()
+
 
     def get_point(self) -> lps_sce_dyn.Point:
         """ Returns the latitude and longitude of the selected location. """
         latlon_dict = {
-            Local.GUANABARA_BAY: [-22.93, -43.14],
-            Local.VIGO_PORT: [42.25, -8.73],
-            Local.QIANDAO_LAKE: [29.56, 118.97],
-            Local.DOGGER_BANK: [55.30, 3.00],
-            Local.CAMPECHE_BAY: [19.30, -92.00],
-            Local.TOKYO_BAY: [35.40, 139.80],
-            Local.STRAIT_OF_HORMUZ: [26.50, 56.50],
-            Local.EXMOUTH_GULF: [-21.80, 114.10],
-            Local.GULF_OF_GUINEA: [4.38, 7.07],
-            Local.GULF_OF_THE_FARALLONES: [37.76, -122.85],
-            Local.SANTOS_BASIN: [-25.00, -43.00],
-            Local.STRAIT_OF_GEORGIA: [49.08, -123.34],
-            Local.BERMUDA_RISE: [31.80, -64.70],
-            Local.WALVIS_RIDGE: [-25.50, 3.00],
-            Local.MARIANA_BASIN: [14.60, 146.30],
-            Local.HAWAII_RIDGE: [20.00, -157.00],
-            Local.DRAKE_PASSAGE: [-60.50, -56.00],
-            Local.ARABIAN_SEA: [15.00, 66.00],
-            Local.TASMAN_SEA: [-40.00, 165.00],
-            Local.BARENTS_SEA: [72.00, 40.00],
+            Local.ADRIATIC_SEA: [43.625, 14.375],
+            Local.ANDFJORDEN: [69.125, 16.375],
+            Local.ANTIGUA_BARBUDA: [17.375, -61.625],
+            Local.BENGAL_BAY: [16.625, 84.375],
+            Local.CARIBBEAN_SEA: [12.125, -81.875],
+            Local.NORTH_SEA: [56.875, 2.625],
+            Local.GUANABARA_BAY: [-23.125, -43.125],
+            Local.GULF_OF_PENAS: [-46.875, -75.875],
+            Local.GULF_OF_GUINEA: [0.125, 3.875],
+            Local.GULF_OF_THE_FARALLONES: [37.875, -122.875],
+            Local.NARINDA_BAY: [-14.625, 47.625],
+            Local.WESTERN_PACIFIC_OCEAN_NORTH: [33.625, 150.125],
+            Local.ONTONG_JAVA_PLATEAU: [-7.875, 159.625],
+            Local.AMUNDSEN_SEA: [-70.625, -95.875],
+            Local.SANTOS_BASIN: [-25.125, -43.125],
+            Local.EASTERN_PACIFIC_OCEAN_SOUTH: [-43.625, -89.875],
+            Local.STRAIT_OF_GEORGIA: [49.125, -123.375],
+            Local.STRAIT_OF_HORMUZ: [26.375, 56.625],
+            Local.TANPA_BAY: [27.625, -82.875],
+            Local.RIA_DE_VIGO: [42.125, -9.125],
         }
         return lps_sce_dyn.Point.deg(*latlon_dict[self])
 
@@ -126,16 +127,14 @@ class Local(enum.Enum):
     def is_shallow_water(self) -> bool:
         """ Indicates whether the location is classified as shallow water. """
         shallow_sites = {
+            Local.ADRIATIC_SEA,
+            Local.NORTH_SEA,
             Local.GUANABARA_BAY,
-            Local.VIGO_PORT,
-            Local.QIANDAO_LAKE,
-            Local.DOGGER_BANK,
-            Local.CAMPECHE_BAY,
-            Local.TOKYO_BAY,
-            Local.STRAIT_OF_HORMUZ,
-            Local.EXMOUTH_GULF,
-            Local.GULF_OF_GUINEA,
             Local.GULF_OF_THE_FARALLONES,
+            Local.NARINDA_BAY,
+            Local.STRAIT_OF_HORMUZ,
+            Local.TANPA_BAY,
+            Local.RIA_DE_VIGO,
         }
         return self in shallow_sites
 
