@@ -174,7 +174,7 @@ def get_ssp(lat, lon, month):
     return (
         max(abs(df_t.iloc[idx_t, 0] - lat), abs(df_s.iloc[idx_s, 0] - lat)),
         max(abs(df_t.iloc[idx_t, 1] - lon), abs(df_s.iloc[idx_s, 1] - lon)),
-        depth[-1],
+        depth[-1] if len(depth) != 0 else 0,
         row_s.iloc[0],
         row_s.iloc[1]
     )
@@ -184,15 +184,35 @@ def main():
 
     month = 14
 
-    for local in syndb_scenario.Local:
+    data = []
+
+    # for local in syndb_scenario.Location:
+    for local in [syndb_scenario.Location.BENGAL_BAY]:
         p = local.get_point()
 
         code, seabed, aprox = get_seabed(p.latitude.get_deg(), p.longitude.get_deg())
+        print(f"{local}: {code}, {seabed}")
 
-        lat_diff, lon_diff, n_depths, lat_cor, lon_cor = get_ssp(p.latitude.get_deg(), p.longitude.get_deg(), month)
+        for month in range(13,17):
 
 
-        print(local.name, ", ", p.latitude.get_deg(), ", ", p.longitude.get_deg(),", ", code, ", ", seabed, ", ", aprox, ", ", lat_diff, ", ", lon_diff, ", ", n_depths, ", ", lat_cor, ", ", lon_cor)
+            lat_diff, lon_diff, depth, lat_cor, lon_cor = get_ssp(p.latitude.get_deg(), p.longitude.get_deg(), month)
+
+            data.append({
+                "local": str(local),
+                "month": month,
+                "depth": depth,
+            })
+
+    df = pd.DataFrame(data)
+    print(df)
+
+    df.to_csv("./result/depths.csv")
+
+        # print(local.name, ", ", p.latitude.get_deg(), ", ", p.longitude.get_deg(),", ", code, ", ", seabed, ", ", aprox, ", ", lat_diff, ", ", lon_diff, ", ", n_depths, ", ", lat_cor, ", ", lon_cor)
+
+
+
 
 
     # probe = {
@@ -233,6 +253,57 @@ def main():
     #         lat_diff, lon_diff, depth, lat_cor, lon_cor = get_ssp(lat, lon, month)
 
     #         print(f"{seabed_type}, {location}, {code}, {seabed}, {aprox}, {code}, {lat_diff}, {lon_diff}, {depth}, {lat_cor}, {lon_cor}")
+
+
+
+
+
+    # min_lat = -26
+    # max_lat = -24
+    # min_lon = -44
+    # max_lon = -42
+    # desired_seabed = syn_lay.SeabedType.CLAY
+
+    # fractions = (0.125, 0.375, 0.675, 0.875)
+
+    # def generate_aligned_coords(min_v: float, max_v: float, fractions):
+    #     import math
+    #     vals = []
+    #     base_min = math.floor(min_v)
+    #     base_max = math.ceil(max_v) + 1
+    #     for base in range(base_min - 1, base_max + 1):
+    #         for f in fractions:
+    #             v = base + f
+    #             if v >= min_v - 1e-12 and v <= max_v + 1e-12:
+    #                 vals.append(round(v, 6))
+    #     vals = sorted(set(vals))
+    #     return vals
+
+    # lats = generate_aligned_coords(min_lat, max_lat, fractions)
+    # lons = generate_aligned_coords(min_lon, max_lon, fractions)
+
+    # print("lats: ", lats)
+    # print("lons: ", lons)
+
+    # for lat in lats:
+    #     for lon in lons:
+
+    #         code, seabed, aprox = get_seabed(lat, lon)
+
+    #         # if seabed != desired_seabed:
+    #         #     continue
+
+    #         depths = []
+    #         for month in range(13,17):
+    #             lat_diff, lon_diff, depth, lat_cor, lon_cor = get_ssp(lat, lon, month)
+    #             depths.append(depth)
+
+    #         print(f"{lat}, {lon}, {seabed}, {depths}")
+
+    #         if max(depths) - min(depths) > 200:
+    #             continue
+
+    #         print(f"##### {lat}, {lon}, {seabed}, {depths}")
 
 
 if __name__ == "__main__":

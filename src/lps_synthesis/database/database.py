@@ -119,11 +119,11 @@ class ToyDatabase(Database):
 
     def __init__(self, n_samples = 100, seed: int = 42):
         selected_locals = [
-            syndb_scenario.Local.GUANABARA_BAY,
-            syndb_scenario.Local.SANTOS_BASIN,
-            syndb_scenario.Local.VIGO_PORT,
-            syndb_scenario.Local.STRAIT_OF_GEORGIA,
-            syndb_scenario.Local.QIANDAO_LAKE,
+            syndb_scenario.Location.GUANABARA_BAY,
+            syndb_scenario.Location.SANTOS_BASIN,
+            syndb_scenario.Location.VIGO_PORT,
+            syndb_scenario.Location.STRAIT_OF_GEORGIA,
+            syndb_scenario.Location.QIANDAO_LAKE,
         ]
 
         rng = random.Random(seed)
@@ -148,7 +148,7 @@ class OlocumDatabase(Database):
         rng = random.Random(seed)
         all_scenarios = [
             syndb_scenario.AcousticScenario(local, month)
-            for local in syndb_scenario.Local
+            for local in syndb_scenario.Location
             for month in syndb_scenario.Month
         ]
         n_scenarios = min(n_scenarios, len(all_scenarios))
