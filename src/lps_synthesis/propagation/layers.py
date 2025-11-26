@@ -6,7 +6,6 @@ environments.
 The module uses `lps_utils.quantities` to represent physical quantities.
 """
 import enum
-import random
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.environment.environment as lps_environment

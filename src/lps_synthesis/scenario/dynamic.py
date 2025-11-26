@@ -200,6 +200,12 @@ def global_distance(p2: Point, p1: Point) -> Displacement:
     Returns:
         Displacement: Displacement needed to move from p1 to p2
     """
+
+    margin = lps_qty.Angle.deg(0.01)
+
+    if abs(p2.latitude - p1.latitude) < margin or abs(p2.longitude - p1.longitude) < margin :
+        return Displacement(lps_qty.Distance.m(0), lps_qty.Distance.m(0))
+
     a = 6378137.0
     f = 1.0/298.257223563
     b = (1.0 - f) * a

@@ -341,7 +341,7 @@ if __name__ == "__main__":
     # Pine Island Trough
     #Drake passage? -60.125	-45.375 -> -48.625	-35.125
     # Ekofisk, Tor and Hod Formations in the Danish sector of the North Sea https://www.earthdoc.org/content/journals/10.1111/j.1365-2478.2007.00622.x
-
+    # Amundsen sea - https://www.lyellcollection.org/doi/full/10.1144/m46.183?utm_source=chatgpt.com
 
     # Chalk
     # Ekofisk - https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2011JB008564
