@@ -203,6 +203,8 @@ class Location(enum.Enum):
                 "Longitude (deg)": p.longitude.get_deg(),
                 "Latitude (dms)": str(p.latitude),
                 "Longitude (dms)": str(p.longitude),
+                "Seabed": self.seabed_type(),
+                "Depth": self.local_depth(),
             }
 
     @staticmethod

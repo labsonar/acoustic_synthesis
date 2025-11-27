@@ -243,7 +243,7 @@ class DepthProspector:
         self.ds = DepthProspector._cached_ds
         self.z = DepthProspector._cached_z
 
-    def get(self, point: lps_dyn.Point):
+    def get(self, point: lps_dyn.Point) -> lps_qty.Distance:
         """
         Interpolate the ETOPO depth for a given position.
 
@@ -441,6 +441,8 @@ class SSPProspector:
         # Compute sound speed
         svp = gsw.sound_speed(sal, tmp, pres)
 
+        depths = [lps_qty.Distance.m(d) for d in depths]
+        svp = [lps_qty.Speed.m_s(s) for s in svp]
         return depths, svp
 
 def _aligned_coords(min_v: float, max_v: float, fractions):
@@ -461,6 +463,7 @@ def prospect_local(
     dist_lon: lps_qty.Distance,
     ssp: SSPProspector = None,
     seabed: SeabedProspector = None,
+    depth_prosector: DepthProspector = None,
     desired_seabed: typing.Optional[syn_lay.SeabedType] = None,
     max_depth_dist: lps_qty.Distance = lps_qty.Distance.m(200),
 ):
@@ -494,6 +497,7 @@ def prospect_local(
     """
     ssp = ssp or SSPProspector()
     seabed = seabed or SeabedProspector()
+    depth_prosector = depth_prosector or DepthProspector()
 
     disp = lps_dyn.Displacement(dist_lat, dist_lon)
 
@@ -510,10 +514,6 @@ def prospect_local(
     lats = _aligned_coords(min_lat, max_lat, fractions)
     lons = _aligned_coords(min_lon, max_lon, fractions)
 
-    print("center_point: ", center_point)
-    print("lats: ", lats)
-    print("lons: ", lons)
-
     print(f"[INFO] Total latitudes: {len(lats)}, Total longitudes: {len(lons)}")
 
     results = []
@@ -524,14 +524,13 @@ def prospect_local(
             point = lps_dyn.Point.deg(lat, lon)
 
             seabed_type = None
-            if desired_seabed is not None:
-                try:
-                    seabed_type = seabed.get(point)
-                except ValueError:
-                    continue
+            try:
+                seabed_type = seabed.get(point)
+            except ValueError:
+                continue
 
-                if seabed_type != desired_seabed:
-                    continue
+            if desired_seabed is not None and seabed_type != desired_seabed:
+                continue
 
             depths = []
             try:
@@ -541,20 +540,22 @@ def prospect_local(
                     if len(depth) == 0:
                         continue
 
-                    depths.append(depth[-1])
+                    depths.append(depth[-1].get_m())
             except ValueError:
                 continue
 
             if max(depths) - min(depths) > max_depth_dist.get_m():
                 continue
 
+            depth = depth_prosector.get(point)
+
             results.append({
                 "lat": lat,
                 "lon": lon,
-                "seabed_type": seabed_type.name if seabed_type else None,
-                "depths": depths,
-                "max_depth": max(depths),
-                "min_depth": min(depths),
+                "seabed_type": seabed_type.name,
+                "local_depth": depth,
+                "diff ssp depth": max(depths) - min(depths),
+                "ssp depths": depths,
             })
 
     df = pd.DataFrame(results)

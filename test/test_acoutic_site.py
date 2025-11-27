@@ -90,6 +90,8 @@ def _test_ssp(force: bool):
                 if len(depths) == 0:
                     continue
 
+                depths = [d.get_m() for d in depths]
+                svp = [s.get_m_s() for s in svp]
                 plt.plot(
                     svp,
                     depths,
