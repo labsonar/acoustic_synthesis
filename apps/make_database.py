@@ -61,9 +61,9 @@ def _main():
     simulation_steps = args.simulation_steps
 
     if args.dataset == "toy":
-        dataset = syndb.ToyDatabase()
+        dataset = syndb.ToyDatabase(n_samples=1)
     else:
-        dataset = syndb.OlocumDatabase()
+        dataset = syndb.OlocumDatabase(n_ships=1, n_scenarios=1, n_samples=1)
 
     output_dir = os.path.join("./result", args.dataset)
 

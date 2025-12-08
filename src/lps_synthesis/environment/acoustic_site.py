@@ -15,7 +15,10 @@ import xarray as xr
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.layers as syn_lay
+import lps_synthesis.propagation.channel_description as lps_desc
+import lps_synthesis.propagation.channel as lps_channel
 import lps_synthesis.scenario.dynamic as lps_dyn
+import lps_synthesis.environment.environment as lps_env
 
 class Season(enum.IntEnum):
     """Enum representing seasons of the year."""
@@ -23,6 +26,26 @@ class Season(enum.IntEnum):
     AUTUMN = 2
     WINTER = 3
     SPRING = 4
+
+    def get_months(self, lat: lps_qty.Latitude) -> list[int]:
+        """Return list of months for this season based on latitude sign."""
+        _north_map = {
+            Season.SUMMER: [6, 7, 8],
+            Season.AUTUMN: [9, 10, 11],
+            Season.WINTER: [12, 1, 2],
+            Season.SPRING: [3, 4, 5],
+        }
+
+        _south_map = {
+            Season.SUMMER: [12, 1, 2],
+            Season.AUTUMN: [3, 4, 5],
+            Season.WINTER: [6, 7, 8],
+            Season.SPRING: [9, 10, 11],
+        }
+        if lat < 0:
+            return _south_map[self]
+        else:
+            return _north_map[self]
 
     @staticmethod
     def rand() -> "Season":
@@ -444,6 +467,181 @@ class SSPProspector:
         depths = [lps_qty.Distance.m(d) for d in depths]
         svp = [lps_qty.Speed.m_s(s) for s in svp]
         return depths, svp
+
+class EnvironmentProspector:
+    """
+    Query ECMWF Reanalysis v5 (ERA5) environmental data at a given location.
+
+    The class loads the
+        'Total precipitation' and
+        'Significant height of combined wind waves and swell'
+    from NetCDF4 (.nc) files only once, storing them in static caches for fast repeated access.
+
+        Metadata:
+            https://cds.climate.copernicus.eu/datasets
+
+        Direct download:
+            https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels-monthly-means?tab=overview
+
+            Instructions:
+                Monthly averaged reanalysis
+                Total precipitation / Significant height of combined wind waves and swell
+                2024
+                all months
+                NetCDF4
+
+    """
+
+    _cache_tp: typing.Optional[xr.Dataset] = None
+    _cache_swh: typing.Optional[xr.Dataset] = None
+
+    def __init__(
+        self,
+        tp_file: str = "/data/ambiental/era5/data_stream-moda_stepType-avgad.nc",
+        swh_file: str = "/data/ambiental/era5/data_stream-wamd_stepType-avgua.nc",
+    ):
+        if EnvironmentProspector._cache_tp is None:
+            EnvironmentProspector._cache_tp = xr.open_dataset(tp_file)
+
+        if EnvironmentProspector._cache_swh is None:
+            EnvironmentProspector._cache_swh = xr.open_dataset(swh_file)
+
+        self.ds_tp : xr.Dataset = EnvironmentProspector._cache_tp
+        self.ds_swh : xr.Dataset = EnvironmentProspector._cache_swh
+
+    def _seasonal_values(self, da, season: Season, lat: float, lon: float) -> np.array:
+
+        time_index = da["valid_time"].to_index()
+        seasonal_mask = time_index.month.isin(season.get_months(lat))
+        da_filtered = da.sel(valid_time=seasonal_mask)
+
+        da_point = da_filtered.interp(latitude=lat, longitude=lon)
+
+        return np.asarray(da_point.values, dtype=float)
+
+    @staticmethod
+    def _hs_to_douglas(hs: float) -> int:
+
+        boundaries = [
+            (0, 0.1, 0),
+            (0.1, 0.5, 1),
+            (0.5, 1.25, 2),
+            (1.25, 2.5, 3),
+            (2.5, 4.0, 4),
+            (4.0, 6.0, 5),
+            (6.0, 9.0, 6),
+            (9.0, 14.0, 7),
+            (14.0, 20.0, 8),
+        ]
+
+        for low, high, douglas in boundaries:
+            if low <= hs < high:
+                return douglas
+        return random.randint(0,7)
+
+    @staticmethod
+    def _tp_to_seastate(tp: float) -> lps_env.Rain:
+        boundaries = [
+            (0, 0.004, lps_env.Rain.NONE),
+            (0.004, 0.008, lps_env.Rain.LIGHT),
+            (0.008, 0.016, lps_env.Rain.MODERATE),
+            (0.016, 0.032, lps_env.Rain.HEAVY),
+        ]
+
+        for low, high, seastate in boundaries:
+            if low <= tp < high:
+                return seastate
+        return lps_env.Rain.VERY_HEAVY
+
+    def get_rain(self, point: lps_dyn.Point, season: Season) -> lps_env.Rain:
+        """ Returns the highest average monthly value for a station converted by fixed values to
+        the rain state. """
+
+        lat = point.latitude.get_deg()
+        lon = (360 + point.longitude.get_deg()) % 360
+
+        tp = self._seasonal_values(
+            self.ds_tp["tp"], season, lat, lon
+        ).max()
+        return EnvironmentProspector._tp_to_seastate(tp)
+
+    def get_seastate(self, point: lps_dyn.Point, season: Season) -> lps_env.Sea:
+        """ Returns the highest average monthly value for a station converted by Douglas Sea Scale.
+        """
+
+        lat = point.latitude.get_deg()
+        lon = (360 + point.longitude.get_deg()) % 360
+
+        hs = self._seasonal_values(
+            self.ds_swh["swh"], season, lat, lon
+        ).max()
+        return EnvironmentProspector._hs_to_douglas(hs)
+
+class AcousticSiteProspector:
+    def __init__(self,
+                 seabed_prospector = None,
+                 depth_prospector = None,
+                 ssp_prospector = None,
+                 environment_prospector = None,):
+        self.seabed_prospector = seabed_prospector or SeabedProspector()
+        self.depth_prospector = depth_prospector or DepthProspector()
+        self.ssp_prospector = ssp_prospector or SSPProspector()
+        self.environment_prospector = environment_prospector or EnvironmentProspector()
+
+    @staticmethod
+    def _sensor_depth(depth: lps_qty.Distance) -> lps_qty.Distance:
+        """ Return the local depth for the Location """
+        if depth <= lps_qty.Distance.m(50):
+            return depth - lps_qty.Distance.m(5)
+
+        if depth < lps_qty.Distance.ft(600):
+            return depth/2
+
+        return lps_qty.Distance.m(100)
+
+    def get_channel(self, point: lps_dyn.Point, season: Season, hash_id: str = None) -> \
+            lps_channel.Channel:
+        """ Return the lps_channel.Channel to the AcousticScenario. """
+
+        max_depth = self.depth_prospector.get(point)
+        seabed_type = self.seabed_prospector.get(point)
+
+        depths, svp = self.ssp_prospector.get(
+            point = point,
+            season = season,
+            max_depth = max_depth
+        )
+
+        desc = lps_desc.Description()
+        for depth, speed in zip(depths, svp):
+            desc.add(depth, speed)
+        desc.add(max_depth, seabed_type.get_acoustical_layer())
+
+        return lps_channel.Channel(description = desc,
+                        sensor_depth = AcousticSiteProspector._sensor_depth(max_depth),
+                        hash_id=hash_id)
+
+    def get_env(self,
+                point: lps_dyn.Point,
+                season: Season,
+                shipping_value: lps_env.Shipping = None,
+                seed: int = None) -> lps_env.Environment:
+        """ Return the lps_env.Environment to the AcousticScenario. """
+
+        rain = self.environment_prospector.get_rain(point, season)
+        seastate = self.environment_prospector.get_seastate(point, season)
+
+        if shipping_value is None:
+            rng = random.Random(seed)
+            shipping_value = rng.uniform(lps_env.Shipping.NONE.value,
+                                         lps_env.Shipping.LEVEL_7.value),
+
+        return lps_env.Environment(
+            rain_value = rain,
+            sea_value = seastate,
+            shipping_value = shipping_value,
+            seed = seed
+        )
 
 def _aligned_coords(min_v: float, max_v: float, fractions):
     """Generate aligned coordinates following .125 .375 .675 .875 rule."""

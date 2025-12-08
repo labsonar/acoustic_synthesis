@@ -42,7 +42,7 @@ class Description():
         n_layers = len(self.layers) + (1 if self.air_sea is not None else 0)
         ret = f"{n_layers}\n"
         for depth, layer in self:
-            ret += f"{depth.get_m():6f} {layer.to_oases_format()}\n"
+            ret += f"{depth.get_m():.6f} {layer.to_oases_format()}\n"
         return ret[:-1]
 
     def __str__(self) -> str:

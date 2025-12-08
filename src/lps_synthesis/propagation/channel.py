@@ -32,7 +32,7 @@ class Channel():
                  sensor_depth: lps_qty.Distance,
                  source_depths: typing.List[lps_qty.Distance] = None,
                  max_distance: lps_qty.Distance = None,
-                 max_distance_points: int = 128,
+                 max_distance_points: int = 11,
                  sample_frequency: lps_qty.Frequency = None,
                  frequency_range: typing.Tuple[lps_qty.Frequency] = None,
                  model: lps_model.Model = None,
@@ -40,7 +40,7 @@ class Channel():
                  hash_id: str = None):
 
         self.description = description
-        self.source_depths = source_depths or [lps_qty.Distance.m(d) for d in np.arange(3, 25, 2)]
+        self.source_depths = source_depths or [lps_qty.Distance.m(d) for d in np.arange(3, 25, 5)]
         self.sensor_depth = sensor_depth
         self.max_distance = max_distance or lps_qty.Distance.km(1)
         self.max_distance_points = max_distance_points

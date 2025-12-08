@@ -1,18 +1,18 @@
-class,subclass,ship_type,IARA_type,iara_ship_id,ship_name,brand,brand_type,model,propulsion,mcr_percent,max_speed_kt,cruising_speed_kt,rpm,length_m,draft_m,n_blades,n_shafts
-Cargo,Cargo,Bulker,Bulk Carrier,179,FIGALIA PRUDENCE,Hyundai Mipo Dockyard,Dry bulk/Kamsarmax,HMD 82K - Hyundai 82BC,MAN-B&W 6 Zylinder (6S60MC-C8),0.758,14.9,11.3,105,229,7.8-14.5,8,1
-Cargo,Cargo,Bulker,Bulk Carrier,125,CONDOR HAMBURG, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Cargo,Cargo,Bulker,Bulk Carrier,275,JOLANDA, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Cargo,Cargo,Vehicle_Carrier,Vehicles Carrier,193,FUJITRANS WORLD, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Cargo,Cargo,Containership,Container Ship,297,LOG IN PANTANAL, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Cargo,Cargo,Containership,Container Ship,303,LUCIO COSTA, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Cargo,Cargo,Containership,Container Ship,501,SAN FERNANDO, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Cargo,Cargo,Tanker,Tanker,186,FORTE DE SAO MARCOS, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Cargo,Cargo,Tanker,Tanker,497,SALLIE KNUTSEN, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,44,AURITA, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,626,VO NICACIO, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,580,TEMPERANCA, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Apoio e Uso Humano,Uso pessoal,Recreational,Pleasure Craft,439,PAPA GOLFE, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Apoio e Uso Humano,Serviços,Tug,Tug,161,ENCO, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Apoio e Uso Humano,Serviços,Tug,Tug,600,TS INCRIVEL, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Apoio e Uso Humano,Serviços,Dredger,Suction Dredger,444,PEARL RIVER, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
-Apoio e Uso Humano,Serviços,Dredger,Suction Dredger,2,ABBOTSGRANGE, - , - , - , - ,0.7-0.9,0,5-40.0,60-440,20-300,5-20.0,2-10,1
+class,subclass,ship_type,IARA_type,iara_ship_id,ship_name,max_speed_kt,cruising_speed_kt,rpm,length_m,draft_m,n_blades,n_shafts
+Cargo,Cargo,Bulker,Bulk Carrier,179,FIGALIA PRUDENCE,14.5,11.7,65,229,12.5,3/5,1
+Cargo,Cargo,Bulker,Bulk Carrier,125,CONDOR HAMBURG,14.1,10.9,117,177,7.9,4,1
+Cargo,Cargo,Bulker,Bulk Carrier,275,JOLANDA,13.8,10,53,292,9.2,4/6,1
+Cargo,Cargo,Vehicle_Carrier,Vehicles Carrier,193,FUJITRANS WORLD,21.1,16.4,65,172,6.4,6,1
+Cargo,Cargo,Containership,Container Ship,297,LOG IN PANTANAL,17.1,12.6,106,182,8.4,4,1
+Cargo,Cargo,Containership,Container Ship,303,LUCIO COSTA,17.1,12.4,139,118,6.1,5,1
+Cargo,Cargo,Containership,Container Ship,501,SAN FERNANDO,21.3,15.4,55,300,12.8,6,1
+Cargo,Cargo,Tanker,Tanker,186,FORTE DE SAO MARCOS,14.5,11.3,147,124,6.5,2,1
+Cargo,Cargo,Tanker,Tanker,497,SALLIE KNUTSEN,8.7,7.8,63,276,10,4,1
+Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,44,AURITA,8,2.7,140,22,2.5,2/4,1
+Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,626,VO NICACIO,12,6.2,146,20,3,4,1
+Apoio e Uso Humano,Uso pessoal,Fishing,Fishing,580,TEMPERANCA,15,10,197,29,4.5,2,1
+Apoio e Uso Humano,Uso pessoal,Recreational,Pleasure Craft,439,PAPA GOLFE,17,11,201,33.7,1.8,2,2
+Apoio e Uso Humano,Serviços,Tug,Tug,161,ENCO,12,10,123,32,5,4,1
+Apoio e Uso Humano,Serviços,Tug,Tug,600,TS INCRIVEL,11,8,195,30,4.5,3,1
+Apoio e Uso Humano,Serviços,Dredger,Suction Dredger,444,PEARL RIVER,13,11,123,183,5.6,2,1
+Apoio e Uso Humano,Serviços,Dredger,Suction Dredger,2,ABBOTSGRANGE,9,7,83,76,5,2/3,1

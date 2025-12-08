@@ -120,38 +120,11 @@ def _test_ssp(force: bool):
     print("\nSSP plots saved: shallow and deepwater.\n")
 
 
-def _test_prospect_local():
-
-    print("\n===== STARTING PROSPECT_LOCAL FUNCTIONAL TEST =====\n")
-
-    center = syn_scenario.Location.EASTERN_SOUTH_PACIFIC_OCEAN.get_point()
-    # center = lps_dyn.Point.deg(-50, -70)
-    dist = lps_qty.Distance.km(100)
-    desired_seabed = syn_lay.SeabedType.CLAY
-    # desired_seabed = None
-    max_depth_dist = lps_qty.Distance.m(200)
-
-    df = syn_sites.prospect_local(
-        center_point=center,
-        dist_lat=dist,
-        dist_lon=dist,
-        desired_seabed=desired_seabed,
-        max_depth_dist=max_depth_dist,
-    )
-
-    print("\n===== RESULTS =====")
-    print(df)
-
-    print("\n===== SUMMARY =====")
-    print(f"Total valid points found: {len(df)}")
-
-
 def _main():
     _test_seabed()
     _test_depth()
     _test_ssp(False)
     _test_ssp(True)
-    _test_prospect_local()
 
     print("\nAll tests completed.\n")
 

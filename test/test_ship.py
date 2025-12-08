@@ -1,8 +1,12 @@
 """Simple Test for ships description in datasets
 """
+import os
 import lps_synthesis.database.ship as syndb_ship
 
 if __name__ == "__main__":
+
+    output_dir = "./result"
+    os.makedirs(output_dir, exist_ok=True)
 
     catalog = syndb_ship.ShipCatalog()
     print(f"Loaded {len(catalog)} ships")
@@ -15,10 +19,10 @@ if __name__ == "__main__":
         print(f"{s.ship_name}: {s.mcr_percent:.2f} %, {s.cruising_speed}, {s.n_blades} blades")
 
     df = catalog.to_df()
-    df.to_csv("./result/ship_catalog.csv", index=False)
+    df.to_csv(os.path.join(output_dir, "ship_catalog.csv"), index=False)
 
     df = random_catalog.to_df()
-    df.to_csv("./result/ship_random_catalog.csv", index=False)
+    df.to_csv(os.path.join(output_dir, "ship_random_catalog.csv"), index=False)
 
     count = df.groupby(['iara_ship_id']).size().reset_index(name="Qty")
     count = count.sort_values("Qty", ascending=False)

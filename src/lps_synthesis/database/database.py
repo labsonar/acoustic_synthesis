@@ -13,6 +13,7 @@ import scipy.io.wavfile as sci_wave
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.scenario as lps_scenario
 import lps_synthesis.scenario.sonar as lps_sonar
+import lps_synthesis.environment.acoustic_site as lps_as
 
 import lps_synthesis.database.dynamic as syndb_dynamic
 import lps_synthesis.database.scenario as syndb_scenario
@@ -43,7 +44,6 @@ class DatabaseEntry(syndb_core.CatalogEntry):
                 "Dynamic": str(self.dynamic.dynamic_type),
                 "Shortest Dist (m)": self.dynamic.shortest.get_m()
             }
-
 
 class Database(syndb_core.Catalog[DatabaseEntry]):
     """Defines a dataset catalog that links ships, scenarios, and dynamics."""
@@ -121,17 +121,16 @@ class ToyDatabase(Database):
         selected_locals = [
             syndb_scenario.Location.GUANABARA_BAY,
             syndb_scenario.Location.SANTOS_BASIN,
-            syndb_scenario.Location.VIGO_PORT,
+            syndb_scenario.Location.RIA_DE_VIGO,
             syndb_scenario.Location.STRAIT_OF_GEORGIA,
-            syndb_scenario.Location.QIANDAO_LAKE,
         ]
 
         rng = random.Random(seed)
         scenarios = []
         for local in selected_locals:
-            months = rng.sample(list(syndb_scenario.Month), 2)
-            for month in months:
-                scenarios.append(syndb_scenario.AcousticScenario(local, month))
+            seasons = rng.sample(list(lps_as.Season), 2)
+            for season in seasons:
+                scenarios.append(syndb_scenario.AcousticScenario(local, season))
 
         super().__init__(
             ship_catalog=syndb_ship.ShipCatalog(),
@@ -147,9 +146,9 @@ class OlocumDatabase(Database):
 
         rng = random.Random(seed)
         all_scenarios = [
-            syndb_scenario.AcousticScenario(local, month)
+            syndb_scenario.AcousticScenario(local, season)
             for local in syndb_scenario.Location
-            for month in syndb_scenario.Month
+            for season in lps_as.Season
         ]
         n_scenarios = min(n_scenarios, len(all_scenarios))
         scenarios = rng.sample(all_scenarios, n_scenarios)

@@ -24,7 +24,7 @@ class ShipInfo(syndb_core.CatalogEntry):
         ship_type: lps_ns.ShipType,
         iara_ship_id: str,
         ship_name: str,
-        mcr_percent: float,
+        max_speed: lps_qty.Speed,
         cruising_speed: lps_qty.Speed,
         rotacional_frequency: lps_qty.Frequency,
         length: lps_qty.Distance,
@@ -36,9 +36,9 @@ class ShipInfo(syndb_core.CatalogEntry):
         self.ship_type = ship_type
         self.iara_ship_id = iara_ship_id
         self.ship_name = ship_name
-        self.mcr_percent = mcr_percent
+        self.mcr_percent = int(cruising_speed/max_speed * 100) / 100
         self.cruising_speed = cruising_speed
-        self.max_speed = self.cruising_speed/self.mcr_percent
+        self.max_speed = max_speed
         self.rotacional_frequency = rotacional_frequency
         self.length = length
         self.draft = draft
@@ -126,32 +126,76 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
         self.df = df
 
     @staticmethod
-    def _parse_value(value: typing.Union[str, float, int], seed: int) -> typing.Union[float, int]:
-        """ Parse a single value or range like '10-15', returning a random value. """
+    def _parse_value(value: typing.Union[str, float, int], seed: int) -> \
+            typing.Union[float, int, None]:
+        """
+        Parse a value that can be:
+        - a single number: "10" or 10
+        - a range: "10-15"
+        - a list of values/ranges: "10, 12-18, 25, 3.7"
+        Returns one random value selected from the expanded set.
+        """
+
         if isinstance(value, (float, int)):
             return value
+
         if not isinstance(value, str) or value.strip() == "":
             return None
 
+        rng = random.Random(seed)
+
         value = value.strip()
+
+        if "/" in value:
+            options = [v.strip() for v in value.split(",") if v.strip()]
+
+            parsed_options = []
+
+            for opt in options:
+
+                if "-" in opt:
+                    parts = opt.split("-")
+                    try:
+                        a = float(parts[0]) if "." in parts[0] else int(parts[0])
+                        b = float(parts[1]) if "." in parts[1] else int(parts[1])
+                    except ValueError:
+                        continue
+
+                    if isinstance(a, int) and isinstance(b, int):
+                        parsed_options.extend(range(a, b + 1))
+                    else:
+                        parsed_options.append(int(rng.uniform(float(a), float(b)) * 100) / 100)
+
+                else:
+                    try:
+                        if "." in opt:
+                            parsed_options.append(float(opt))
+                        else:
+                            parsed_options.append(int(opt))
+                    except ValueError:
+                        continue
+
+            if not parsed_options:
+                return None
+
+            return rng.choice(parsed_options)
+
         if "-" in value:
             parts = value.split("-")
             a = float(parts[0]) if "." in parts[0] else int(parts[0])
             b = float(parts[1]) if "." in parts[1] else int(parts[1])
 
-            rng = random.Random(seed)
-
             if isinstance(a, int) and isinstance(b, int):
                 return rng.randint(a, b)
-            return int(rng.uniform(float(a), float(b)) * 100)/100
-        else:
-            try:
-                if "." in value:
-                    return float(value)
-                else:
-                    return int(value)
-            except ValueError:
-                return None
+            return int(rng.uniform(float(a), float(b)) * 100) / 100
+
+        try:
+            if "." in value:
+                return float(value)
+            else:
+                return int(value)
+        except ValueError:
+            return None
 
     @staticmethod
     def parse_ship_type(name: str) -> lps_ns.ShipType:
@@ -181,7 +225,7 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
             ship_type = ShipCatalog.parse_ship_type(data["ship_type"]),
             iara_ship_id = data["iara_ship_id"],
             ship_name = data["ship_name"],
-            mcr_percent = data["mcr_percent"],
+            max_speed = lps_qty.Speed.kt(data["max_speed_kt"]),
             cruising_speed = lps_qty.Speed.kt(data["cruising_speed_kt"]),
             rotacional_frequency = lps_qty.Frequency.rpm(data["rpm"]),
             length = lps_qty.Distance.m(data["length_m"]),

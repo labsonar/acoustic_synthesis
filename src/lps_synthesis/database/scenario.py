@@ -15,6 +15,8 @@ import cartopy.feature as cfeature
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_sce_dyn
 import lps_synthesis.environment.environment as lps_env
+import lps_synthesis.environment.acoustic_site as lps_site
+import lps_synthesis.propagation.channel_description as lps_desc
 import lps_synthesis.propagation.channel as lps_channel
 import lps_synthesis.propagation.layers as lps_layer
 
@@ -22,7 +24,6 @@ import lps_synthesis.database.catalog as syndb_core
 
 class Location(enum.Enum):
     """ Enumeration of reference oceanic and coastal locations. """
-
     ADRIATIC_SEA = enum.auto()
     AMUNDSEN_SEA = enum.auto()
     ANDFJORDEN = enum.auto()
@@ -132,63 +133,67 @@ class Location(enum.Enum):
         # R. P. Hodges, Underwater acoustics: analysis, design, and performance of sonar.
         # Hoboken, NJ: Wiley, 2010. doi: 10.1002/9780470665244.
 
-    def seabed_type(self) -> lps_layer.SeabedType:
-        """ Return the Seabed Type for the Location """
-        seabed_map = {
-            Location.ADRIATIC_SEA: lps_layer.SeabedType.LIMESTONE,
-                #https://doi.org/10.1016/j.marpetgeo.2015.03.015
-            Location.AMUNDSEN_SEA: lps_layer.SeabedType.MORAINE,
-                #https://doi.org/10.1144/M46.183
-            Location.ANDFJORDEN: lps_layer.SeabedType.MORAINE,
-                #https://doi.org/10.1016/j.margeo.2015.02.001
-            Location.ARGENTINE_SEA: lps_layer.SeabedType.GRAVEL,
-            Location.BENGAL_BAY: lps_layer.SeabedType.SILT,
-            Location.EASTERN_SOUTH_PACIFIC_OCEAN: lps_layer.SeabedType.CLAY,
-            Location.GUANABARA_BAY: lps_layer.SeabedType.CLAY,
-            Location.GULF_OF_GUINEA: lps_layer.SeabedType.SILT,
-            Location.GULF_OF_ST_LAWRENCE: lps_layer.SeabedType.SAND,
-            Location.GULF_OF_THE_FARALLONES: lps_layer.SeabedType.SAND,
-            Location.MOZAMBIQUE_CHANNEL: lps_layer.SeabedType.SAND,
-            Location.NORTH_SEA: lps_layer.SeabedType.CHALK,
-                #https://doi.org/10.1029/2011JB008564
-            Location.ONTONG_JAVA_PLATEAU: lps_layer.SeabedType.CHALK,
-                #https://doi.org/10.1029/JB083iB01p00283
-            Location.RIA_DE_VIGO: lps_layer.SeabedType.CLAY,
-            Location.SANTOS_BASIN: lps_layer.SeabedType.CLAY,
-            Location.STRAIT_OF_GEORGIA: lps_layer.SeabedType.SAND,
-            Location.STRAIT_OF_HORMUZ: lps_layer.SeabedType.SAND,
-            Location.TANPA_BAY: lps_layer.SeabedType.LIMESTONE,
-                #https://doi.org/10.1016/S0025-3227(03)00189-0
-            Location.WESTERN_NORTH_PACIFIC_OCEAN: lps_layer.SeabedType.CLAY,
-            Location.YUCATAN_BASIN: lps_layer.SeabedType.BASALT,
-        }
-        return seabed_map[self]
+    # def seabed_type(self) -> lps_layer.SeabedType:
+    #     """ Return the Seabed Type for the Location """
+    #     seabed_map = {
+    #         Location.ADRIATIC_SEA: lps_layer.SeabedType.LIMESTONE,
+    #             #https://doi.org/10.1016/j.marpetgeo.2015.03.015
+    #         Location.AMUNDSEN_SEA: lps_layer.SeabedType.MORAINE,
+    #             #https://doi.org/10.1144/M46.183
+    #         Location.ANDFJORDEN: lps_layer.SeabedType.MORAINE,
+    #             #https://doi.org/10.1016/j.margeo.2015.02.001
+    #         Location.ARGENTINE_SEA: lps_layer.SeabedType.GRAVEL,
+    #         Location.BENGAL_BAY: lps_layer.SeabedType.SILT,
+    #         Location.EASTERN_SOUTH_PACIFIC_OCEAN: lps_layer.SeabedType.CLAY,
+    #         Location.GUANABARA_BAY: lps_layer.SeabedType.CLAY,
+    #         Location.GULF_OF_GUINEA: lps_layer.SeabedType.SILT,
+    #         Location.GULF_OF_ST_LAWRENCE: lps_layer.SeabedType.SAND,
+    #         Location.GULF_OF_THE_FARALLONES: lps_layer.SeabedType.SAND,
+    #         Location.MOZAMBIQUE_CHANNEL: lps_layer.SeabedType.SAND,
+    #         Location.NORTH_SEA: lps_layer.SeabedType.CHALK,
+    #             #https://doi.org/10.1029/2011JB008564
+    #         Location.ONTONG_JAVA_PLATEAU: lps_layer.SeabedType.CHALK,
+    #             #https://doi.org/10.1029/JB083iB01p00283
+    #         Location.RIA_DE_VIGO: lps_layer.SeabedType.CLAY,
+    #         Location.SANTOS_BASIN: lps_layer.SeabedType.CLAY,
+    #         Location.STRAIT_OF_GEORGIA: lps_layer.SeabedType.SAND,
+    #         Location.STRAIT_OF_HORMUZ: lps_layer.SeabedType.SAND,
+    #         Location.TANPA_BAY: lps_layer.SeabedType.LIMESTONE,
+    #             #https://doi.org/10.1016/S0025-3227(03)00189-0
+    #         Location.WESTERN_NORTH_PACIFIC_OCEAN: lps_layer.SeabedType.CLAY,
+    #         Location.YUCATAN_BASIN: lps_layer.SeabedType.BASALT,
+    #     }
+    #     return seabed_map[self]
 
-    def local_depth(self) -> lps_qty.Distance:
-        """ Return the local depth for the Location """
-        depth_map = {
-            Location.ADRIATIC_SEA: 84.9,
-            Location.AMUNDSEN_SEA: 2758.2,
-            Location.ANDFJORDEN: 406.8,
-            Location.ARGENTINE_SEA: 100.1,
-            Location.BENGAL_BAY: 3014.7,
-            Location.EASTERN_SOUTH_PACIFIC_OCEAN: 4090.6,
-            Location.GUANABARA_BAY: 56.3,
-            Location.GULF_OF_GUINEA: 1255.2,
-            Location.GULF_OF_ST_LAWRENCE: 41.5,
-            Location.GULF_OF_THE_FARALLONES: 55.7,
-            Location.MOZAMBIQUE_CHANNEL: 3326.5,
-            Location.NORTH_SEA: 71.8,
-            Location.ONTONG_JAVA_PLATEAU: 2014.2,
-            Location.RIA_DE_VIGO: 140.4,
-            Location.SANTOS_BASIN: 2293.1,
-            Location.STRAIT_OF_GEORGIA: 175.5,
-            Location.STRAIT_OF_HORMUZ: 147.2,
-            Location.TANPA_BAY: 11.4,
-            Location.WESTERN_NORTH_PACIFIC_OCEAN: 5932.6,
-            Location.YUCATAN_BASIN: 1578.2,
+    def get_shipping(self) -> lps_env.Shipping:
+        """Return the typical shipping level for this Location.
+
+          https://www.arcgis.com/apps/mapviewer/index.html?layers=2f72eb72cc0b403bb19a7cd1853f3d94
+        """
+        shipping_map = {
+            Location.ADRIATIC_SEA: lps_env.Shipping.LEVEL_6,
+            Location.AMUNDSEN_SEA: lps_env.Shipping.NONE,
+            Location.ANDFJORDEN: lps_env.Shipping.LEVEL_5,
+            Location.ARGENTINE_SEA: lps_env.Shipping.LEVEL_1,
+            Location.BENGAL_BAY: lps_env.Shipping.LEVEL_2,
+            Location.EASTERN_SOUTH_PACIFIC_OCEAN: lps_env.Shipping.LEVEL_1,
+            Location.GUANABARA_BAY: lps_env.Shipping.LEVEL_3,
+            Location.GULF_OF_GUINEA: lps_env.Shipping.LEVEL_4,
+            Location.GULF_OF_ST_LAWRENCE: lps_env.Shipping.LEVEL_4,
+            Location.GULF_OF_THE_FARALLONES: lps_env.Shipping.LEVEL_6,
+            Location.MOZAMBIQUE_CHANNEL: lps_env.Shipping.LEVEL_2,
+            Location.NORTH_SEA: lps_env.Shipping.LEVEL_5,
+            Location.ONTONG_JAVA_PLATEAU: lps_env.Shipping.LEVEL_2,
+            Location.RIA_DE_VIGO: lps_env.Shipping.LEVEL_7,
+            Location.SANTOS_BASIN: lps_env.Shipping.LEVEL_3,
+            Location.STRAIT_OF_GEORGIA: lps_env.Shipping.LEVEL_7,
+            Location.STRAIT_OF_HORMUZ: lps_env.Shipping.LEVEL_6,
+            Location.TANPA_BAY: lps_env.Shipping.LEVEL_6,
+            Location.WESTERN_NORTH_PACIFIC_OCEAN: lps_env.Shipping.LEVEL_3,
+            Location.YUCATAN_BASIN: lps_env.Shipping.LEVEL_4,
         }
-        return lps_qty.Distance.m(depth_map[self])
+
+        return shipping_map[self]
 
     def __str__(self):
         return self.to_string()
@@ -203,8 +208,6 @@ class Location(enum.Enum):
                 "Longitude (deg)": p.longitude.get_deg(),
                 "Latitude (dms)": str(p.latitude),
                 "Longitude (dms)": str(p.longitude),
-                "Seabed": self.seabed_type(),
-                "Depth": self.local_depth(),
             }
 
     @staticmethod
@@ -244,47 +247,37 @@ class Location(enum.Enum):
         """Return a random Local."""
         return random.choice(list(Location))
 
-class Month(enum.IntEnum):
-    """ Enum to represent month. """
-    JANUARY = 1
-    FEBRUARY = 2
-    MARCH = 3
-    APRIL = 4
-    MAY = 5
-    JUNE = 6
-    JULY = 7
-    AUGUST = 8
-    SEPTEMBER = 9
-    OCTOBER = 10
-    NOVEMBER = 11
-    DECEMBER = 12
-
-    @staticmethod
-    def rand() -> "Month":
-        """Return a random month."""
-        return random.choice(list(Month))
 
 class AcousticScenario(syndb_core.CatalogEntry):
     """ Class to represent an Acoustic Scenario"""
 
-    def __init__(self, local: Location = None, month: Month = None):
+    def __init__(self,
+                 local: Location = None,
+                 season: lps_site.Season = None,
+                 prospector: lps_site.AcousticSiteProspector = None):
         self.local = local or Location.rand()
-        self.month = month or Month.rand()
+        self.season = season or lps_site.Season.rand()
+        self.prospector = prospector or lps_site.AcousticSiteProspector()
 
     def __str__(self):
-        return f"{self.local} [{self.month.name.capitalize()}]"
+        return f"{self.local} [{self.season.name.capitalize()}]"
 
     def as_dict(self):
         """Return the scenario as a dictionary joining Local and Month information."""
         return {
             **self.local.as_dict(),
-            "Month": self.month.name.capitalize(),
+            "Season": self.season.name.capitalize(),
         }
 
-    def get_env(self) -> lps_env.Environment:
+    def get_env(self, seed: int = None) -> lps_env.Environment:
         """ Return the lps_env.Environment to the AcousticScenario. """
-        raise NotImplementedError("AcousticScenario.get_env")
+        return self.prospector.get_env(point = self.local.get_point(),
+                                       season = self.season,
+                                       shipping_value = self.local.get_shipping(),
+                                       seed = seed)
 
     def get_channel(self) -> lps_channel.Channel:
         """ Return the lps_channel.Channel to the AcousticScenario. """
-        raise NotImplementedError("AcousticScenario.get_channel")
+        return self.prospector.get_channel(point = self.local.get_point(),
+                                       season = self.season,
+                                       hash_id=self.local.name.lower())
