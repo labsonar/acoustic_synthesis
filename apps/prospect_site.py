@@ -100,7 +100,12 @@ def _main():
     )
 
     print("\n=== RESULTADO DO PROSPECTOR ===\n")
-    print(df)
+
+    if len(df) > 0:
+        df = df.sort_values("local_depth", ascending=True)
+        print(df)
+    else:
+        print("No site found")
 
     os.makedirs("./result", exist_ok=True)
     output_path = "./result/prospector_site.csv"

@@ -185,7 +185,7 @@ class SeabedProspector:
 
         if not match.empty:
             code = match.iloc[0]["name"].strip()
-            return SeabedProspector._convert_map[code]
+            return SeabedProspector._convert_map[code], lps_qty.Distance.m(0)
 
         # Convert point to Web Mercator
         sgeo_point_cartesian = (
@@ -217,7 +217,7 @@ class SeabedProspector:
             )
 
         code = nearest["name"].strip()
-        return SeabedProspector._convert_map[code]
+        return SeabedProspector._convert_map[code], dist_real
 
 class DepthProspector:
     """
@@ -578,6 +578,7 @@ class EnvironmentProspector:
         return EnvironmentProspector._hs_to_douglas(hs)
 
 class AcousticSiteProspector:
+
     def __init__(self,
                  seabed_prospector = None,
                  depth_prospector = None,
@@ -721,9 +722,9 @@ def prospect_local(
 
             point = lps_dyn.Point.deg(lat, lon)
 
-            seabed_type = None
+            seabed_type, seabed_error = None, None
             try:
-                seabed_type = seabed.get(point)
+                seabed_type, seabed_error = seabed.get(point)
             except ValueError:
                 continue
 
@@ -745,15 +746,22 @@ def prospect_local(
             if max(depths) - min(depths) > max_depth_dist.get_m():
                 continue
 
-            depth = depth_prosector.get(point)
+
+            depth = None
+            try:
+                depth = depth_prosector.get(point)
+            except ValueError:
+                continue
 
             results.append({
                 "lat": lat,
                 "lon": lon,
                 "seabed_type": seabed_type.name,
-                "local_depth": depth,
+                "seabed_error": seabed_error.get_m(),
+                "local_depth": depth.get_m(),
                 "diff ssp depth": max(depths) - min(depths),
-                "ssp depths": depths,
+                "ssp_depths": depths,
+                "depth_estimation_diff": max(depths) - depth.get_m()
             })
 
     df = pd.DataFrame(results)
