@@ -2,6 +2,12 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
+import pandas as pd
+
+import lps_synthesis.environment.acoustic_site as syn_site
+import lps_synthesis.scenario.dynamic as syn_dyn
+import lps_synthesis.database.scenario as syn_sce
+
 def _main():
 
     locations = [
@@ -22,7 +28,7 @@ def _main():
         ["QUEEN_CHARLOTTE_SOUND", 51.375, -129.125, "Gravel", 205.4],
         ["SCOTIA_SEA", -53.625, -38.875, "Gravel", 1332],
         ["RÍO_DE_LA_PLATA_ESTUARY", -36.325, -55.875, "Sand", 16.9],
-        ["CORAL_SEA", -25.625, 153.675, "Sand", 60.9],
+        ["CORAL_SEA", -21.875, 151.125, "Sand", 68.2],
         ["EAST_CHINA_SEA", 25.125, 122.125, "Sand", 184.6],
         ["WESTERN_SOUTH_PACIFIC_OCEAN", -12.125, 13.125, "Sand", 1166.8],
 
@@ -45,6 +51,29 @@ def _main():
                 fontsize=6, color=color, transform=ccrs.PlateCarree())
 
     plt.savefig("./result/new_locals.png", dpi=600, bbox_inches="tight")
+
+    prospector = syn_site.AcousticSiteProspector()
+
+    infos = []
+    for name, lat, lon, _, _ in locations:
+        info = prospector.get_complete_info(name=name, point=syn_dyn.Point.deg(lat, lon))
+        infos.append(info)
+
+    df = pd.DataFrame(infos)
+    print(df)
+
+    df.to_csv("./result/new_locals.csv")
+
+
+    infos = []
+    for location in syn_sce.Location:
+        info = prospector.get_complete_info(name=str(location), point=location.get_point())
+        infos.append(info)
+
+    df = pd.DataFrame(infos)
+    print(df)
+
+    df.to_csv("./result/original_locals.csv")
 
 if __name__ == "__main__":
     _main()

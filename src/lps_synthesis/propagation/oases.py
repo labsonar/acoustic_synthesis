@@ -3,12 +3,12 @@
 import struct
 import typing
 import os
-import subprocess
 import math
 import functools
 import numpy as np
 
 import lps_utils.quantities as lps_qty
+import lps_utils.subprocess as lps_proc
 import lps_synthesis.propagation.channel_description as lps_channel
 
 class Sweep():
@@ -42,6 +42,10 @@ class Sweep():
     def get_all(self):
         """ Get all values on the sweep. """
         return list([self.get_step_value(n) for n in range(self.n_steps)])
+
+    def __iter__(self):
+        for i in range(self.n_steps):
+            yield self.get_step_value(i)
 
 def export_dat_file(description: lps_channel.Description,
                     source_depths: Sweep,
@@ -245,9 +249,11 @@ def estimate_transfer_function(description: lps_channel.Description,
                     max_distance_points: int = 128,
                     sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
                     frequency_range: typing.Tuple[lps_qty.Frequency] = None,
-                    filename: str = "test.dat"):
+                    filename: str = "test"):
     """ Function to estimate a transfer function """
     original_directory = os.getcwd()
+
+    filename = f"{filename}.dat"
 
     # file_without_extension = os.path.splitext(filename)[0]
     file_directory = os.path.dirname(filename)
@@ -288,25 +294,9 @@ def estimate_transfer_function(description: lps_channel.Description,
             filename=filename,
             frequency_range=frequency_range)
 
-    if file_directory:
-        os.chdir(file_directory)
-
     comand = f"oasp {file_without_extension}"
 
-    process = subprocess.Popen(comand, shell=True, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, text=True)
-
-    while True:
-        output = process.stdout.readline()
-        if output == '' and process.poll() is not None:
-            break
-        if output:
-            print(output.strip())
-
-    os.chdir(original_directory)
-
-    stderr_output = process.stderr.read()
-    if stderr_output:
-        raise UnboundLocalError(f"Erro: {stderr_output.strip()}")
+    lps_proc.run_process(comand=comand,
+                         running_directory=file_directory if file_directory else None)
 
     return trf_impulse_response_reader(filename)

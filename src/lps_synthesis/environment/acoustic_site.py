@@ -150,7 +150,7 @@ class SeabedProspector:
         self,
         point: lps_dyn.Point,
         tol: lps_qty.Distance = lps_qty.Distance.km(30)
-    ) -> syn_lay.SeabedType:
+    ) -> typing.Tuple[syn_lay.SeabedType, lps_qty.Distance]:
         """
         Return the seabed type at a given geographic point.
 
@@ -169,6 +169,8 @@ class SeabedProspector:
         -------
         syn_lay.SeabedType
             The seabed type.
+        lps_qty.Distance
+            nearest polygon boundary distance.
 
         Raises
         ------
@@ -643,6 +645,39 @@ class AcousticSiteProspector:
             shipping_value = shipping_value,
             seed = seed
         )
+
+    def get_complete_info(self, name: str, point: lps_dyn.Point) -> typing.Dict[str, str]:
+
+        seabed, seabed_tol = self.seabed_prospector.get(point)
+        depth = self.depth_prospector.get(point)
+
+        ssp_max_depths = []
+        rain_states = {}
+        sea_states = {}
+        for season in Season:
+            dists, _ = self.ssp_prospector.get(point, season)
+            rain_state = self.environment_prospector.get_rain(point, season)
+            sea_state = self.environment_prospector.get_seastate(point, season)
+
+            ssp_max_depths.append(dists[-1])
+            rain_states[f"rain_state_{season}"] = rain_state
+            sea_states[f"sea_state_{season}"] = sea_state
+
+        return {
+            "name": name,
+            "latitude (deg)": point.latitude.get_deg(),
+            "longitude (deg)": point.longitude.get_deg(),
+            "latitude (dms)": str(point.latitude),
+            "longitude (dms)": str(point.longitude),
+            "seabed": seabed,
+            "seabed_tol": seabed_tol,
+            "local_depth": depth,
+            "ssp_max_depth": max(ssp_max_depths),
+            "ssp_max_diff": max(ssp_max_depths) - min(ssp_max_depths),
+            "ssp_local_depth_margin": depth - max(ssp_max_depths),
+            **rain_states,
+            **sea_states,
+        }
 
 def _aligned_coords(min_v: float, max_v: float, fractions):
     """Generate aligned coordinates following .125 .375 .675 .875 rule."""

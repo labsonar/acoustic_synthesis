@@ -13,7 +13,7 @@ import scipy.signal as scipy
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.channel_description as lps_channel
 import lps_synthesis.propagation.oases as oases
-
+import lps_synthesis.propagation.traceo as traceo
 
 def apply_doppler(input_data: np.array,
                   speeds: typing.List[lps_qty.Speed],
@@ -249,6 +249,7 @@ class ImpulseResponse():
 class Model(enum.Enum):
     """ Enum class to represent available propagation models. """
     OASES = 0
+    TRACEO = 1
 
     def __str__(self) -> str:
         return self.name.title()
@@ -261,8 +262,9 @@ class Model(enum.Enum):
                 max_distance_points: int = 128,
                 sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16),
                 frequency_range: typing.Tuple[lps_qty.Frequency] = None,
-                filename: str = "test.dat"):
+                filename: str = "test"):
         """ Function to estimate a transfer function """
+
         if self == Model.OASES:
             ir = ImpulseResponse(*oases.estimate_transfer_function(
                     description = description,
@@ -274,5 +276,18 @@ class Model(enum.Enum):
                     frequency_range = frequency_range,
                     filename = filename))
             return ir
+
+        if self == Model.TRACEO:
+            ir = ImpulseResponse(*traceo.estimate_transfer_function(
+                    description = description,
+                    source_depth = source_depth,
+                    sensor_depth = sensor_depth,
+                    max_distance = max_distance,
+                    max_distance_points = max_distance_points,
+                    sample_frequency = sample_frequency,
+                    frequency_range = frequency_range,
+                    filename = filename))
+            return ir
+
 
         raise NotImplementedError(f"Estimate_transfer_function not implemented for {self}")

@@ -73,7 +73,7 @@ class Channel():
                         max_distance_points = self.max_distance_points,
                         sample_frequency = self.sample_frequency,
                         frequency_range = self.frequency_range,
-                        filename = self._filename(ext=".dat"))
+                        filename = self._filename(ext=""))
         self.response.save(self._filename())
 
     def _get_hash(self) -> str:
