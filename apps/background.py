@@ -22,7 +22,7 @@ def main(background: lps.Environment, fs: int, duration: float):
         duration (float): duration in seconds
     """    """"""
 
-    base_dir = "./results"
+    base_dir = "./result"
     os.makedirs(base_dir, exist_ok = True)
 
     n_samples = int(fs * duration)

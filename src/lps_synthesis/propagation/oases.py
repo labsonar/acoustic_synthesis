@@ -300,3 +300,50 @@ def estimate_transfer_function(description: lps_channel.Description,
                          running_directory=file_directory if file_directory else None)
 
     return trf_impulse_response_reader(filename)
+
+def get_response(
+        sample_frequency: lps_qty.Frequency,
+        description: lps_channel.Description,
+        source_depths: Sweep,
+        sensor_depth: lps_qty.Distance,
+        distance: Sweep,
+        aux_dir: str):
+    """
+    Calculates the channel response H(r,d,f) using OASES.
+
+    Returns:
+        H_f: complex ndarray (Nr, Nd, Nf)
+        ranges: list[lps_qty.Distance]
+        depths: list[lps_qty.Distance]
+        freqs:  list[lps_qty.Frequency]
+    """
+
+    os.makedirs(aux_dir, exist_ok=True)
+
+    base_name = "oases"
+    dat_file = os.path.join(aux_dir, f"{base_name}.dat")
+    trf_file = os.path.join(aux_dir, f"{base_name}.trf")
+
+    export_dat_file(
+        description       = description,
+        source_depths     = source_depths,
+        sensor_depth      = sensor_depth,
+        distance           = distance,
+        sample_frequency   = sample_frequency,
+        filename           = dat_file,
+    )
+
+    lps_proc.run_process(
+        comand = f"oasp {base_name}",
+        running_directory = aux_dir
+    )
+
+    h_f_tau, _, depths_m, ranges_km, freqs_hz, _, _, _ = trf_reader(trf_file)
+
+    h_f = np.transpose(h_f_tau, (1, 0, 2)).copy()
+
+    depths = [lps_qty.Distance.m(d) for d in depths_m]
+    ranges = [lps_qty.Distance.km(r) for r in ranges_km]
+    freqs  = [lps_qty.Frequency.hz(f) for f in freqs_hz]
+
+    return h_f, ranges, depths, freqs

@@ -20,8 +20,9 @@ import shapely.geometry as sgeo
 import lps_synthesis.database.scenario as syndb_scenario
 import lps_synthesis.scenario.dynamic as lps_sce_dyn
 import lps_synthesis.propagation.layers as syn_lay
+import lps_synthesis.environment.acoustic_site as syn_as
 
-sedim_file = "/data/ambiental/SEDIM_MONDIALE/GML/SR.SeaBedAreaWorld.gml"
+sedim_file = "/data/ambiental/shom/SR.SeaBedAreaWorld.gml"
 data = gpd.read_file(sedim_file)
 
 # Codes de l’attribut TYPE_VALEU -> table 4.2.2 Descriptif de contenu du produit externe Mai 2021
@@ -104,13 +105,11 @@ def get_seabed(lat: float, lon: float):
 
     return code, SHOM_NAME_TO_ENUM[code], aprox
 
-def get_ssp(lat, lon, month):
-    # salinity_dir = "/data/ambiental/woa18_s_decav_0.25_csv"
-    # temperature_dir = "/data/ambiental/woa18_t_decav_0.25_csv"
+def get_ssp(lat, lon, season):
     base_dir = "/data/ambiental/woa18"
 
-    salinity_file = os.path.join(base_dir, f"s{month:02.0f}.csv")
-    temperature_file = os.path.join(base_dir, f"t{month:02.0f}.csv")
+    salinity_file = os.path.join(base_dir, f"{season}_salinity.csv")
+    temperature_file = os.path.join(base_dir, f"{season}_temperature.csv")
 
     df_s = pd.read_csv(salinity_file)
     df_t = pd.read_csv(temperature_file)
@@ -182,8 +181,6 @@ def get_ssp(lat, lon, month):
 
 def main():
 
-    month = 14
-
     data = []
 
     # for local in syndb_scenario.Location:
@@ -193,14 +190,13 @@ def main():
         code, seabed, aprox = get_seabed(p.latitude.get_deg(), p.longitude.get_deg())
         print(f"{local}: {code}, {seabed}")
 
-        for month in range(13,17):
+        for season in syn_as.Season:
 
-
-            lat_diff, lon_diff, depth, lat_cor, lon_cor = get_ssp(p.latitude.get_deg(), p.longitude.get_deg(), month)
+            lat_diff, lon_diff, depth, lat_cor, lon_cor = get_ssp(p.latitude.get_deg(), p.longitude.get_deg(), season)
 
             data.append({
                 "local": str(local),
-                "month": month,
+                "season": season,
                 "depth": depth,
             })
 

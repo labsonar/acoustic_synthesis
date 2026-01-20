@@ -62,12 +62,14 @@ class ImpulseResponse():
                  depths: typing.List[lps_qty.Distance] = None,
                  ranges: typing.List[lps_qty.Distance] = None,
                  frequencies: typing.List[lps_qty.Frequency] = None,
-                 times: typing.List[lps_qty.Time] = None):
+                 times: typing.List[lps_qty.Time] = None,
+                 sample_frequency: lps_qty.Frequency = None):
         self.h_t_tau = h_t_tau
         self.depths = depths
         self.ranges = ranges
         self.frequencies = frequencies
         self.times = times
+        self.sample_frequency = sample_frequency
 
     @classmethod
     def load(cls, filename: str) -> 'ImpulseResponse':
@@ -75,15 +77,16 @@ class ImpulseResponse():
         if os.path.exists(filename):
             with open(filename, 'rb') as file:
                 ir = cls()
-                ir.h_t_tau, ir.depths, ir.ranges, ir.times, ir.frequencies = pickle.load(file)
+                ir.h_t_tau, ir.depths, ir.ranges, ir.times, ir.frequencies, ir.sample_frequency = \
+                        pickle.load(file)
                 return ir
         return None
 
     def save(self, filename: str) -> None:
         """ Save a impulse response to file. """
         with open(filename, 'wb') as file:
-            pickle.dump((self.h_t_tau, self.depths, self.ranges, self.times, self.frequencies),
-                        file)
+            pickle.dump((self.h_t_tau, self.depths, self.ranges, self.times,
+                         self.frequencies, self.sample_frequency), file)
 
     def apply(self,
                   input_data: np.array,
@@ -181,8 +184,8 @@ class ImpulseResponse():
         return y
 
     def get_h_t(self,
-                  source_depth: lps_qty.Distance,
-                  distance: lps_qty.Distance) -> np.array:
+                source_depth: lps_qty.Distance,
+                distance: lps_qty.Distance) -> np.array:
 
         depth_index = bisect.bisect_left(self.depths, source_depth)
 

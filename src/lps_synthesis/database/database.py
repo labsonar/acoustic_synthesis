@@ -55,9 +55,26 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                  seed: int = 42):
 
         rng = random.Random(seed)
-        entries = [DatabaseEntry(ship_id=rng.randrange(len(ship_catalog)),
-                                   scenario_id=rng.randrange(len(scenario_catalog)))
-                    for _ in range(n_samples)]
+        entries = []
+
+        n_ships = len(ship_catalog)
+        n_scenarios = len(scenario_catalog)
+
+        for _ in range(n_samples):
+
+            ship_ids = rng.sample(range(n_ships), 2)
+            scenario_ids = rng.sample(range(n_scenarios), 2)
+            dynamic = syndb_dynamic.SimulationDynamic.rand()
+
+            for ship_id in ship_ids:
+                for scenario_id in scenario_ids:
+                    entries.append(
+                        DatabaseEntry(
+                            ship_id=ship_id,
+                            scenario_id=scenario_id,
+                            dynamic=dynamic
+                        )
+                    )
 
         super().__init__(entries=entries)
         self.ship_catalog = ship_catalog

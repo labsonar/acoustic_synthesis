@@ -2,10 +2,11 @@ import os
 import lps_synthesis.database.scenario as syndb
 
 def _main():
-    os.makedirs("./result")
-    syndb.Location.plot("./result/locals.png")
+    base_dir = "./result"
+    os.makedirs(base_dir, exist_ok=True)
+    syndb.Location.plot(os.path.join(base_dir, "locals.png"))
     df = syndb.Location.to_df()
-    df.to_csv("./result/locals.csv")
+    df.to_csv(os.path.join(base_dir, "locals.csv"))
 
 if __name__ == "__main__":
     _main()

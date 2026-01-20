@@ -27,6 +27,9 @@ class Season(enum.IntEnum):
     WINTER = 3
     SPRING = 4
 
+    def __str__(self):
+        return self.name.lower()
+
     def get_months(self, lat: lps_qty.Latitude) -> list[int]:
         """Return list of months for this season based on latitude sign."""
         _north_map = {
@@ -580,6 +583,10 @@ class EnvironmentProspector:
         return EnvironmentProspector._hs_to_douglas(hs)
 
 class AcousticSiteProspector:
+    """
+    Prospector that aggregates multiple environmental and oceanographic data sources
+    to fully characterize an underwater acoustic site.
+    """
 
     def __init__(self,
                  seabed_prospector = None,
@@ -647,6 +654,34 @@ class AcousticSiteProspector:
         )
 
     def get_complete_info(self, name: str, point: lps_dyn.Point) -> typing.Dict[str, str]:
+        """
+        Collect a comprehensive, season-independent summary of all available
+        environmental and oceanographic information for a given geographic point.
+
+        Parameters
+        ----------
+        name : str
+            Identifier or label for the site (e.g., station name).
+        point : lps_dyn.Point
+            Geographic location of the site.
+
+        Returns
+        -------
+        dict
+            Keys include (non-exhaustive):
+                - 'seabed'
+                - 'local_depth'
+                - 'ssp_max_depth'
+                - 'ssp_max_diff'
+                - 'rain_state_<season>'
+                - 'sea_state_<season>'
+
+        Raises
+        ------
+        ValueError
+            If any of the required environmental datasets are unavailable
+            or inconsistent at the requested location.
+        """
 
         seabed, seabed_tol = self.seabed_prospector.get(point)
         depth = self.depth_prospector.get(point)

@@ -126,45 +126,6 @@ class Location(enum.Enum):
             }
             return names[self]
 
-    def is_shallow_water(self) -> bool:
-        """ Indicates whether the location is classified as shallow water. """
-        return self.local_depth() < lps_qty.Distance.ft(600)
-        # deep water (> 600 ft)
-        # R. P. Hodges, Underwater acoustics: analysis, design, and performance of sonar.
-        # Hoboken, NJ: Wiley, 2010. doi: 10.1002/9780470665244.
-
-    # def seabed_type(self) -> lps_layer.SeabedType:
-    #     """ Return the Seabed Type for the Location """
-    #     seabed_map = {
-    #         Location.ADRIATIC_SEA: lps_layer.SeabedType.LIMESTONE,
-    #             #https://doi.org/10.1016/j.marpetgeo.2015.03.015
-    #         Location.AMUNDSEN_SEA: lps_layer.SeabedType.MORAINE,
-    #             #https://doi.org/10.1144/M46.183
-    #         Location.ANDFJORDEN: lps_layer.SeabedType.MORAINE,
-    #             #https://doi.org/10.1016/j.margeo.2015.02.001
-    #         Location.ARGENTINE_SEA: lps_layer.SeabedType.GRAVEL,
-    #         Location.BENGAL_BAY: lps_layer.SeabedType.SILT,
-    #         Location.EASTERN_SOUTH_PACIFIC_OCEAN: lps_layer.SeabedType.CLAY,
-    #         Location.GUANABARA_BAY: lps_layer.SeabedType.CLAY,
-    #         Location.GULF_OF_GUINEA: lps_layer.SeabedType.SILT,
-    #         Location.GULF_OF_ST_LAWRENCE: lps_layer.SeabedType.SAND,
-    #         Location.GULF_OF_THE_FARALLONES: lps_layer.SeabedType.SAND,
-    #         Location.MOZAMBIQUE_CHANNEL: lps_layer.SeabedType.SAND,
-    #         Location.NORTH_SEA: lps_layer.SeabedType.CHALK,
-    #             #https://doi.org/10.1029/2011JB008564
-    #         Location.ONTONG_JAVA_PLATEAU: lps_layer.SeabedType.CHALK,
-    #             #https://doi.org/10.1029/JB083iB01p00283
-    #         Location.RIA_DE_VIGO: lps_layer.SeabedType.CLAY,
-    #         Location.SANTOS_BASIN: lps_layer.SeabedType.CLAY,
-    #         Location.STRAIT_OF_GEORGIA: lps_layer.SeabedType.SAND,
-    #         Location.STRAIT_OF_HORMUZ: lps_layer.SeabedType.SAND,
-    #         Location.TANPA_BAY: lps_layer.SeabedType.LIMESTONE,
-    #             #https://doi.org/10.1016/S0025-3227(03)00189-0
-    #         Location.WESTERN_NORTH_PACIFIC_OCEAN: lps_layer.SeabedType.CLAY,
-    #         Location.YUCATAN_BASIN: lps_layer.SeabedType.BASALT,
-    #     }
-    #     return seabed_map[self]
-
     def get_shipping(self) -> lps_env.Shipping:
         """Return the typical shipping level for this Location.
 
@@ -223,8 +184,8 @@ class Location(enum.Enum):
 
         for local in Location:
             p = local.get_point()
-            color='blue' if local.is_shallow_water() else 'red'
-            offset=1.5 if local.is_shallow_water() else -4.5
+            color='blue' # if local.is_shallow_water() else 'red'
+            offset=1.5 # if local.is_shallow_water() else -4.5
             ax.plot(p.longitude.get_deg(), p.latitude.get_deg(), 'o',
                     markersize=4, color=color, transform=ccrs.PlateCarree())
             ax.text(p.longitude.get_deg() + offset, p.latitude.get_deg(), local.value,

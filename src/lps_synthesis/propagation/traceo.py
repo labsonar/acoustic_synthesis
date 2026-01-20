@@ -1,15 +1,14 @@
 """ Module to acess the traceo for getting impulse response of a channel
 """
-import struct
 import typing
 import os
-import subprocess
+import tqdm
 import math
-import functools
 import numpy as np
 import scipy.io as scipy
 
 import lps_utils.quantities as lps_qty
+import lps_utils.subprocess as lps_proc
 import lps_synthesis.propagation.layers as lps_layer
 import lps_synthesis.propagation.channel_description as lps_channel
 import lps_synthesis.propagation.oases as oases
@@ -62,7 +61,6 @@ def read_file(directory: str, freq: lps_qty.Frequency) -> typing.Tuple[np.array,
     depths = [lps_qty.Distance.m(d) for d in depths]
 
     return response, ranges, depths
-
 
 def export_file(
         frequency: lps_qty.Frequency,
@@ -173,6 +171,70 @@ def export_file(
         fid.write("'ADR'" +"\n")
         fid.write("0.5" +"\n")
 
+def get_response(
+        sample_frequency: lps_qty.Frequency,
+        description: lps_channel.Description,
+        source_depths: oases.Sweep,
+        sensor_depth: lps_qty.Distance,
+        distance: oases.Sweep,
+        aux_dir: str):
+    """
+    Calculates the channel response H(r,d,f) using TRACEO for all frequencies of the FFT.
+
+    Returns:
+        H_f: complex ndarray (Nr, Nd, Nf)
+        freqs: frequency vector (Hz)
+        ranges, depths: spatial axes
+    """
+
+    os.makedirs(aux_dir, exist_ok=True)
+
+    time_step = 1/sample_frequency
+    n_samples = int(np.ceil(((1.5*distance.get_end())/description.get_base_speed())/time_step))
+    n_samples = 2 ** math.ceil(math.log2(n_samples) - 1)
+
+    df = sample_frequency / (2 * n_samples)
+    freqs = np.arange(0, n_samples) * df
+
+    h_f = None
+    ranges = None
+    depths = None
+
+    for k, f in enumerate(tqdm.tqdm(freqs, desc="Frequencies", ncols=120, leave=False)):
+
+        if k == 0:
+            continue
+
+        in_name = "traceo.in"
+        in_file = os.path.join(aux_dir, in_name)
+        out_file = os.path.join(aux_dir, "aad.mat")
+
+        if os.path.exists(out_file):
+            os.remove(out_file)
+
+        export_file(
+            frequency=f,
+            description=description,
+            source_depths=source_depths,
+            sensor_depth=sensor_depth,
+            distance=distance,
+            filename=in_file
+        )
+
+        lps_proc.run_process(comand=f"traceo {in_name}",
+                             running_directory=aux_dir)
+
+        h_rd, r, z = read_file(aux_dir, f)
+
+        if h_f is None:
+            n_ranges, n_depths = h_rd.shape
+            h_f = np.zeros((n_ranges, n_depths, n_samples), dtype=np.complex128)
+            ranges = r
+            depths = z
+
+        h_f[:, :, k] = h_rd
+
+    return h_f, ranges, depths, freqs
 
 
 

@@ -60,21 +60,26 @@ def _main():
     step_interval = lps_qty.Time.s(args.step_interval)
     simulation_steps = args.simulation_steps
 
-    if args.dataset == "toy":
-        dataset = syndb.ToyDatabase(n_samples=1)
-    else:
-        dataset = syndb.OlocumDatabase(n_ships=1, n_scenarios=1, n_samples=1)
+    # if args.dataset == "toy":
+    #     dataset = syndb.ToyDatabase(n_samples=1)
+    # else:
+    #     dataset = syndb.OlocumDatabase(n_ships=1, n_scenarios=1, n_samples=1)
 
-    output_dir = os.path.join("./result", args.dataset)
+    if args.dataset == "toy":
+        dataset = syndb.ToyDatabase()
+    else:
+        dataset = syndb.OlocumDatabase()
+
+    output_dir = os.path.join(args.output_dir, args.dataset)
 
     wav_dir = os.path.join(output_dir, "data")
 
     dataset.export(output_dir=output_dir)
-    dataset.synthesize(output_dir=wav_dir,
-                       sonar=sonar,
-                       sample_frequency=sample_frequency,
-                       step_interval=step_interval,
-                       simulation_steps=simulation_steps)
+    # dataset.synthesize(output_dir=wav_dir,
+    #                    sonar=sonar,
+    #                    sample_frequency=sample_frequency,
+    #                    step_interval=step_interval,
+    #                    simulation_steps=simulation_steps)
 
 if __name__ == "__main__":
     _main()
