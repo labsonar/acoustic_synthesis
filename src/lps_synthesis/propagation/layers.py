@@ -39,16 +39,6 @@ class AcousticalLayer():
             f"{self.get_rms_roughness().get_m():6f}"
         )
 
-    def to_traceo_format(self) -> str:
-        """ Layer in oasp description format. """
-        return (
-            f"{self.get_compressional_speed().get_m_s():6f} "
-            f"{self.get_shear_speed().get_m_s():6f} "
-            f"{self.get_density().get_g_cm3():6f} "
-            f"{self.get_compressional_attenuation():6f} "
-            f"{self.get_shear_attenuation():6f} "
-        )
-
     def __str__(self) -> str:
         return (
             f"{self._name} layer – cₚ={self.get_compressional_speed()} "

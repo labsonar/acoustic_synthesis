@@ -116,11 +116,9 @@ class Description():
             The compressional speed of the first water layer, or a default of 1500 m/s if no water
             layer is present.
         """
-        skip_air = True
         for _, layer in self:
-            if skip_air:
-                continue
-            return layer.get_compressional_speed()
+            if isinstance(layer, lps_layer.Water):
+                return layer.get_compressional_speed()
 
         return lps_qty.Speed.m_s(1500)
 
