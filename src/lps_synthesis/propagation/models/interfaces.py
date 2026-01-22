@@ -158,8 +158,6 @@ class QueryConfig:
 
     def get_frequency_sweep(self, range_margin: float = 1.5) -> typing.Tuple[
         typing.List[lps_qty.Frequency],
-        lps_qty.Frequency,
-        int,
         int
     ]:
         """
@@ -169,9 +167,7 @@ class QueryConfig:
 
         Returns:
             frequencies : list of Frequency (sub-band of FFT)
-            df          : frequency resolution
             n_fft       : total FFT size
-            k0          : starting FFT index of the sub-band
         """
 
         base_speed = self.description.get_base_speed()
@@ -182,8 +178,8 @@ class QueryConfig:
 
         n_fft = 2 ** math.ceil(math.log2(n_samples) - 1)
 
-        df = self.sample_frequency / (2 * n_fft)
-        freqs_hz = np.arange(0, n_fft) * df.get_hz()
+        df = self.sample_frequency / n_fft
+        freqs_hz = np.arange(1, n_fft//2) * df.get_hz()
 
         if self.frequency_range is not None:
             f_min, f_max = self.frequency_range
@@ -198,15 +194,11 @@ class QueryConfig:
                     "frequency_range does not intersect FFT frequency grid"
                 )
 
-            k0 = int(indices[0])
             freqs_hz = freqs_hz[indices]
 
-        else:
-            k0 = 0
+        frequencies = [lps_qty.Frequency.hz(f) for f in freqs_hz if f != 0]
 
-        frequencies = [lps_qty.Frequency.hz(f) for f in freqs_hz]
-
-        return frequencies, df, n_fft, k0
+        return frequencies, n_fft
 
 class PropagationModel(abc.ABC):
     """ Basic abstraction to implement propagation models. """

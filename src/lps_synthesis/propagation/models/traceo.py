@@ -30,7 +30,7 @@ class Traceo(model_core.PropagationModel):
 
         os.makedirs(self.workdir, exist_ok=True)
 
-        frequencies, _, _, _ = query.get_frequency_sweep()
+        frequencies, _,  = query.get_frequency_sweep()
 
         h_f_tau = None
         ranges = None

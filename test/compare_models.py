@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-
 import os
 import argparse
+import time
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -37,29 +38,39 @@ def _run_comparison(
         max_distance_points=500,
         frequency_range=None,
     )
+
     responses = {}
+    timings = {}
 
     for model_type in lps_models.Type:
         print(f"Running model: {model_type.name}")
 
         model = model_type.build_model()
+
+        t0 = time.perf_counter()
         rsp_f = model.compute_frequency_response(query)
+        t1 = time.perf_counter()
+
         rsp_t = lps_channel_rsp.TemporalResponse.from_spectral(rsp_f)
 
         responses[model_type.name] = (rsp_f, rsp_t)
+        timings[model_type.name] = t1 - t0
 
     ref_rsp_f, _ = next(iter(responses.values()))
-    depths = ref_rsp_f.depths
-    ranges = ref_rsp_f.ranges
     freqs = np.array([f.get_hz() for f in ref_rsp_f.frequencies])
 
+    id_name = (
+        f"source[{source_depth}]_"
+        f"sensor[{sensor_depth}]_"
+        f"depth[{local_depth}]_"
+        f"distance[{max_distance}]"
+    )
 
 
     fig, axs = plt.subplots(5, 1, figsize=(9, 9))
-    fig.suptitle(
-        f"Depth = {depths[-1].get_m():.1f} m | "
-        f"Range = {ranges[-1].get_m():.1f} m"
-    )
+    fig.suptitle(id_name.replace("_", " | "))
+
+    i0, i1 = None, None
 
     for model_name, (rsp_f, rsp_t) in responses.items():
 
@@ -72,11 +83,12 @@ def _run_comparison(
         axs[2].plot(freqs, -20 * np.log10(np.abs(h_f)), label=model_name)
         axs[3].plot(t, h_t, label=model_name)
 
-        peak = np.argmax(np.abs(h_t))
-        start_offset = zoom_samples * 0.1
-        end_offset = zoom_samples * 0.9
-        i0 = int(max(0, peak - start_offset))
-        i1 = int(min(len(h_t), peak + end_offset))
+        if i0 is None or i1 is None:
+            peak = np.argmax(np.abs(h_t))
+            start_offset = zoom_samples * 0.1
+            end_offset = zoom_samples * 0.9
+            i0 = int(max(0, peak - start_offset))
+            i1 = int(min(len(h_t), peak + end_offset))
 
         axs[4].plot(t[i0:i1], h_t[i0:i1], label=model_name)
 
@@ -96,14 +108,13 @@ def _run_comparison(
 
     fig.tight_layout(rect=[0, 0, 1, 0.95])
 
-    fname = (
-        f"comparison_source[{source_depth}]_"
-        f"sensor[{sensor_depth}]_"
-        f"depth[{local_depth}]_"
-        f"distance[{max_distance}].png"
-    )
+    fname = f"comparison_{id_name}.png"
     plt.savefig(os.path.join(output_dir, fname), dpi=150)
     plt.close(fig)
+
+    print("\nExecution time (compute_frequency_response):")
+    for name, t in sorted(timings.items(), key=lambda x: x[1]):
+        print(f"{name:>12s}: {t:8.3f} s")
 
 
 def _parse_args():
