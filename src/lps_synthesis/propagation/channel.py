@@ -8,16 +8,12 @@ Classes:
 """
 import os
 import typing
-import json
-import hashlib
-import enum
 
 import numpy as np
 
 import lps_utils.quantities as lps_qty
-import lps_synthesis.propagation.channel_description as lps_desc
-import lps_synthesis.propagation.layers as lps_layer
-import lps_synthesis.propagation.models as lps_model
+import lps_synthesis.propagation.models as lps_propag_model
+import lps_synthesis.propagation as lps_propag
 
 # DEFAULT_DIR = os.path.join(os.path.expanduser("~"), ".lps", "channel")
 DEFAULT_DIR = os.path.join(".", "channel")
@@ -28,25 +24,13 @@ class Channel():
     """
 
     def __init__(self,
-                 description: lps_desc.Description,
-                 sensor_depth: lps_qty.Distance,
-                 source_depths: typing.List[lps_qty.Distance] = None,
-                 max_distance: lps_qty.Distance = None,
-                 max_distance_points: int = 11,
-                 sample_frequency: lps_qty.Frequency = None,
-                 frequency_range: typing.Tuple[lps_qty.Frequency] = None,
-                 model: lps_model.Model = None,
+                 query: lps_propag_model.QueryConfig,
+                 model: lps_propag_model.PropagationModel = None,
                  channel_dir: typing.Optional[str] = None,
                  hash_id: str = None):
 
-        self.description = description
-        self.source_depths = source_depths or [lps_qty.Distance.m(d) for d in np.arange(3, 25, 5)]
-        self.sensor_depth = sensor_depth
-        self.max_distance = max_distance or lps_qty.Distance.km(1)
-        self.max_distance_points = max_distance_points
-        self.sample_frequency = sample_frequency or lps_qty.Frequency.khz(16)
-        self.frequency_range = frequency_range
-        self.model = model or lps_model.Model.OASES
+        self.query = query
+        self.model = model or lps_propag_model.Oases()
         self.channel_dir = channel_dir if channel_dir is not None else DEFAULT_DIR
         self.hash_id = hash_id
 
@@ -61,44 +45,24 @@ class Channel():
         return os.path.join(self.channel_dir, f"{self._get_hash()}{ext}")
 
     def _load(self) -> bool:
-        self.response = lps_model.ImpulseResponse.load(self._filename())
+        self.response = lps_propag.TemporalResponse.load(self._filename())
         return self.response is not None
 
     def _calc(self) -> None:
-        self.response = self.model.estimate_transfer_function(
-                        description = self.description,
-                        source_depth = self.source_depths,
-                        sensor_depth = self.sensor_depth,
-                        max_distance = self.max_distance,
-                        max_distance_points = self.max_distance_points,
-                        sample_frequency = self.sample_frequency,
-                        frequency_range = self.frequency_range,
-                        filename = self._filename(ext=""))
+        _, self.response = self.model.compute_response(query=self.query)
         self.response.save(self._filename())
 
     def _get_hash(self) -> str:
         if self.hash_id is not None:
             return self.hash_id
 
-        hash_dict = {
-            'description': self.description.to_oases_format(),
-            'source_depths': [d.get_m() for d in self.source_depths],
-            'sensor_depth': self.sensor_depth.get_m(),
-            'max_distance': self.max_distance.get_m(),
-            'distance_points': self.max_distance_points,
-            'sample_frequency': self.sample_frequency.get_hz(),
-            'model': self.model.name,
-            'frequency_range': "None" if self.frequency_range is None else \
-                                    [f.get_hz() for f in self.frequency_range]
-        }
-        converted = json.dumps(hash_dict, sort_keys=True)
-        hash_obj = hashlib.md5(converted.encode())
-        return hash_obj.hexdigest()
+        return hash(self.query)
 
     def propagate(self,
                   input_data: np.array,
                   source_depth: lps_qty.Distance,
-                  distance: typing.List[lps_qty.Distance]) -> np.array:
+                  distance: typing.List[lps_qty.Distance],
+                  sample_frequency: lps_qty.Frequency) -> np.array:
         """ Calculates the signal after propagation in the channel
 
         Args:
@@ -107,117 +71,16 @@ class Channel():
             distance (typing.List[lps_qty.Distance]): Equivalent distance for input_data.
                 If the number of distances is different from the number of samples in the input
                 data, the distances are interpolated.
+            sample_frequency (lps_qty.Frequency): Sample frequency of the input_data
 
         Returns:
             np.array: signal after propagation in the channel
         """
         return self.response.apply(input_data = input_data,
                                    source_depth = source_depth,
-                                   distance = distance)
+                                   distance = distance,
+                                   sample_frequency = sample_frequency)
 
-    def get_ir(self) -> lps_model.ImpulseResponse:
+    def get_ir(self) -> lps_propag.TemporalResponse:
         """ Return the impulse response of a channel. """
         return self.response
-
-
-class PredefinedChannel(enum.Enum):
-    """ Enum class to represent predefined and preestimated channels. """
-    BASIC = 0
-    SPHERICAL = 1
-    CYLINDRICAL = 2
-    DEEPSHIP = 3
-    DELTA_NODE = 3
-
-    def get_channel(self):
-        """ Return the estimated channel"""
-
-        if self == PredefinedChannel.BASIC:
-
-            desc = lps_desc.Description()
-            desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
-            desc.add(lps_qty.Distance.m(50), lps_layer.BottomType.CHALK)
-
-            return Channel(description = desc,
-                            sensor_depth = lps_qty.Distance.m(40),
-                            max_distance = lps_qty.Distance.km(1),
-                            max_distance_points = 128,
-                            sample_frequency = lps_qty.Frequency.khz(16),
-                            frequency_range = None,
-                            model = lps_model.Model.OASES,
-                            hash_id=self.name.lower())
-
-        if self == PredefinedChannel.SPHERICAL:
-
-            desc = lps_desc.Description()
-            desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
-            desc.add(lps_qty.Distance.m(1000), lps_qty.Speed.m_s(1500))
-            desc.remove_air_sea_interface()
-
-            return Channel(description = desc,
-                            sensor_depth = lps_qty.Distance.m(500),
-                            source_depths = [lps_qty.Distance.m(500)],
-                            max_distance = lps_qty.Distance.m(1000),
-                            max_distance_points = 110,
-                            sample_frequency = lps_qty.Frequency.khz(16),
-                            frequency_range = None,
-                            model = lps_model.Model.OASES,
-                            hash_id=self.name.lower())
-
-        if self == PredefinedChannel.CYLINDRICAL:
-
-            void_layer = lps_layer.AcousticalLayer(
-                    compressional_speed = lps_qty.Speed.m_s(0),
-                    shear_speed = lps_qty.Speed.m_s(0),
-                    compressional_attenuation = 0,
-                    shear_attenuation = 0,
-                    density = lps_qty.Density.g_cm3(0),
-                    rms_roughness = lps_qty.Distance.m(0))
-
-            desc = lps_desc.Description()
-            desc.add(lps_qty.Distance.m(0), void_layer)
-            desc.add(lps_qty.Distance.m(0.01), lps_qty.Speed.m_s(1500))
-            desc.add(lps_qty.Distance.m(50), lps_qty.Speed.m_s(1500))
-            desc.add(lps_qty.Distance.m(50.01), void_layer)
-            desc.remove_air_sea_interface()
-
-
-            return Channel(description = desc,
-                            sensor_depth = lps_qty.Distance.m(20),
-                            source_depths = [lps_qty.Distance.m(25)],
-                            max_distance = lps_qty.Distance.m(1000),
-                            max_distance_points = 110,
-                            sample_frequency = lps_qty.Frequency.khz(16),
-                            frequency_range = None,
-                            model = lps_model.Model.OASES,
-                            hash_id=self.name.lower())
-
-        if self == PredefinedChannel.DELTA_NODE:
-
-            desc = lps_desc.Description()
-
-            desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
-
-            mixing_layer_depth = 30
-            for depth in range(0, mixing_layer_depth, 10):
-                desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1490 + depth * 0.3))
-
-            termocline_depth = 80
-            for depth in range(mixing_layer_depth, termocline_depth, 10):
-                desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1500 - depth * 0.2))
-
-            for depth in range(termocline_depth, 200, 10):
-                desc.add(lps_qty.Distance.m(depth), lps_qty.Speed.m_s(1495 + depth * 0.1))
-
-            desc.add(lps_qty.Distance.m(200), lps_layer.Seabed(lps_layer.SeabedType.SILT))
-
-            return Channel(description = desc,
-                            sensor_depth = lps_qty.Distance.m(140),
-                            max_distance = lps_qty.Distance.km(1),
-                            max_distance_points = 1001,
-                            sample_frequency = lps_qty.Frequency.khz(16),
-                            frequency_range = None,
-                            model = lps_model.Model.OASES,
-                            hash_id=self.name.lower())
-
-        else:
-            raise NotImplementedError(f"PredefinedChannel {self} not implemented")

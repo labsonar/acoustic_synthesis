@@ -7,6 +7,7 @@ import functools
 import numpy as np
 
 import lps_utils.quantities as lps_qty
+import lps_utils.hashable as lps_hash
 import lps_synthesis.propagation.channel_description as lps_channel
 import lps_synthesis.propagation.channel_response as lps_channel_rsp
 
@@ -81,7 +82,7 @@ class FrequencyGrid:
     k0: int
 
 @dataclasses.dataclass(slots=True)
-class QueryConfig:
+class QueryConfig(lps_hash.Hashable):
     """
     Unified query for getting the channel response from propagation models.
     """
@@ -200,12 +201,30 @@ class QueryConfig:
 
         return frequencies, n_fft
 
+    def _get_params(self):
+        return {
+            "sample_frequency": self.sample_frequency,
+            "description": self.description,
+            "source_depths": self.source_depths,
+            "sensor_depth": self.sensor_depth,
+            "max_distance": self.max_distance,
+            "max_distance_points": self.max_distance_points,
+            "frequency_range": self.frequency_range,
+        }
+
+
 class PropagationModel(abc.ABC):
     """ Basic abstraction to implement propagation models. """
 
     @abc.abstractmethod
     def compute_frequency_response(self, query: QueryConfig) -> lps_channel_rsp.SpectralResponse:
-        """
-        Returns:
-            SpectralResponse
-        """
+        """ Compute the frequency response of the channel based on a propagation model """
+
+    def compute_response(self, query: QueryConfig) -> \
+        typing.Tuple[lps_channel_rsp.SpectralResponse, lps_channel_rsp.TemporalResponse]:
+        """ Compute the frequency and time response of the channel based on a propagation model """
+
+        rsp_f = self.compute_frequency_response(query=query)
+        rsp_t = lps_channel_rsp.TemporalResponse.from_spectral(rsp_f)
+
+        return rsp_f, rsp_t

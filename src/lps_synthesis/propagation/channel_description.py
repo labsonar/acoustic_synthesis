@@ -13,9 +13,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import lps_utils.quantities as lps_qty
+import lps_utils.hashable as lps_hash
 import lps_synthesis.propagation.layers as lps_layer
 
-class Description():
+class Description(lps_hash.Hashable):
     """
     Represents the structure of an acoustic channel, including different layers
     (e.g., air, water, seabed) and the corresponding depths. The layers can be converted to a format
@@ -25,25 +26,6 @@ class Description():
     def __init__(self) -> None:
         self.air_sea = lps_layer.Air()
         self.layers = {}
-
-    def to_oases_format(self) -> str:
-        """
-        Converts the acoustic channel description to OASES format, used for acoustic simulations.
-
-        Returns:
-            A string formatted according to the OASES input file format.
-
-        Raises:
-            UnboundLocalError: If the channel contains no layers.
-        """
-        if len(self.layers) == 0:
-            raise UnboundLocalError("Should not export an empty channel")
-
-        n_layers = len(self.layers) + (1 if self.air_sea is not None else 0)
-        ret = f"{n_layers}\n"
-        for depth, layer in self:
-            ret += f"{depth.get_m():.6f} {layer.to_oases_format()}\n"
-        return ret[:-1]
 
     def __str__(self) -> str:
         ret = ""
@@ -58,7 +40,7 @@ class Description():
         return iter(all_layers)
 
     def add(self, depth: lps_qty.Distance,
-            layer: typing.Union[lps_qty.Speed, lps_layer.AcousticalLayer]) -> None:
+            layer: lps_qty.Speed | lps_layer.AcousticalLayer | lps_layer.SeabedType) -> None:
         """
         Adds a new layer to the channel description at a specific depth.
 
@@ -255,3 +237,5 @@ class Description():
                 raise NotImplementedError(f"load for {layer['type']} not implemented")
 
         return desc
+
+ChannelDescription = Description

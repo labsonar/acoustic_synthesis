@@ -1,6 +1,5 @@
 import os
-import typing
-import math
+import tqdm
 
 import numpy as np
 
@@ -32,10 +31,26 @@ class Oases(model_core.PropagationModel):
         dat_file = os.path.join(self.workdir, f"{base_name}.dat")
         trf_file = os.path.join(self.workdir, f"{base_name}.trf")
 
-        self._export_dat_file(query = query, filename = dat_file)
+        frequencies, _,  = query.get_frequency_sweep()
 
-        lps_proc.run_process(comand=f"oasp {base_name}",
-                             running_directory=self.workdir)
+        with tqdm.tqdm(
+            total=len(frequencies),
+            desc="Frequencies",
+            ncols=120,
+            leave=False,
+        ) as pbar:
+
+            def on_output(line: str):
+                if line.startswith("FREQ. NO."):
+                    pbar.update(1)
+
+            self._export_dat_file(query = query, filename = dat_file)
+
+            lps_proc.run_process(
+                comand=f"oasp {base_name}",
+                running_directory=self.workdir,
+                on_output=on_output,
+            )
 
         # if os.path.exists(dat_file):
         #     os.remove(dat_file)

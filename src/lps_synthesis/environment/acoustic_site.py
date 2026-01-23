@@ -45,7 +45,7 @@ class Season(enum.IntEnum):
             Season.WINTER: [6, 7, 8],
             Season.SPRING: [9, 10, 11],
         }
-        if lat < 0:
+        if lat.get_deg() < 0:
             return _south_map[self]
         else:
             return _north_map[self]
@@ -517,7 +517,7 @@ class EnvironmentProspector:
     def _seasonal_values(self, da, season: Season, lat: float, lon: float) -> np.array:
 
         time_index = da["valid_time"].to_index()
-        seasonal_mask = time_index.month.isin(season.get_months(lat))
+        seasonal_mask = time_index.month.isin(season.get_months(lps_qty.Latitude.deg(lat)))
         da_filtered = da.sel(valid_time=seasonal_mask)
 
         da_point = da_filtered.interp(latitude=lat, longitude=lon)
@@ -634,8 +634,8 @@ class AcousticSiteProspector:
     def get_env(self,
                 point: lps_dyn.Point,
                 season: Season,
-                shipping_value: lps_env.Shipping = None,
-                seed: int = None) -> lps_env.Environment:
+                shipping_value: lps_env.Shipping | float | None = None,
+                seed: int | None = None) -> lps_env.Environment:
         """ Return the lps_env.Environment to the AcousticScenario. """
 
         rain = self.environment_prospector.get_rain(point, season)
@@ -643,8 +643,10 @@ class AcousticSiteProspector:
 
         if shipping_value is None:
             rng = random.Random(seed)
-            shipping_value = rng.uniform(lps_env.Shipping.NONE.value,
-                                         lps_env.Shipping.LEVEL_7.value),
+            shipping_value = rng.uniform(
+                    lps_env.Shipping.NONE.value,
+                    lps_env.Shipping.LEVEL_7.value
+                )
 
         return lps_env.Environment(
             rain_value = rain,
@@ -730,10 +732,10 @@ def prospect_local(
     center_point: lps_dyn.Point,
     dist_lat: lps_qty.Distance,
     dist_lon: lps_qty.Distance,
-    ssp: SSPProspector = None,
-    seabed: SeabedProspector = None,
-    depth_prosector: DepthProspector = None,
-    desired_seabed: typing.Optional[syn_lay.SeabedType] = None,
+    ssp: SSPProspector | None = None,
+    seabed: SeabedProspector | None = None,
+    depth_prosector: DepthProspector | None = None,
+    desired_seabed: syn_lay.SeabedType | None = None,
     max_depth_dist: lps_qty.Distance = lps_qty.Distance.m(200),
 ):
     """

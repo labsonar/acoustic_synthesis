@@ -28,7 +28,7 @@ class DatabaseEntry(syndb_core.CatalogEntry):
     def __init__(self,
                  ship_id: int,
                  scenario_id: int,
-                 dynamic: syndb_dynamic.SimulationDynamic = None):
+                 dynamic: syndb_dynamic.SimulationDynamic | None = None):
         self.ship_id = ship_id
         self.scenario_id = scenario_id
         self.dynamic = dynamic or syndb_dynamic.SimulationDynamic.rand()
@@ -136,10 +136,7 @@ class ToyDatabase(Database):
 
     def __init__(self, n_samples = 100, seed: int = 42):
         selected_locals = [
-            syndb_scenario.Location.GUANABARA_BAY,
-            syndb_scenario.Location.SANTOS_BASIN,
-            syndb_scenario.Location.RIA_DE_VIGO,
-            syndb_scenario.Location.STRAIT_OF_GEORGIA,
+            syndb_scenario.Location.GUANABARA_BAY
         ]
 
         rng = random.Random(seed)

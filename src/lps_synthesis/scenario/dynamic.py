@@ -529,7 +529,6 @@ class Element():
 
         return t, speed_list
 
-
 class RelativeElement():
     """ Class to represent any element that moves in the simulation """
 

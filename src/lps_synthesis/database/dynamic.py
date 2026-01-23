@@ -34,7 +34,8 @@ class SimulationDynamic:
              max_dist: lps_qty.Distance = lps_qty.Distance.m(250)) -> "SimulationDynamic":
         """Generate a random dynamic configuration."""
 
-        dist = lps_qty.Distance.m(random.randint(min_dist.get_m(), max_dist.get_m()))
+        dist = lps_qty.Distance.m(random.randint(int(min_dist.get_m()),
+                                                 int(max_dist.get_m())))
         dynamic_type = random.choice(list(DynamicType))
         return SimulationDynamic(dynamic_type, dist)
 

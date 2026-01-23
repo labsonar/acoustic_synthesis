@@ -300,7 +300,6 @@ class Sea(enum.Enum):
 
         return charnock_constant * gravitational_acceleration** 2 / gravitational_acceleration
 
-
 class Environment():
     """Class to represent an acoustical environment background."""
 

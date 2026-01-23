@@ -854,7 +854,6 @@ class NarrowBandNoise(NoiseSource):
 
         return cls(frequency, amp_db_p_upa, epsilon_fn, phi_fn, rel_position)
 
-
 class Ship(NoiseContainer):
     """ Class to represent a Ship in the scenario"""
 

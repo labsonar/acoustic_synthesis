@@ -5,158 +5,160 @@ Define AcousticScenario and its components.
 """
 import enum
 import random
+import typing
 
 import pandas as pd
 
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import cartopy.mpl.geoaxes as cgeo
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.dynamic as lps_sce_dyn
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.environment.acoustic_site as lps_site
-import lps_synthesis.propagation.channel_description as lps_desc
 import lps_synthesis.propagation.channel as lps_channel
-import lps_synthesis.propagation.layers as lps_layer
 
 import lps_synthesis.database.catalog as syndb_core
 
 class Location(enum.Enum):
     """ Enumeration of reference oceanic and coastal locations. """
-    ADRIATIC_SEA = enum.auto()
-    AMUNDSEN_SEA = enum.auto()
-    ANDFJORDEN = enum.auto()
+    ARABIAN_SEA = enum.auto()
     ARGENTINE_SEA = enum.auto()
-    BENGAL_BAY = enum.auto()
-    EASTERN_SOUTH_PACIFIC_OCEAN = enum.auto()
+    BALTIC_SEA = enum.auto()
+    BAY_OF_BENGAL = enum.auto()
+    CORAL_SEA = enum.auto()
+    EAST_CHINA_SEA = enum.auto()
     GUANABARA_BAY = enum.auto()
+    GULF_OF_ADEN = enum.auto()
+    GULF_OF_BOTHNIA = enum.auto()
+    GULF_OF_CADIZ = enum.auto()
     GULF_OF_GUINEA = enum.auto()
-    GULF_OF_ST_LAWRENCE = enum.auto()
-    GULF_OF_THE_FARALLONES = enum.auto()
-    MOZAMBIQUE_CHANNEL = enum.auto()
-    NORTH_SEA = enum.auto()
-    ONTONG_JAVA_PLATEAU = enum.auto()
-    RIA_DE_VIGO = enum.auto()
-    SANTOS_BASIN = enum.auto()
-    STRAIT_OF_GEORGIA = enum.auto()
-    STRAIT_OF_HORMUZ = enum.auto()
-    TANPA_BAY = enum.auto()
-    WESTERN_NORTH_PACIFIC_OCEAN = enum.auto()
-    YUCATAN_BASIN = enum.auto()
-
+    HEBRIDES_SEA = enum.auto()
+    QUEEN_CHARLOTTE_SOUND = enum.auto()
+    RIO_DE_LA_PLATA_ESTUARY = enum.auto()
+    SCOTIA_SEA = enum.auto()
+    SEA_OF_JAPAN = enum.auto()
+    SOUTH_CHINA_SEA = enum.auto()
+    TASMAN_SEA = enum.auto()
+    WESTERN_SOUTH_PACIFIC_OCEAN = enum.auto()
+    YUCATAN_CHANNEL = enum.auto()
 
     def get_point(self) -> lps_sce_dyn.Point:
         """ Returns the latitude and longitude of the selected location. """
         latlon_dict = {
-            Location.ADRIATIC_SEA: [43.625, 14.375],
-            Location.AMUNDSEN_SEA: [-72.125, -122.625],
-            Location.ANDFJORDEN: [69.125, 16.375],
+            Location.ARABIAN_SEA: [23.375, 67.875],
             Location.ARGENTINE_SEA: [-50.875, -67.625],
-            Location.BENGAL_BAY: [15.625, 83.375],
-            Location.EASTERN_SOUTH_PACIFIC_OCEAN: [-43.875, -90.125],
+            Location.BALTIC_SEA: [55.125, 12.875],
+            Location.BAY_OF_BENGAL: [18.875, 89.375],
+            Location.CORAL_SEA: [-21.875, 151.125],
+            Location.EAST_CHINA_SEA: [25.125, 122.125],
             Location.GUANABARA_BAY: [-23.125, -43.125],
-            Location.GULF_OF_GUINEA: [3.125, 7.125],
-            Location.GULF_OF_ST_LAWRENCE: [43.875, -60.875],
-            Location.GULF_OF_THE_FARALLONES: [37.875, -122.875],
-            Location.MOZAMBIQUE_CHANNEL: [-14.125, 45.875],
-            Location.NORTH_SEA: [56.875, 2.625],
-            Location.ONTONG_JAVA_PLATEAU: [-1.625, 158.675],
-            Location.RIA_DE_VIGO: [42.125, -9.125],
-            Location.SANTOS_BASIN: [-25.875, -42.625],
-            Location.STRAIT_OF_GEORGIA: [49.125, -123.375],
-            Location.STRAIT_OF_HORMUZ: [26.375, 56.625],
-            Location.TANPA_BAY: [27.625, -82.875],
-            Location.WESTERN_NORTH_PACIFIC_OCEAN: [30.125, 152.875],
-            Location.YUCATAN_BASIN: [21.875, -85.125],
-
+            Location.GULF_OF_ADEN: [12.375, 51.125],
+            Location.GULF_OF_BOTHNIA: [64.675, 23.875],
+            Location.GULF_OF_CADIZ: [36.875, -8.325],
+            Location.GULF_OF_GUINEA: [3.875, 7.375],
+            Location.HEBRIDES_SEA: [56.875, -7.625],
+            Location.QUEEN_CHARLOTTE_SOUND: [51.375, -129.125],
+            Location.RIO_DE_LA_PLATA_ESTUARY: [-36.325, -55.875],
+            Location.SCOTIA_SEA: [-53.625, -38.875],
+            Location.SEA_OF_JAPAN: [43.875, 141.125],
+            Location.SOUTH_CHINA_SEA: [10.675, 117.675],
+            Location.TASMAN_SEA: [-39.875, 168.125],
+            Location.WESTERN_SOUTH_PACIFIC_OCEAN: [-12.125, 13.125],
+            Location.YUCATAN_CHANNEL: [21.875, -85.125],
         }
         return lps_sce_dyn.Point.deg(*latlon_dict[self])
 
     def to_string(self, language: str = "en_US") -> str:
-        """Returns the localized name of the location."""
+        """Return the localized name of the location."""
+
+        names_pt_br = {
+            Location.ARABIAN_SEA: "Mar da Arábia",
+            Location.ARGENTINE_SEA: "Mar da Argentina",
+            Location.BALTIC_SEA: "Mar Báltico",
+            Location.BAY_OF_BENGAL: "Baía de Bengala",
+            Location.CORAL_SEA: "Mar de Coral",
+            Location.EAST_CHINA_SEA: "Mar da China Oriental",
+            Location.GULF_OF_ADEN: "Golfo de Áden",
+            Location.GULF_OF_BOTHNIA: "Golfo de Bótnia",
+            Location.GULF_OF_CADIZ: "Golfo de Cádis",
+            Location.GULF_OF_GUINEA: "Golfo da Guiné",
+            Location.GUANABARA_BAY: "Baía de Guanabara",
+            Location.HEBRIDES_SEA: "Mar das Hébridas",
+            Location.QUEEN_CHARLOTTE_SOUND: "Queen Charlotte Sound",
+            Location.RIO_DE_LA_PLATA_ESTUARY: "Estuário do Rio da Prata",
+            Location.SCOTIA_SEA: "Mar de Scotia",
+            Location.SEA_OF_JAPAN: "Mar do Japão",
+            Location.SOUTH_CHINA_SEA: "Mar do Sul da China",
+            Location.TASMAN_SEA: "Mar da Tasmânia",
+            Location.WESTERN_SOUTH_PACIFIC_OCEAN: "Oeste do Oceano Pacífico Sul",
+            Location.YUCATAN_CHANNEL: "Canal de Yucatán",
+        }
+
+        names_en_us = {
+            Location.ARABIAN_SEA: "Arabian Sea",
+            Location.ARGENTINE_SEA: "Argentine Sea",
+            Location.BALTIC_SEA: "Baltic Sea",
+            Location.BAY_OF_BENGAL: "Bay of Bengal",
+            Location.CORAL_SEA: "Coral Sea",
+            Location.EAST_CHINA_SEA: "East China Sea",
+            Location.GULF_OF_ADEN: "Gulf of Aden",
+            Location.GULF_OF_BOTHNIA: "Gulf of Bothnia",
+            Location.GULF_OF_CADIZ: "Gulf of Cadiz",
+            Location.GULF_OF_GUINEA: "Gulf of Guinea",
+            Location.GUANABARA_BAY: "Guanabara Bay",
+            Location.HEBRIDES_SEA: "Hebrides Sea",
+            Location.QUEEN_CHARLOTTE_SOUND: "Queen Charlotte Sound",
+            Location.RIO_DE_LA_PLATA_ESTUARY: "Rio de la Plata Estuary",
+            Location.SCOTIA_SEA: "Scotia Sea",
+            Location.SEA_OF_JAPAN: "Sea of Japan",
+            Location.SOUTH_CHINA_SEA: "South China Sea",
+            Location.TASMAN_SEA: "Tasman Sea",
+            Location.WESTERN_SOUTH_PACIFIC_OCEAN: "Western South Pacific Ocean",
+            Location.YUCATAN_CHANNEL: "Yucatan Channel",
+        }
 
         if language.lower() in ("pt_br", "pt-br"):
-            names = {
-                Location.ADRIATIC_SEA: "Mar Adriático",
-                Location.AMUNDSEN_SEA: "Mar de Amundsen",
-                Location.ANDFJORDEN: "Andfjorden",
-                Location.ARGENTINE_SEA: "Mar da Argentina",
-                Location.BENGAL_BAY: "Baía de Bengala",
-                Location.EASTERN_SOUTH_PACIFIC_OCEAN: "Leste do Oceano Pacífico Sul",
-                Location.GUANABARA_BAY: "Baía de Guanabara",
-                Location.GULF_OF_GUINEA: "Golfo da Guiné",
-                Location.GULF_OF_ST_LAWRENCE: "Golfo de São Lourenço",
-                Location.GULF_OF_THE_FARALLONES: "Golfo dos Farallones",
-                Location.MOZAMBIQUE_CHANNEL: "Canal de Moçambique",
-                Location.NORTH_SEA: "Mar do Norte",
-                Location.ONTONG_JAVA_PLATEAU: "Planalto Ontong Java",
-                Location.RIA_DE_VIGO: "Ria de Vigo",
-                Location.SANTOS_BASIN: "Bacia de Santos",
-                Location.STRAIT_OF_GEORGIA: "Estreito de Geórgia",
-                Location.STRAIT_OF_HORMUZ: "Estreito de Ormuz",
-                Location.TANPA_BAY: "Baía de Tampa",
-                Location.WESTERN_NORTH_PACIFIC_OCEAN: "Oeste do Oceano Pacífico Norte",
-                Location.YUCATAN_BASIN: "Bacia de Yucatán",
-            }
-            return names[self]
+            return names_pt_br[self]
 
-        elif language.lower() in ("en_us", "en-us"):
-            names = {
-                Location.ADRIATIC_SEA: "Adriatic Sea",
-                Location.AMUNDSEN_SEA: "Amundsen Sea",
-                Location.ANDFJORDEN: "Andfjorden",
-                Location.ARGENTINE_SEA: "Argentine Sea",
-                Location.BENGAL_BAY: "Bay of Bengal",
-                Location.EASTERN_SOUTH_PACIFIC_OCEAN: "Eastern South Pacific Ocean",
-                Location.GUANABARA_BAY: "Guanabara Bay",
-                Location.GULF_OF_GUINEA: "Gulf of Guinea",
-                Location.GULF_OF_ST_LAWRENCE: "Gulf of St. Lawrence",
-                Location.GULF_OF_THE_FARALLONES: "Gulf of the Farallones",
-                Location.MOZAMBIQUE_CHANNEL: "Mozambique Channel",
-                Location.NORTH_SEA: "North Sea",
-                Location.ONTONG_JAVA_PLATEAU: "Ontong Java Plateau",
-                Location.RIA_DE_VIGO: "Ria of Vigo",
-                Location.SANTOS_BASIN: "Santos Basin",
-                Location.STRAIT_OF_GEORGIA: "Strait of Georgia",
-                Location.STRAIT_OF_HORMUZ: "Strait of Hormuz",
-                Location.TANPA_BAY: "Tampa Bay",
-                Location.WESTERN_NORTH_PACIFIC_OCEAN: "Western North Pacific Ocean",
-                Location.YUCATAN_BASIN: "Yucatan Basin",
-            }
-            return names[self]
+        if language.lower() in ("en_us", "en-us"):
+            return names_en_us[self]
 
-    def get_shipping(self) -> lps_env.Shipping:
+        raise NotImplementedError(f"Location.to_string not implemented for language: {language}")
+
+    def get_shipping_level(self) -> lps_env.Shipping:
         """Return the typical shipping level for this Location.
 
           https://www.arcgis.com/apps/mapviewer/index.html?layers=2f72eb72cc0b403bb19a7cd1853f3d94
         """
         shipping_map = {
-            Location.ADRIATIC_SEA: lps_env.Shipping.LEVEL_6,
-            Location.AMUNDSEN_SEA: lps_env.Shipping.NONE,
-            Location.ANDFJORDEN: lps_env.Shipping.LEVEL_5,
+            Location.ARABIAN_SEA: lps_env.Shipping.LEVEL_4,
             Location.ARGENTINE_SEA: lps_env.Shipping.LEVEL_1,
-            Location.BENGAL_BAY: lps_env.Shipping.LEVEL_2,
-            Location.EASTERN_SOUTH_PACIFIC_OCEAN: lps_env.Shipping.LEVEL_1,
+            Location.BALTIC_SEA: lps_env.Shipping.LEVEL_7,
+            Location.BAY_OF_BENGAL: lps_env.Shipping.LEVEL_3,
+            Location.CORAL_SEA: lps_env.Shipping.LEVEL_2,
+            Location.EAST_CHINA_SEA: lps_env.Shipping.LEVEL_5,
             Location.GUANABARA_BAY: lps_env.Shipping.LEVEL_3,
+            Location.GULF_OF_ADEN: lps_env.Shipping.LEVEL_4,
+            Location.GULF_OF_BOTHNIA: lps_env.Shipping.LEVEL_6,
+            Location.GULF_OF_CADIZ: lps_env.Shipping.LEVEL_6,
             Location.GULF_OF_GUINEA: lps_env.Shipping.LEVEL_4,
-            Location.GULF_OF_ST_LAWRENCE: lps_env.Shipping.LEVEL_4,
-            Location.GULF_OF_THE_FARALLONES: lps_env.Shipping.LEVEL_6,
-            Location.MOZAMBIQUE_CHANNEL: lps_env.Shipping.LEVEL_2,
-            Location.NORTH_SEA: lps_env.Shipping.LEVEL_5,
-            Location.ONTONG_JAVA_PLATEAU: lps_env.Shipping.LEVEL_2,
-            Location.RIA_DE_VIGO: lps_env.Shipping.LEVEL_7,
-            Location.SANTOS_BASIN: lps_env.Shipping.LEVEL_3,
-            Location.STRAIT_OF_GEORGIA: lps_env.Shipping.LEVEL_7,
-            Location.STRAIT_OF_HORMUZ: lps_env.Shipping.LEVEL_6,
-            Location.TANPA_BAY: lps_env.Shipping.LEVEL_6,
-            Location.WESTERN_NORTH_PACIFIC_OCEAN: lps_env.Shipping.LEVEL_3,
-            Location.YUCATAN_BASIN: lps_env.Shipping.LEVEL_4,
+            Location.HEBRIDES_SEA: lps_env.Shipping.LEVEL_6,
+            Location.QUEEN_CHARLOTTE_SOUND: lps_env.Shipping.LEVEL_2,
+            Location.RIO_DE_LA_PLATA_ESTUARY: lps_env.Shipping.LEVEL_2,
+            Location.SCOTIA_SEA: lps_env.Shipping.LEVEL_1,
+            Location.SEA_OF_JAPAN: lps_env.Shipping.LEVEL_5,
+            Location.SOUTH_CHINA_SEA: lps_env.Shipping.LEVEL_3,
+            Location.TASMAN_SEA: lps_env.Shipping.LEVEL_1,
+            Location.WESTERN_SOUTH_PACIFIC_OCEAN: lps_env.Shipping.LEVEL_2,
+            Location.YUCATAN_CHANNEL: lps_env.Shipping.LEVEL_4,
         }
 
         return shipping_map[self]
 
-    def __str__(self):
+    def __repr__(self) -> str:
         return self.to_string()
 
     def as_dict(self):
@@ -171,12 +173,24 @@ class Location(enum.Enum):
                 "Longitude (dms)": str(p.longitude),
             }
 
+    def is_shallow_water(self, etopo_file: str | None = None) -> bool:
+        """ Indicates whether the location is classified as shallow water. """
+        if etopo_file is None:
+            prospector = lps_site.DepthProspector()
+        else:
+            prospector = lps_site.DepthProspector(etopo_file=etopo_file)
+
+        return prospector.get(self.get_point()) < lps_qty.Distance.ft(600)
+        # deep water (> 600 ft)
+        # R. P. Hodges, Underwater acoustics: analysis, design, and performance of sonar.
+        # Hoboken, NJ: Wiley, 2010. doi: 10.1002/9780470665244.
+
     @staticmethod
     def plot(filename: str):
         """ Plot all defined locations on a world map. """
 
         plt.figure(figsize=(16, 9), dpi=600)
-        ax = plt.axes(projection=ccrs.PlateCarree())
+        ax = typing.cast(cgeo.GeoAxes, plt.axes(projection=ccrs.PlateCarree()))
         ax.set_global()
         ax.coastlines(resolution='110m', linewidth=0.6)
         ax.add_feature(cfeature.LAND, zorder=0, facecolor='lightgray')
@@ -184,11 +198,11 @@ class Location(enum.Enum):
 
         for local in Location:
             p = local.get_point()
-            color='blue' # if local.is_shallow_water() else 'red'
-            offset=1.5 # if local.is_shallow_water() else -4.5
+            color='blue' if local.is_shallow_water() else 'red'
+            offset=1.5 if local.is_shallow_water() else -4.5
             ax.plot(p.longitude.get_deg(), p.latitude.get_deg(), 'o',
                     markersize=4, color=color, transform=ccrs.PlateCarree())
-            ax.text(p.longitude.get_deg() + offset, p.latitude.get_deg(), local.value,
+            ax.text(p.longitude.get_deg() + offset, p.latitude.get_deg(), f"{local.value}",
                     fontsize=6, color=color, transform=ccrs.PlateCarree())
 
         plt.savefig(filename, dpi=600, bbox_inches="tight")
@@ -213,9 +227,9 @@ class AcousticScenario(syndb_core.CatalogEntry):
     """ Class to represent an Acoustic Scenario"""
 
     def __init__(self,
-                 local: Location = None,
-                 season: lps_site.Season = None,
-                 prospector: lps_site.AcousticSiteProspector = None):
+                 local: Location | None = None,
+                 season: lps_site.Season | None = None,
+                 prospector: lps_site.AcousticSiteProspector | None = None):
         self.local = local or Location.rand()
         self.season = season or lps_site.Season.rand()
         self.prospector = prospector or lps_site.AcousticSiteProspector()
@@ -230,11 +244,11 @@ class AcousticScenario(syndb_core.CatalogEntry):
             "Season": self.season.name.capitalize(),
         }
 
-    def get_env(self, seed: int = None) -> lps_env.Environment:
+    def get_env(self, seed: int | None = None) -> lps_env.Environment:
         """ Return the lps_env.Environment to the AcousticScenario. """
         return self.prospector.get_env(point = self.local.get_point(),
                                        season = self.season,
-                                       shipping_value = self.local.get_shipping(),
+                                       shipping_value = self.local.get_shipping_level(),
                                        seed = seed)
 
     def get_channel(self) -> lps_channel.Channel:

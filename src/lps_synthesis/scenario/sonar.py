@@ -16,7 +16,7 @@ import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.noise_source as lps_noise
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.propagation.channel as lps_channel
-import lps_synthesis.propagation.models as lps_model
+import lps_synthesis.propagation.models as lps_propag_model
 
 class Directivity():
     """ Class to represent the gain of a polar diagram for an acoustic sensor. """
@@ -364,7 +364,7 @@ class Sonar(lps_dynamic.Element):
         source_ss = channel.description.get_speed_at(depth)
         sensor_ss = channel.description.get_speed_at(channel.sensor_depth)
 
-        doppler_noise = lps_model.apply_doppler(
+        doppler_noise = lps_propag_model.apply_doppler(
             input_data=signal,
             speeds=source_doppler_list,
             sound_speed=source_ss
@@ -376,7 +376,7 @@ class Sonar(lps_dynamic.Element):
             distance=rel_distance
         )
 
-        doppler_noise = lps_model.apply_doppler(
+        doppler_noise = lps_propag_model.apply_doppler(
             input_data=propag_noise,
             speeds=sensor_doppler_list,
             sound_speed=sensor_ss

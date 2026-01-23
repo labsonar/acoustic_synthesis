@@ -12,7 +12,6 @@ import pandas as pd
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.noise_source as lps_ns
 import lps_synthesis.database.dynamic as syndb_dynamic
-
 import lps_synthesis.database.catalog as syndb_core
 
 class ShipInfo(syndb_core.CatalogEntry):
@@ -62,7 +61,7 @@ class ShipInfo(syndb_core.CatalogEntry):
         """ Allocate the lps_ns.Ship based on ShipInfo. """
 
         return lps_ns.Ship(
-            ship_id=self.ship_id,
+            ship_id=f"{self.ship_id}",
             propulsion=lps_ns.CavitationNoise(
                 ship_type=self.ship_type,
                 n_blades=self.n_blades,

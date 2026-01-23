@@ -8,9 +8,10 @@ The module uses `lps_utils.quantities` to represent physical quantities.
 import enum
 
 import lps_utils.quantities as lps_qty
+import lps_utils.hashable as lps_hash
 import lps_synthesis.environment.environment as lps_environment
 
-class AcousticalLayer():
+class AcousticalLayer(lps_hash.Hashable):
     """Generic class to represent an acoustical layer for channel modeling."""
 
     def __init__(self,

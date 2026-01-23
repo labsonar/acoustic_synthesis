@@ -18,16 +18,16 @@ def _test_seabed():
         p = loc.get_point()
 
         try:
-            seabed_type = seabed.get(p)
+            seabed_type = seabed.get(p)[0].name
         except ValueError:
-            seabed_type = None
+            seabed_type = "None"
 
 
         rows.append({
             "location": loc.name,
             "lat": p.latitude.get_deg(),
             "lon": p.longitude.get_deg(),
-            "seabed": seabed_type.name if hasattr(seabed_type, "name") else str(seabed_type)
+            "seabed": seabed_type
         })
 
     df = pd.DataFrame(rows)
@@ -76,6 +76,8 @@ def _test_ssp(force: bool):
     shallow_locs = [loc for loc in syn_scenario.Location if loc.is_shallow_water()]
     deep_locs = [loc for loc in syn_scenario.Location if not loc.is_shallow_water()]
 
+    depth_prospector = syn_sites.DepthProspector()
+
     def plot_group(group_locs, fig_name):
         plt.figure(figsize=(10, 12))
 
@@ -85,7 +87,9 @@ def _test_ssp(force: bool):
             color = color_cycle[idx % len(color_cycle)]
 
             for season, linestyle in season_linestyles.items():
-                depths, svp = ssp.get(p, season, max_depth=None if not force else loc.local_depth())
+                depths, svp = ssp.get(p,
+                                      season,
+                                      max_depth=None if not force else depth_prospector.get(p))
 
                 if len(depths) == 0:
                     continue
@@ -119,12 +123,39 @@ def _test_ssp(force: bool):
 
     print("\nSSP plots saved: shallow and deepwater.\n")
 
+def _test_env():
+    envp = syn_sites.EnvironmentProspector()
+    rows = []
+
+    for loc in syn_scenario.Location:
+        for season in syn_sites.Season:
+
+            p = loc.get_point()
+            rain = envp.get_rain(p, season)
+            sea = envp.get_seastate(p, season)
+
+            rows.append({
+                "location": loc.name,
+                "lat": p.latitude.get_deg(),
+                "lon": p.longitude.get_deg(),
+                "season": season,
+                "rain": rain,
+                "sea": sea,
+            })
+
+    df = pd.DataFrame(rows)
+    print("\n=== DEPTH RESULTS ===")
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_columns", None)
+    print(df)
+    return df
 
 def _main():
     _test_seabed()
     _test_depth()
     _test_ssp(False)
     _test_ssp(True)
+    _test_env()
 
     print("\nAll tests completed.\n")
 

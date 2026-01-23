@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import argparse
 import time
@@ -10,7 +9,6 @@ import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.channel_description as lps_desc
 import lps_synthesis.propagation.layers as lps_layer
 import lps_synthesis.propagation.models as lps_models
-import lps_synthesis.propagation.channel_response as lps_channel_rsp
 
 def _run_comparison(
     sensor_depth: lps_qty.Distance,
@@ -35,7 +33,7 @@ def _run_comparison(
         source_depths=[source_depth],
         sensor_depth=sensor_depth,
         max_distance=max_distance,
-        max_distance_points=500,
+        max_distance_points=1,
         frequency_range=None,
     )
 
@@ -48,12 +46,8 @@ def _run_comparison(
         model = model_type.build_model()
 
         t0 = time.perf_counter()
-        rsp_f = model.compute_frequency_response(query)
+        responses[model_type.name] = model.compute_response(query)
         t1 = time.perf_counter()
-
-        rsp_t = lps_channel_rsp.TemporalResponse.from_spectral(rsp_f)
-
-        responses[model_type.name] = (rsp_f, rsp_t)
         timings[model_type.name] = t1 - t0
 
     ref_rsp_f, _ = next(iter(responses.values()))
@@ -65,7 +59,6 @@ def _run_comparison(
         f"depth[{local_depth}]_"
         f"distance[{max_distance}]"
     )
-
 
     fig, axs = plt.subplots(5, 1, figsize=(9, 9))
     fig.suptitle(id_name.replace("_", " | "))
@@ -106,7 +99,7 @@ def _run_comparison(
         ax.grid(True)
         ax.legend()
 
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.95))
 
     fname = f"comparison_{id_name}.png"
     plt.savefig(os.path.join(output_dir, fname), dpi=150)
