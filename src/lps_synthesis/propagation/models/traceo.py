@@ -36,7 +36,7 @@ class Traceo(model_core.PropagationModel):
         ranges = None
         depths = None
 
-        for k, f in enumerate(tqdm.tqdm(frequencies, desc="Frequencies", ncols=120, leave=False)):
+        for k, f in enumerate(tqdm.tqdm(frequencies, desc="Traceo", ncols=120, leave=False)):
 
             in_name = "temp.in"
             in_file = os.path.join(self.workdir, in_name)

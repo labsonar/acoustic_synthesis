@@ -1,4 +1,4 @@
-""" Example of use of scenario module
+""" Simple script for eva test
 """
 import os
 import time
@@ -8,67 +8,83 @@ import scipy.io.wavfile as wavfile
 import scipy.signal as scipy
 
 import lps_utils.quantities as lps_qty
+import lps_sp.signal as lps_sig
 import lps_synthesis.scenario as lps_scenario
+import lps_synthesis.environment.acoustic_site as lps_as
 import lps_synthesis.environment.environment as lps_env
-import lps_synthesis.propagation as lps_propag
+import lps_synthesis.database as lps_db
+import lps_synthesis.propagation.channel as lps_propag
+import lps_synthesis.propagation.models as lps_models
 
 
 def main():
     """main function of test noise_source."""
 
-    base_dir = "./result/scenario"
+    base_dir = "./result/eva"
     os.makedirs(base_dir, exist_ok=True)
 
-    environment = lps_env.Environment(rain_value=lps_env.Rain.LIGHT,
-                                    sea_value=lps_env.Sea.STATE_3,
-                                    shipping_value=lps_env.Shipping.LEVEL_3)
-    channel = lps_channel.PredefinedChannel.CYLINDRICAL.get_channel()
     sample_frequency = lps_qty.Frequency.khz(16)
+
+    acoustic_scenario = lps_db.AcousticScenario(lps_db.Location.GUANABARA_BAY,
+                                                lps_as.Season.SPRING)
+    dynamic = lps_db.SimulationDynamic(lps_db.DynamicType.CPA_IN, lps_qty.Distance.m(15))
+    ship_speed = lps_qty.Speed.kt(15)
+    simulation_time = lps_qty.Time.s(20)
+    simulation_step=lps_qty.Time.s(1)
+    zoom_samples = int(lps_qty.Time.s(0.5) * sample_frequency)
+
+    # channel = acoustic_scenario.get_channel()
+    channel = lps_propag.PredefinedChannel.SPHERICAL.get_channel(lps_models.Oases())
+    # environment = acoustic_scenario.get_env()
+    # environment = lps_env.Environment(rain_value=lps_env.Rain.NONE,
+    #                                 sea_value=lps_env.Sea.STATE_2,
+    #                                 shipping_value=lps_env.Shipping.LEVEL_1)
+    environment = None
+
+    ship_is = dynamic.get_ship_initial_state(speed=ship_speed, interval=simulation_time)
+
+    ship1 = lps_scenario.Ship(
+            ship_id="Ship_1",
+            propulsion=lps_scenario.CavitationNoise(
+                ship_type=lps_scenario.ShipType.BULKER,
+                cruise_rotacional_frequency = lps_qty.Frequency.rpm(80),
+            ),
+            initial_state=ship_is
+        )
+
+    print("max_speed: ", ship1.ref_state.max_speed)
+    print("velocity: ", ship1.ref_state.velocity)
+    print("seed: ", ship1.seed)
+    print("ship_type: ", ship1.ship_type)
+    print("n_blades: ", ship1.propulsion.n_blades)
+    print("n_shafts: ", ship1.propulsion.n_shafts)
+    print("length: ", ship1.propulsion.length)
+    print("cruise_speed: ", ship1.propulsion.cruise_speed)
+    print("cruise_rotacional_frequency: ", ship1.propulsion.cruise_rotacional_frequency)
+    print("max_speed: ", ship1.propulsion.max_speed)
+    print("rotacional_coeficient: ", ship1.propulsion.rotacional_coeficient)
+
+    # ship1.add_source(lps_scenario.NarrowBandNoise(
+    #         frequency=lps_qty.Frequency.khz(4),
+    #         amp_db_p_upa=80)
+    #     )
+
+    sonar_is = dynamic.get_sonar_initial_state(ship=ship1)
+
+    sonar = lps_scenario.Sonar.planar(
+            n_staves = 1,
+            spacing = lps_qty.Distance.m(0.085),
+            sensitivity = lps_qty.Sensitivity.db_v_p_upa(-200),
+            initial_state=sonar_is
+    )
 
     scenario = lps_scenario.Scenario(channel = channel,
                                     environment = environment,
-                                    step_interval=lps_qty.Time.s(1))
-
-    sonar = lps_sonar.Sonar.hydrophone(
-            sensitivity=lps_qty.Sensitivity.db_v_p_upa(-150),
-            initial_state=lps_dynamic.State(
-                    position = lps_dynamic.Displacement(
-                            lps_qty.Distance.m(0),
-                            lps_qty.Distance.m(0)))
-    )
-
+                                    step_interval= simulation_step)
     scenario.add_sonar("main", sonar)
-
-
-    ship1 = lps_noise.Ship(
-                    ship_id="Ship_1",
-                    propulsion=lps_noise.CavitationNoise(
-                        ship_type=lps_noise.ShipType.BULKER
-                    ),
-                    initial_state=lps_dynamic.State(
-                            position = lps_dynamic.Displacement(
-                                    lps_qty.Distance.km(-0.1),
-                                    lps_qty.Distance.km(-0.2)),
-                            velocity = lps_dynamic.Velocity(
-                                    lps_qty.Speed.kt(10),
-                                    lps_qty.Speed.kt(10)),
-                            acceleration = lps_dynamic.Acceleration(
-                                    lps_qty.Acceleration.m_s2(0),
-                                    lps_qty.Acceleration.m_s2(0.02))
-                    )
-            )
-
-    ship1.add_source(lps_noise.NarrowBandNoise(frequency=lps_qty.Frequency.khz(4),
-                                               amp_db_p_upa=80))
-    ship1.add_source(lps_noise.NarrowBandNoise(frequency=lps_qty.Frequency.khz(4.05),
-                                               amp_db_p_upa=80,
-                                               rel_position=lps_dynamic.Displacement(
-                                                    lps_qty.Distance.m(50),
-                                                    lps_qty.Distance.m(0))))
-
     scenario.add_noise_container(ship1)
 
-    scenario.simulate(60)
+    scenario.simulate(int(simulation_time/simulation_step))
 
     scenario.geographic_plot(os.path.join(base_dir,"geographic.png"))
     scenario.relative_distance_plot(os.path.join(base_dir,"distance.png"))
@@ -82,13 +98,26 @@ def main():
 
     time_axis = np.linspace(0, len(signal) / sample_frequency.get_hz(), num=len(signal))
 
+    peak_idx = np.argmax(np.abs(signal))
+    half = zoom_samples // 2
+    i0 = max(0, peak_idx - half)
+    i1 = min(len(signal), peak_idx + half)
+
     plt.figure(figsize=(10, 4))
-    plt.plot(time_axis, signal, label="Audio Signal")
+
+    plt.subplot(2, 1, 1)
+    plt.plot(time_axis, signal)
+    plt.ylabel("Amplitude")
+    plt.title("Audio Signal - Full")
+    plt.grid(True)
+
+    plt.subplot(2, 1, 2)
+    plt.plot(time_axis[i0:i1], signal[i0:i1])
     plt.xlabel("Time (s)")
     plt.ylabel("Amplitude")
-    plt.title("Audio Signal in Time Domain")
+    plt.title(f"Zoom around peak (sample {peak_idx})")
     plt.grid(True)
-    plt.legend()
+
     plt.tight_layout()
     plt.savefig(os.path.join(base_dir,"scenario_time.png"))
     plt.close()

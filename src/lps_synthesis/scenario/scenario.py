@@ -23,7 +23,7 @@ class Scenario():
     def __init__(self,
             step_interval: lps_qty.Time,
             channel: lps_channel.Channel,
-            environment: lps_env.Environment = None) -> None:
+            environment: lps_env.Environment | None = None) -> None:
         self.environment = environment or lps_env.Environment.random()
         self.channel = channel
         self.sonars = {}

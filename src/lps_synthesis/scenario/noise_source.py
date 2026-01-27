@@ -428,15 +428,15 @@ class CavitationNoise(NoiseSource):
 
     def __init__(self,
                  ship_type: ShipType,
-                 n_blades: int = None,
-                 n_shafts: int = None,
-                 length: lps_qty.Distance = None,
-                 cruise_speed: lps_qty.Speed = None,
-                 cruise_rotacional_frequency: lps_qty.Frequency = None,
-                 max_speed: lps_qty.Speed = None,
-                 rotacional_coeficient: lps_qty.Distance = None, # expected to be around 5,34 m
-                 cavitation_threshold: lps_qty.Frequency = None,
-                 seed : int = None
+                 n_blades: int | None = None,
+                 n_shafts: int | None = None,
+                 length: lps_qty.Distance | None = None,
+                 cruise_speed: lps_qty.Speed | None = None,
+                 cruise_rotacional_frequency: lps_qty.Frequency | None = None,
+                 max_speed: lps_qty.Speed | None = None,
+                 rotacional_coeficient: lps_qty.Distance | None = None, # expected to be around 5,34 m
+                 cavitation_threshold: lps_qty.Frequency | None = None,
+                 seed : int | None = None
                  ):
         self.seed = seed if seed is not None else id(self)
         self.ship_type = ship_type
@@ -522,6 +522,7 @@ class CavitationNoise(NoiseSource):
         min_coef = (min_speed - self.cruise_speed)/\
                     (lps_qty.Frequency.rpm(15) - self.cruise_rotacional_frequency)
 
+        print("min_coef: ", min_coef)
         if self.rotacional_coeficient < min_coef:
             self.rotacional_coeficient = min_coef
         return True
@@ -536,6 +537,7 @@ class CavitationNoise(NoiseSource):
         Returns:
             List of estimated RPM (lps_qty.Frequency).
         """
+        print("speeds: ", speeds)
         if self._check_rotacional_coeficient(speeds):
             return [(abs(s) - self.cruise_speed)/self.rotacional_coeficient +
                         self.cruise_rotacional_frequency for s in speeds]
@@ -570,8 +572,12 @@ class CavitationNoise(NoiseSource):
                 modulation_index = base_mod_index + progress * (cruise_mod_index - base_mod_index)
                 modulation_index = np.clip(modulation_index, 0, 1)
 
-            modulation_indices.append(modulation_index)
+            # modulation_indices.append(modulation_index)
+            #TODO voltar
+            modulation_indices.append(1)
 
+
+        print("modulation_indices: ", modulation_indices)
         return modulation_indices
 
     def modulate_noise(self,

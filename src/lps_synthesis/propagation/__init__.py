@@ -3,12 +3,13 @@ Allows to import the __all__ by folder name.
 """
 from .channel_description import ChannelDescription
 from .channel_response import SpectralResponse, TemporalResponse
-from .channel import Channel
+from .channel import Channel, PredefinedChannel
 from .layers import BottomType
 
 __all__ = [
     "ChannelDescription",
     "Channel",
+    "PredefinedChannel",
     "SpectralResponse",
     "TemporalResponse",
     "BottomType"

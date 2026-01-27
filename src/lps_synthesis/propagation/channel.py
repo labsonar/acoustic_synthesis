@@ -7,6 +7,7 @@ Classes:
     Channel: Manages the computation and storage of transfer functions using the channel description
 """
 import os
+import enum
 import typing
 
 import numpy as np
@@ -14,6 +15,8 @@ import numpy as np
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.models as lps_propag_model
 import lps_synthesis.propagation as lps_propag
+import lps_synthesis.propagation.channel_description as lps_propag_desc
+import lps_synthesis.propagation.layers as lps_propag_layer
 
 # DEFAULT_DIR = os.path.join(os.path.expanduser("~"), ".lps", "channel")
 DEFAULT_DIR = os.path.join(".", "channel")
@@ -25,12 +28,12 @@ class Channel():
 
     def __init__(self,
                  query: lps_propag_model.QueryConfig,
-                 model: lps_propag_model.PropagationModel = None,
-                 channel_dir: typing.Optional[str] = None,
-                 hash_id: str = None):
+                 model: lps_propag_model.PropagationModel | None = None,
+                 channel_dir: typing.Optional[str] | None = None,
+                 hash_id: str | None = None):
 
         self.query = query
-        self.model = model or lps_propag_model.Oases()
+        self.model = model or lps_propag_model.Traceo()
         self.channel_dir = channel_dir if channel_dir is not None else DEFAULT_DIR
         self.hash_id = hash_id
 
@@ -45,6 +48,7 @@ class Channel():
         return os.path.join(self.channel_dir, f"{self._get_hash()}{ext}")
 
     def _load(self) -> bool:
+        print("loading file: ", self._filename())
         self.response = lps_propag.TemporalResponse.load(self._filename())
         return self.response is not None
 
@@ -53,10 +57,11 @@ class Channel():
         self.response.save(self._filename())
 
     def _get_hash(self) -> str:
-        if self.hash_id is not None:
-            return self.hash_id
+        hash_id = f"{hash(self.query)}_{self.model}"
+        if self.hash_id is None:
+            return hash_id
 
-        return hash(self.query)
+        return f"{self.hash_id}_{hash_id}"
 
     def propagate(self,
                   input_data: np.array,
@@ -84,3 +89,33 @@ class Channel():
     def get_ir(self) -> lps_propag.TemporalResponse:
         """ Return the impulse response of a channel. """
         return self.response
+
+class PredefinedChannel(enum.Enum):
+    """ Enum class to represent predefined and preestimated channels. """
+    SPHERICAL = 0
+
+    def get_channel(self, model: lps_propag_model.PropagationModel | None = None):
+        """ Return the estimated channel"""
+
+        if self == PredefinedChannel.SPHERICAL:
+
+            local_depth = lps_qty.Distance.km(50)
+
+            desc = lps_propag_desc.Description()
+            desc.add(lps_qty.Distance.m(0), lps_qty.Speed.m_s(1500))
+            desc.add(local_depth - lps_qty.Distance.m(1), lps_qty.Speed.m_s(1500))
+            desc.add(local_depth, lps_propag_layer.BottomType.BASALT)
+
+            return Channel(
+                 query = lps_propag_model.QueryConfig(
+                        description = desc,
+                        sensor_depth = local_depth/2,
+                        source_depths = [local_depth/2],
+                        max_distance = lps_qty.Distance.m(500),
+                        max_distance_points = 501
+                    ),
+                 model = model,
+                 hash_id = self.__class__.__name__.lower())
+
+        else:
+            raise NotImplementedError(f"PredefinedChannel {self} not implemented")

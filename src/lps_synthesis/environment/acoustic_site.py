@@ -17,6 +17,7 @@ import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.layers as syn_lay
 import lps_synthesis.propagation.channel_description as lps_desc
 import lps_synthesis.propagation.channel as lps_channel
+import lps_synthesis.propagation.models as lps_propag_model
 import lps_synthesis.scenario.dynamic as lps_dyn
 import lps_synthesis.environment.environment as lps_env
 
@@ -609,27 +610,37 @@ class AcousticSiteProspector:
 
         return lps_qty.Distance.m(100)
 
-    def get_channel(self, point: lps_dyn.Point, season: Season, hash_id: str = None) -> \
+    def get_channel(self,
+                    point: lps_dyn.Point,
+                    season: Season,
+                    hash_id: str | None = None) -> \
             lps_channel.Channel:
         """ Return the lps_channel.Channel to the AcousticScenario. """
 
-        max_depth = self.depth_prospector.get(point)
-        seabed_type = self.seabed_prospector.get(point)
+        local_depth = self.depth_prospector.get(point)
+        seabed_type, _ = self.seabed_prospector.get(point)
+
+        sensor_depth = AcousticSiteProspector._sensor_depth(local_depth)
 
         depths, svp = self.ssp_prospector.get(
             point = point,
             season = season,
-            max_depth = max_depth
+            max_depth = local_depth
         )
 
         desc = lps_desc.Description()
         for depth, speed in zip(depths, svp):
             desc.add(depth, speed)
-        desc.add(max_depth, seabed_type.get_acoustical_layer())
+        desc.add(local_depth, seabed_type)
 
-        return lps_channel.Channel(description = desc,
-                        sensor_depth = AcousticSiteProspector._sensor_depth(max_depth),
-                        hash_id=hash_id)
+        query = lps_propag_model.QueryConfig(
+                description = desc,
+                sensor_depth = sensor_depth,
+                max_distance = lps_qty.Distance.m(250)
+        )
+
+        return lps_channel.Channel(query=query,
+                                   hash_id=hash_id)
 
     def get_env(self,
                 point: lps_dyn.Point,

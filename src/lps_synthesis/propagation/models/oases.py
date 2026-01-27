@@ -35,7 +35,7 @@ class Oases(model_core.PropagationModel):
 
         with tqdm.tqdm(
             total=len(frequencies),
-            desc="Frequencies",
+            desc="Oases",
             ncols=120,
             leave=False,
         ) as pbar:

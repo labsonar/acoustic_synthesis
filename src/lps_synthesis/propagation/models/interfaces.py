@@ -81,21 +81,25 @@ class FrequencyGrid:
     n_fft: int
     k0: int
 
-@dataclasses.dataclass(slots=True)
+@dataclasses.dataclass(slots=True, eq=False)
 class QueryConfig(lps_hash.Hashable):
     """
     Unified query for getting the channel response from propagation models.
     """
-    sample_frequency: lps_qty.Frequency
     description: lps_channel.Description
 
-    source_depths: typing.List[lps_qty.Distance]
     sensor_depth: lps_qty.Distance
+    source_depths: typing.List[lps_qty.Distance] = dataclasses.field(
+        default_factory=lambda: [
+            lps_qty.Distance.m(d) for d in np.arange(3, 25, 5)
+        ]
+    )
 
-    max_distance: lps_qty.Distance
+    max_distance: lps_qty.Distance = lps_qty.Distance.km(1)
     max_distance_points: int | None = None
 
     frequency_range: typing.Tuple[lps_qty.Frequency, lps_qty.Frequency] | None = None
+    sample_frequency: lps_qty.Frequency = lps_qty.Frequency.khz(16)
 
     def get_source_sweep(self) -> Sweep[lps_qty.Distance]:
         """
@@ -215,6 +219,9 @@ class QueryConfig(lps_hash.Hashable):
 
 class PropagationModel(abc.ABC):
     """ Basic abstraction to implement propagation models. """
+
+    def __str__(self) -> str:
+        return self.__class__.__name__.lower()
 
     @abc.abstractmethod
     def compute_frequency_response(self, query: QueryConfig) -> lps_channel_rsp.SpectralResponse:

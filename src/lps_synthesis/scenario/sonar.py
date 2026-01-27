@@ -12,10 +12,12 @@ import scipy.signal as scipy
 import matplotlib.pyplot as plt
 
 import lps_utils.quantities as lps_qty
+import lps_sp.signal as lps_sig
 import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.noise_source as lps_noise
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.propagation.channel as lps_channel
+import lps_synthesis.propagation.channel_response as lps_channel_rsp
 import lps_synthesis.propagation.models as lps_propag_model
 
 class Directivity():
@@ -231,10 +233,10 @@ class Sonar(lps_dynamic.Element):
 
     def __init__(self,
                  sensors: typing.List[AcousticSensor],
-                 signal_conditioner: SignalConditioning = None,
-                 adc: ADConverter = None,
-                 initial_state: lps_dynamic.State = None) -> None:
-        super().__init__(initial_state=initial_state)
+                 signal_conditioner: SignalConditioning | None = None,
+                 adc: ADConverter | None = None,
+                 initial_state: lps_dynamic.State | None = None) -> None:
+        super().__init__(initial_state=initial_state or lps_dynamic.State())
         self.sensors = sensors or IdealAmplifier(40)
         self.adc = adc or ADConverter()
         self.signal_conditioner = signal_conditioner or lps_dynamic.State()
@@ -260,7 +262,7 @@ class Sonar(lps_dynamic.Element):
                sensitivity: lps_qty.Sensitivity,
                adc: ADConverter = ADConverter(),
                signal_conditioner: SignalConditioning = IdealAmplifier(40),
-               initial_state: lps_dynamic.State = lps_dynamic.State()) -> 'Sonar':
+               initial_state: lps_dynamic.State | None = None) -> 'Sonar':
         """ Class constructor for construct a Sonar with only one sensor """
         sensors = []
         start_position = -((n_staves - 1) / 2) * spacing
@@ -344,7 +346,7 @@ class Sonar(lps_dynamic.Element):
     def _process_source_for_sensor(self,
                                 signal: np.ndarray,
                                 depth: lps_qty.Distance,
-                                noise_source: typing.Union[lps_dynamic.Element,lps_dynamic.RelativeElement],
+                                noise_source: lps_dynamic.Element | lps_dynamic.RelativeElement,
                                 sensor: AcousticSensor,
                                 channel: lps_channel.Channel,
                                 noise_fs: lps_qty.Frequency) -> np.ndarray:
@@ -361,31 +363,31 @@ class Sonar(lps_dynamic.Element):
             sensor_doppler_list.append(
                 sensor[step_id].get_relative_speed(noise_source[step_id]))
 
-        source_ss = channel.description.get_speed_at(depth)
-        sensor_ss = channel.description.get_speed_at(channel.sensor_depth)
+        source_ss = channel.query.description.get_speed_at(depth)
+        sensor_ss = channel.query.description.get_speed_at(channel.query.sensor_depth)
 
-        doppler_noise = lps_propag_model.apply_doppler(
+        doppler_noise = lps_channel_rsp.apply_doppler_by_block(
             input_data=signal,
             speeds=source_doppler_list,
-            sound_speed=source_ss
+            sound_speed=source_ss,
         )
 
         propag_noise = channel.propagate(
             input_data=doppler_noise,
             source_depth=depth,
-            distance=rel_distance
+            distance=rel_distance,
+            sample_frequency=noise_fs
         )
 
-        doppler_noise = lps_propag_model.apply_doppler(
+        doppler_noise = lps_channel_rsp.apply_doppler_by_block(
             input_data=propag_noise,
             speeds=sensor_doppler_list,
-            sound_speed=sensor_ss
+            sound_speed=sensor_ss,
         )
 
         return sensor.transduce(input_data=doppler_noise,
                                 noise_source=noise_source,
                                 fs=noise_fs)
-
 
     def _calculate_sensor_signal(self,
                                  sensor: AcousticSensor,
