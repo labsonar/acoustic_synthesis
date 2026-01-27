@@ -5,6 +5,7 @@ import dataclasses
 import pickle
 import bisect
 import numpy as np
+import matplotlib.pyplot as plt
 import scipy
 
 import lps_utils.quantities as lps_qty
@@ -154,7 +155,6 @@ class TemporalResponse:
         n_depths, n_ranges, n_f = h_f_tau.shape
         k0 = int(round(freqs[0] / df))
 
-        print("### n_f: ", n_f, "\tfft_samples: ", fft_samples)
         if n_f >= (fft_samples / 2) * 0.8: # greater than 80% of the bandwidth
             window = np.ones(n_f)
         else:
@@ -186,6 +186,63 @@ class TemporalResponse:
     def get_time_axis(self) -> typing.List[lps_qty.Time]:
         n_samples = self.h_t_tau.shape[2]
         return [i/self.sample_frequency for i in np.arange(n_samples)]
+
+    def print_as_image(
+        self,
+        filename: str | None = None,
+        db: bool = True,
+        vmin: float | None = None,
+        vmax: float | None = None,
+        cmap: str = "viridis",
+    ):
+        """
+        Plot h_t_tau[-1, :, :] as an imagesc-like image.
+
+        Y-axis: range [m]
+        X-axis: time [s]
+        """
+
+        if self.h_t_tau is None:
+            raise RuntimeError("TemporalResponse.h_t_tau is None")
+
+        # Select last depth
+        h = self.h_t_tau[-1, :, :]  # (range, time)
+
+        if db:
+            h_plot = 20 * np.log10(np.clip(np.abs(h), 1e-12, None))
+            label = "Amplitude [dB]"
+        else:
+            h_plot = h
+            label = "Amplitude"
+
+        ranges = np.array([r.get_m() for r in self.ranges])
+        times = [t.get_s() for t in self.get_time_axis()]
+
+        extent = [
+            times[0],
+            times[-1],
+            ranges[-1],
+            ranges[0],
+        ]
+
+        plt.figure(figsize=(10, 6))
+        plt.imshow(
+            h_plot,
+            aspect="auto",
+            extent=extent,
+            cmap=cmap,
+        )
+        plt.xlabel("Time [s]")
+        plt.ylabel("Range [m]")
+        plt.colorbar(label=label)
+        plt.title("Channel Impulse Response (last depth)")
+        plt.tight_layout()
+
+        if filename:
+            plt.savefig(filename, dpi=150)
+            plt.close()
+        else:
+            plt.show()
 
 
 def apply_doppler_by_sample(input_data: np.array,

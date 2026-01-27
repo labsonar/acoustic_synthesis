@@ -59,36 +59,11 @@ def main():
         sample_frequency=fs
     )
 
-    x2 = lps_channel_rsp.apply_doppler_by_block(
-        input_data=x,
-        speeds=speeds,
-        sound_speed=lps_qty.Speed.m_s(1500),
-    )
-
-    x3 = lps_channel_rsp.apply_doppler_block_crossfade(
-        input_data=x,
-        speeds=speeds,
-        sound_speed=lps_qty.Speed.m_s(1500),
-        sample_frequency=fs
-    )
-
     distances = np.linspace(r_start, r_end, 20)
     distances = [lps_qty.Distance.m(d) for d in distances]
 
-    print("### channel.propagate")
-    print("input_data: ", x.shape, " -> ", x.dtype)
-    print("limits: ", x.min(), " -> ", x.max())
-    print("source_depth: ", source_depth)
-    print("distance[", len(distances), "]: ", distances)
-    print("sample_frequency: ", fs)
-    print("### channel.propagate")
-
-    print("x1: ", x1.shape)
-    print("x2: ", x2.shape)
-    print("x3: ", x3.shape)
-
     y = channel.propagate(
-        input_data=x,
+        input_data=x1,
         source_depth=source_depth,
         distance=distances,
         sample_frequency=fs
@@ -103,16 +78,6 @@ def main():
         x1,
         fs,
         os.path.join(output_dir, "doppler.wav")
-    )
-    lps_sig.save_normalized_wav(
-        x2,
-        fs,
-        os.path.join(output_dir, "doppler_by_block.wav")
-    )
-    lps_sig.save_normalized_wav(
-        x3,
-        fs,
-        os.path.join(output_dir, "doppler_block_crossfade.wav")
     )
     lps_sig.save_normalized_wav(
         y,
@@ -151,8 +116,6 @@ def main():
     plt.savefig(os.path.join(output_dir, "time.png"), dpi=300)
     plt.close(fig)
 
-
-    print("\nTest completed successfully!")
     print(f"Results saved in: {os.path.abspath(output_dir)}")
 
 

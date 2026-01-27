@@ -19,6 +19,7 @@ import lps_synthesis.scenario.dynamic as lps_sce_dyn
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.environment.acoustic_site as lps_site
 import lps_synthesis.propagation.channel as lps_channel
+import lps_synthesis.propagation.models as lps_propag_model
 
 import lps_synthesis.database.catalog as syndb_core
 
@@ -165,12 +166,12 @@ class Location(enum.Enum):
         """ Return Local as dict to save local description. """
         p = self.get_point()
         return {
-                "Local ID": self.value,
-                "Name (us)": self.to_string(),
-                "Latitude (deg)": p.latitude.get_deg(),
-                "Longitude (deg)": p.longitude.get_deg(),
-                "Latitude (dms)": str(p.latitude),
-                "Longitude (dms)": str(p.longitude),
+                "Local_ID": self.value,
+                "Name_(us)": self.to_string(),
+                "Latitude_(deg)": p.latitude.get_deg(),
+                "Longitude_(deg)": p.longitude.get_deg(),
+                "Latitude_(dms)": str(p.latitude),
+                "Longitude_(dms)": str(p.longitude),
             }
 
     def is_shallow_water(self, etopo_file: str | None = None) -> bool:
@@ -251,8 +252,10 @@ class AcousticScenario(syndb_core.CatalogEntry):
                                        shipping_value = self.local.get_shipping_level(),
                                        seed = seed)
 
-    def get_channel(self) -> lps_channel.Channel:
+    def get_channel(self,
+                    model: lps_propag_model.PropagationModel | None = None) -> lps_channel.Channel:
         """ Return the lps_channel.Channel to the AcousticScenario. """
         return self.prospector.get_channel(point = self.local.get_point(),
                                        season = self.season,
+                                       model = model,
                                        hash_id=self.local.name.lower())

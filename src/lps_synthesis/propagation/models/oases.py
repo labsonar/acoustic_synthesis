@@ -16,20 +16,18 @@ class Oases(model_core.PropagationModel):
     OASES-based acoustic propagation model.
     """
 
-    def __init__(self, workdir: str = "./channel/oases"):
-        self.workdir = workdir
-
-    def compute_frequency_response(self, query: model_core.QueryConfig) -> \
+    def _query_to_model(self, query: model_core.QueryConfig) -> \
             lps_channel_rsp.SpectralResponse:
         """
         Compute the frequency-domain channel response using OASES.
         """
 
-        os.makedirs(self.workdir, exist_ok=True)
-
         base_name = "oases"
         dat_file = os.path.join(self.workdir, f"{base_name}.dat")
         trf_file = os.path.join(self.workdir, f"{base_name}.trf")
+
+        self.files_to_clean.append(dat_file)
+        self.files_to_clean.append(trf_file)
 
         frequencies, _,  = query.get_frequency_sweep()
 
@@ -51,11 +49,6 @@ class Oases(model_core.PropagationModel):
                 running_directory=self.workdir,
                 on_output=on_output,
             )
-
-        # if os.path.exists(dat_file):
-        #     os.remove(dat_file)
-        # if os.path.exists(trf_file):
-        #     os.remove(trf_file)
 
         return self._read_trf_file(trf_file)
 

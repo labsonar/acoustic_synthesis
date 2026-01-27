@@ -1,4 +1,8 @@
+import os
 import typing
+import random
+import string
+import shutil
 import abc
 import dataclasses
 
@@ -91,7 +95,7 @@ class QueryConfig(lps_hash.Hashable):
     sensor_depth: lps_qty.Distance
     source_depths: typing.List[lps_qty.Distance] = dataclasses.field(
         default_factory=lambda: [
-            lps_qty.Distance.m(d) for d in np.arange(3, 25, 5)
+            lps_qty.Distance.m(d) for d in np.arange(2, 21, 2)
         ]
     )
 
@@ -219,13 +223,38 @@ class QueryConfig(lps_hash.Hashable):
 
 class PropagationModel(abc.ABC):
     """ Basic abstraction to implement propagation models. """
+    def __init__(self, workdir: str | None = None) -> None:
+        super().__init__()
+        self.files_to_clean = []
+        self.new_dir = False
+        self.workdir = workdir or os.path.join("./channel/temps",
+                            "".join(random.choice(string.ascii_lowercase) for _ in range(10)))
 
     def __str__(self) -> str:
         return self.__class__.__name__.lower()
 
+    def _prepare_dir(self):
+        self.new_dir = not os.path.isdir(self.workdir)
+        os.makedirs(self.workdir, exist_ok=True)
+
+    def _clean_dir(self):
+        if self.new_dir:
+            shutil.rmtree(self.workdir)
+        else:
+            for file in self.files_to_clean:
+                if os.path.exists(file):
+                    os.remove(file)
+
     @abc.abstractmethod
+    def _query_to_model(self, query: QueryConfig) -> lps_channel_rsp.SpectralResponse:
+        """ Compute the frequency response of the channel based on a propagation model """
+
     def compute_frequency_response(self, query: QueryConfig) -> lps_channel_rsp.SpectralResponse:
         """ Compute the frequency response of the channel based on a propagation model """
+        self._prepare_dir()
+        ret = self._query_to_model(query)
+        self._clean_dir()
+        return ret
 
     def compute_response(self, query: QueryConfig) -> \
         typing.Tuple[lps_channel_rsp.SpectralResponse, lps_channel_rsp.TemporalResponse]:

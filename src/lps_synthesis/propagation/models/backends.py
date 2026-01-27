@@ -15,8 +15,6 @@ class TypeFactory(enum.Enum):
         Returns:
             SpectralResponse
         """
-        workdir = workdir or os.path.join("./channel", f"{self.name.lower()}")
-
         if self == TypeFactory.TRACEO:
             return traceo.Traceo(workdir=workdir)
 

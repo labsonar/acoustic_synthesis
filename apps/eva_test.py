@@ -33,8 +33,8 @@ def main():
     simulation_step=lps_qty.Time.s(1)
     zoom_samples = int(lps_qty.Time.s(0.5) * sample_frequency)
 
-    # channel = acoustic_scenario.get_channel()
-    channel = lps_propag.PredefinedChannel.SPHERICAL.get_channel(lps_models.Oases())
+    channel = acoustic_scenario.get_channel()
+    # channel = lps_propag.PredefinedChannel.SPHERICAL.get_channel(lps_models.Oases())
     # environment = acoustic_scenario.get_env()
     # environment = lps_env.Environment(rain_value=lps_env.Rain.NONE,
     #                                 sea_value=lps_env.Sea.STATE_2,
@@ -51,18 +51,6 @@ def main():
             ),
             initial_state=ship_is
         )
-
-    print("max_speed: ", ship1.ref_state.max_speed)
-    print("velocity: ", ship1.ref_state.velocity)
-    print("seed: ", ship1.seed)
-    print("ship_type: ", ship1.ship_type)
-    print("n_blades: ", ship1.propulsion.n_blades)
-    print("n_shafts: ", ship1.propulsion.n_shafts)
-    print("length: ", ship1.propulsion.length)
-    print("cruise_speed: ", ship1.propulsion.cruise_speed)
-    print("cruise_rotacional_frequency: ", ship1.propulsion.cruise_rotacional_frequency)
-    print("max_speed: ", ship1.propulsion.max_speed)
-    print("rotacional_coeficient: ", ship1.propulsion.rotacional_coeficient)
 
     # ship1.add_source(lps_scenario.NarrowBandNoise(
     #         frequency=lps_qty.Frequency.khz(4),

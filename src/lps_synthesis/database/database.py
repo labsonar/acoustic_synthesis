@@ -39,10 +39,10 @@ class DatabaseEntry(syndb_core.CatalogEntry):
     def as_dict(self) -> dict[str, typing.Any]:
         """ Converts the entry into a dictionary suitable for tabular representation. """
         return {
-                "Ship ID": self.ship_id,
-                "Scenario ID": self.scenario_id,
-                "Dynamic": str(self.dynamic.dynamic_type),
-                "Shortest Dist (m)": self.dynamic.shortest.get_m()
+                "SHIP_CATALOG_ID": self.ship_id,
+                "SCENARIO_CATALOG_ID": self.scenario_id,
+                "DYNAMIC": str(self.dynamic.dynamic_type),
+                "SHORTEST_DIST_(M)": self.dynamic.shortest.get_m()
             }
 
 class Database(syndb_core.Catalog[DatabaseEntry]):

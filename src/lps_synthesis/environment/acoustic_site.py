@@ -3,6 +3,7 @@ import enum
 import math
 import typing
 import random
+import warnings
 import tqdm
 
 import numpy as np
@@ -140,6 +141,12 @@ class SeabedProspector:
         """
 
         if SeabedProspector._cache_4326 is None:
+            warnings.filterwarnings(
+                "ignore",
+                message="Field with same name .* already exists",
+                category=RuntimeWarning,
+            )
+
             shom_data = gpd.read_file(shom_file)
             SeabedProspector._cache_4326 = shom_data.to_crs(4326)
 
@@ -198,11 +205,9 @@ class SeabedProspector:
             gpd.GeoSeries([sgeo_point], crs=4326).to_crs(3857).iloc[0]
         )
 
-        self.data_cartesian.loc[:, "dist"] = (
-            self.data_cartesian.geometry.distance(sgeo_point_cartesian)
-        )
+        dists = self.data_cartesian.geometry.distance(sgeo_point_cartesian)
+        nearest = self.data_cartesian.iloc[dists.idxmin()]
 
-        nearest = self.data_cartesian.sort_values("dist").iloc[0]
         boundary = nearest.geometry.boundary
         projected = boundary.project(sgeo_point_cartesian)
         nearest_point_cartesian = boundary.interpolate(projected)
@@ -395,17 +400,21 @@ class SSPProspector:
         df_s = self.salinity_map[season]
         df_t = self.temperature_map[season]
 
-        # ---------------------------------------------------------------------
-        # Find nearest salinity point
-        df_s["dist"] = (df_s.iloc[:, 0] - lat)**2 + (df_s.iloc[:, 1] - lon)**2
-        idx_s = df_s["dist"].idxmin()
 
-        # Find nearest temperature point
-        df_t["dist"] = (df_t.iloc[:, 0] - lat)**2 + (df_t.iloc[:, 1] - lon)**2
-        idx_t = df_t["dist"].idxmin()
+        lat_s = df_s.iloc[:, 0].to_numpy()
+        lon_s = df_s.iloc[:, 1].to_numpy()
 
-        row_s = df_s.loc[idx_s]
-        row_t = df_t.loc[idx_t]
+        lat_t = df_t.iloc[:, 0].to_numpy()
+        lon_t = df_t.iloc[:, 1].to_numpy()
+
+        dist_s = (lat_s - lat)**2 + (lon_s - lon)**2
+        dist_t = (lat_t - lat)**2 + (lon_t - lon)**2
+
+        idx_s = int(np.argmin(dist_s))
+        idx_t = int(np.argmin(dist_t))
+
+        row_s = df_s.iloc[idx_s]
+        row_t = df_t.iloc[idx_t]
 
         p_sal = lps_dyn.Point.deg(row_s.iloc[0], row_s.iloc[1])
         dist_sal = (point - p_sal).get_magnitude()
@@ -613,6 +622,7 @@ class AcousticSiteProspector:
     def get_channel(self,
                     point: lps_dyn.Point,
                     season: Season,
+                    model: lps_propag_model.PropagationModel | None = None,
                     hash_id: str | None = None) -> \
             lps_channel.Channel:
         """ Return the lps_channel.Channel to the AcousticScenario. """
@@ -636,10 +646,12 @@ class AcousticSiteProspector:
         query = lps_propag_model.QueryConfig(
                 description = desc,
                 sensor_depth = sensor_depth,
-                max_distance = lps_qty.Distance.m(250)
+                max_distance = lps_qty.Distance.km(0.5),
+                max_distance_points = 250
         )
 
         return lps_channel.Channel(query=query,
+                                   model=model,
                                    hash_id=hash_id)
 
     def get_env(self,

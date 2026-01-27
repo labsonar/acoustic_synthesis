@@ -80,19 +80,19 @@ class ShipInfo(syndb_core.CatalogEntry):
 
     def as_dict(self):
         return {
-            "ship_id": self.ship_id,
-            "ship_type": self.ship_type.name,
-            "iara_ship_id": self.iara_ship_id,
-            "ship_name": self.ship_name,
-            "mcr_percent": self.mcr_percent,
-            "max_speed_kt": self.max_speed.get_kt(),
-            "cruising_speed_kt": self.cruising_speed.get_kt(),
-            "rpm": self.rotacional_frequency.get_rpm(),
-            "length_m": self.length.get_m(),
-            "draft_m": self.draft.get_m(),
-            "n_blades": self.n_blades,
-            "n_shafts": self.n_shafts,
-            "sigma_factor": self.sigma_factor,
+            "SHIP_ID": self.ship_id,
+            "SHIP_TYPE": self.ship_type.name,
+            "IARA_SHIP_ID": self.iara_ship_id,
+            "SHIP_NAME": self.ship_name,
+            "MCR_PERCENT": self.mcr_percent,
+            "MAX_SPEED_KT": self.max_speed.get_kt(),
+            "CRUISING_SPEED_KT": self.cruising_speed.get_kt(),
+            "RPM": self.rotacional_frequency.get_rpm(),
+            "LENGTH_M": self.length.get_m(),
+            "DRAFT_M": self.draft.get_m(),
+            "N_BLADES": self.n_blades,
+            "N_SHAFTS": self.n_shafts,
+            "SIGMA_FACTOR": self.sigma_factor,
         }
 
 class ShipCatalog(syndb_core.Catalog[ShipInfo]):
@@ -124,6 +124,7 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
         super().__init__(entries=ships)
         self.df = df
 
+
     @staticmethod
     def _parse_value(value: typing.Union[str, float, int], seed: int) -> \
             typing.Union[float, int, None]:
@@ -135,64 +136,61 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
         Returns one random value selected from the expanded set.
         """
 
-        if isinstance(value, (float, int)):
+        if isinstance(value, (int, float)):
             return value
 
-        if not isinstance(value, str) or value.strip() == "":
+        if not isinstance(value, str):
+            return None
+
+        value = value.strip()
+        if not value:
             return None
 
         rng = random.Random(seed)
 
-        value = value.strip()
-
         if "/" in value:
-            options = [v.strip() for v in value.split(",") if v.strip()]
-
-            parsed_options = []
+            options = [v.strip() for v in value.split("/")]
+            parsed = []
 
             for opt in options:
-
                 if "-" in opt:
                     parts = opt.split("-")
+                    if len(parts) != 2:
+                        continue
                     try:
-                        a = float(parts[0]) if "." in parts[0] else int(parts[0])
-                        b = float(parts[1]) if "." in parts[1] else int(parts[1])
+                        a = float(parts[0])
+                        b = float(parts[1])
                     except ValueError:
                         continue
 
-                    if isinstance(a, int) and isinstance(b, int):
-                        parsed_options.extend(range(a, b + 1))
+                    if a.is_integer() and b.is_integer():
+                        parsed.extend(range(int(a), int(b) + 1))
                     else:
-                        parsed_options.append(int(rng.uniform(float(a), float(b)) * 100) / 100)
-
+                        parsed.append(round(rng.uniform(a, b), 2))
                 else:
                     try:
-                        if "." in opt:
-                            parsed_options.append(float(opt))
-                        else:
-                            parsed_options.append(int(opt))
+                        parsed.append(int(opt) if opt.isdigit() else float(opt))
                     except ValueError:
                         continue
 
-            if not parsed_options:
-                return None
-
-            return rng.choice(parsed_options)
+            return rng.choice(parsed) if parsed else None
 
         if "-" in value:
             parts = value.split("-")
-            a = float(parts[0]) if "." in parts[0] else int(parts[0])
-            b = float(parts[1]) if "." in parts[1] else int(parts[1])
+            if len(parts) != 2:
+                return None
+            try:
+                a = float(parts[0])
+                b = float(parts[1])
+            except ValueError:
+                return None
 
-            if isinstance(a, int) and isinstance(b, int):
-                return rng.randint(a, b)
-            return int(rng.uniform(float(a), float(b)) * 100) / 100
+            if a.is_integer() and b.is_integer():
+                return rng.randint(int(a), int(b))
+            return round(rng.uniform(a, b), 2)
 
         try:
-            if "." in value:
-                return float(value)
-            else:
-                return int(value)
+            return int(value) if value.isdigit() else float(value)
         except ValueError:
             return None
 

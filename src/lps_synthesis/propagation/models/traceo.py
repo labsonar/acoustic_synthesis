@@ -16,11 +16,10 @@ class Traceo(model_core.PropagationModel):
     """
     TRACEO-based acoustic propagation model.
     """
+    def __init__(self, workdir: str | None = None) -> None:
+        super().__init__(workdir=workdir)
 
-    def __init__(self, workdir: str = "./channel/traceo"):
-        self.workdir = workdir
-
-    def compute_frequency_response(
+    def _query_to_model(
         self,
         query: model_core.QueryConfig
     ) -> lps_channel_rsp.SpectralResponse:
@@ -42,6 +41,9 @@ class Traceo(model_core.PropagationModel):
             in_file = os.path.join(self.workdir, in_name)
             out_file = os.path.join(self.workdir, "aad.mat")
 
+            self.files_to_clean.append(in_file)
+            self.files_to_clean.append(out_file)
+
             if os.path.exists(out_file):
                 os.remove(out_file)
 
@@ -61,11 +63,6 @@ class Traceo(model_core.PropagationModel):
                 h_f_tau = np.zeros((n_depths, n_ranges, len(frequencies)), dtype=np.complex128)
                 ranges = r
                 depths = z
-
-            # if os.path.exists(in_file):
-            #     os.remove(in_file)
-            # if os.path.exists(out_file):
-            #     os.remove(out_file)
 
             h_f_tau[:, :, k] = h_tau
 

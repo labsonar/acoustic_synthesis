@@ -34,5 +34,11 @@ class Catalog(typing.Generic[T]):
         return self.entries[index]
 
     def to_df(self) -> pd.DataFrame:
-        """Return a pandas DataFrame with the full catalog information."""
-        return pd.DataFrame([entry.as_dict() for entry in self.entries])
+        """Return a pandas DataFrame with catalog index as explicit ID."""
+        rows = []
+        for idx, entry in enumerate(self.entries):
+            row = entry.as_dict()
+            row = {"CATALOG_ID": idx, **row}
+            rows.append(row)
+
+        return pd.DataFrame(rows)
