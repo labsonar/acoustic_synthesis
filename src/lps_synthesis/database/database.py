@@ -64,7 +64,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
             ship_ids = rng.sample(range(n_ships), 2)
             scenario_ids = rng.sample(range(n_scenarios), 2)
-            dynamic = syndb_dynamic.SimulationDynamic.rand()
+            dynamic = syndb_dynamic.SimulationDynamic.rand(seed=seed)
 
             for ship_id in ship_ids:
                 for scenario_id in scenario_ids:
@@ -103,11 +103,14 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         os.makedirs(output_dir, exist_ok=True)
 
         for i, entry in enumerate(tqdm.tqdm(self, desc="Synthesizing", leave=False, ncols=120)):
-            scenario = self.scenario_catalog[entry.scenario_id]
+            acoustic_scenario = self.scenario_catalog[entry.scenario_id]
             ship_info = self.ship_catalog[entry.ship_id]
 
-            channel = scenario.get_channel()
-            environment = scenario.get_env()
+            #TODO remover
+            acoustic_scenario.season = lps_as.Season.SPRING
+
+            channel = acoustic_scenario.get_channel()
+            environment = acoustic_scenario.get_env()
 
             scenario = lps_scenario.Scenario(
                 step_interval=step_interval,

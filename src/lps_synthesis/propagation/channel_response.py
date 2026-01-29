@@ -191,8 +191,6 @@ class TemporalResponse:
         self,
         filename: str | None = None,
         db: bool = True,
-        vmin: float | None = None,
-        vmax: float | None = None,
         cmap: str = "viridis",
     ):
         """

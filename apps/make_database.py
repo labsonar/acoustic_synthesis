@@ -20,6 +20,20 @@ def _main():
     )
 
     parser.add_argument(
+        "--n_samples",
+        type=int,
+        default=1,
+        help="Select the number of samples in dataset. (default: 1)",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Set seed. (default: 42)",
+    )
+
+    parser.add_argument(
         "--sensitivity",
         type=float,
         default=-165.0,
@@ -66,20 +80,20 @@ def _main():
     #     dataset = syndb.OlocumDatabase(n_ships=1, n_scenarios=1, n_samples=1)
 
     if args.dataset == "toy":
-        dataset = syndb.ToyDatabase()
+        dataset = syndb.ToyDatabase(n_samples=args.n_samples)
     else:
-        dataset = syndb.OlocumDatabase()
+        dataset = syndb.OlocumDatabase(n_samples=args.n_samples, seed=args.seed)
 
     output_dir = os.path.join(args.output_dir, args.dataset)
 
     wav_dir = os.path.join(output_dir, "data")
 
     dataset.export(output_dir=output_dir)
-    # dataset.synthesize(output_dir=wav_dir,
-    #                    sonar=sonar,
-    #                    sample_frequency=sample_frequency,
-    #                    step_interval=step_interval,
-    #                    simulation_steps=simulation_steps)
+    dataset.synthesize(output_dir=wav_dir,
+                       sonar=sonar,
+                       sample_frequency=sample_frequency,
+                       step_interval=step_interval,
+                       simulation_steps=simulation_steps)
 
 if __name__ == "__main__":
     _main()

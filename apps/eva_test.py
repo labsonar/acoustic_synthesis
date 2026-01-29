@@ -29,16 +29,17 @@ def main():
                                                 lps_as.Season.SPRING)
     dynamic = lps_db.SimulationDynamic(lps_db.DynamicType.CPA_IN, lps_qty.Distance.m(15))
     ship_speed = lps_qty.Speed.kt(15)
-    simulation_time = lps_qty.Time.s(20)
-    simulation_step=lps_qty.Time.s(1)
+    simulation_time = lps_qty.Time.s(60)
+    simulation_step=lps_qty.Time.s(0.5)
     zoom_samples = int(lps_qty.Time.s(0.5) * sample_frequency)
 
-    channel = acoustic_scenario.get_channel()
+    channel = acoustic_scenario.get_channel(lps_models.Oases())
     # channel = lps_propag.PredefinedChannel.SPHERICAL.get_channel(lps_models.Oases())
     # environment = acoustic_scenario.get_env()
-    # environment = lps_env.Environment(rain_value=lps_env.Rain.NONE,
-    #                                 sea_value=lps_env.Sea.STATE_2,
-    #                                 shipping_value=lps_env.Shipping.LEVEL_1)
+    environment = lps_env.Environment(rain_value=lps_env.Rain.NONE,
+                                    sea_value=lps_env.Sea.STATE_2,
+                                    shipping_value=lps_env.Shipping.LEVEL_1,
+                                    global_attenuation_dB=20)
     environment = None
 
     ship_is = dynamic.get_ship_initial_state(speed=ship_speed, interval=simulation_time)
@@ -60,7 +61,7 @@ def main():
     sonar_is = dynamic.get_sonar_initial_state(ship=ship1)
 
     sonar = lps_scenario.Sonar.planar(
-            n_staves = 1,
+            n_staves = 5,
             spacing = lps_qty.Distance.m(0.085),
             sensitivity = lps_qty.Sensitivity.db_v_p_upa(-200),
             initial_state=sonar_is

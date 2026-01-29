@@ -307,7 +307,8 @@ class Environment():
                  rain_value: typing.Union[float, Rain],
                  sea_value: typing.Union[float, Sea],
                  shipping_value: typing.Union[float, Shipping],
-                 seed: int = None) -> None:
+                 seed: int | None = None,
+                 global_attenuation_dB: float = 0.0) -> None:
         """
         Args:
             rain_value (typing.Union[float, Rain]): Rain level value between 0 and 4.
@@ -319,6 +320,7 @@ class Environment():
         self.shipping_value = shipping_value
         self.seed = seed if seed is not None else id(self)
         self.rng = np.random.default_rng(seed = self.seed)
+        self.global_attenuation_dB = global_attenuation_dB
 
     @staticmethod
     def _format_value(value) -> str:
@@ -380,9 +382,12 @@ class Environment():
         linear1 = 10**(interpolated_spectrum1 / 20)
         linear2 = 10**(interpolated_spectrum2 / 20)
         linear3 = 10**(interpolated_spectrum3 / 20)
-        interpolated_spectrum = 20 * np.log10(linear0 + linear1 + linear2 + linear3)
 
-        return all_frequencies, interpolated_spectrum
+        combined_linear = linear0 + linear1 + linear2 + linear3
+        combined_psd = 20 * np.log10(combined_linear)
+        combined_psd -= self.global_attenuation_dB
+
+        return all_frequencies, combined_psd
 
     def generate_bg_noise(self, n_samples: int = 1024, fs: float = 48000) -> np.array:
         """
@@ -409,7 +414,12 @@ class Environment():
         shipping_noise, _ = lps.generate(frequencies = freq_shipping, psd_db = psd_shipping,
                                     n_samples=n_samples, fs = fs, seed = self.rng)
 
-        return turb_noise + rain_noise + sea_noise + shipping_noise
+        noise = turb_noise + rain_noise + sea_noise + shipping_noise
+
+        attenuation_linear = 10 ** (-self.global_attenuation_dB / 20)
+        noise *= attenuation_linear
+
+        return noise
 
     def save_plot(self, filename: str) -> None:
         """ Save the expected PSD of this Enviroment. """

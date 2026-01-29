@@ -33,7 +33,7 @@ class Channel():
                  hash_id: str | None = None):
 
         self.query = query
-        self.model = model or lps_propag_model.Traceo()
+        self.model = model or lps_propag_model.Oases()
         self.channel_dir = channel_dir if channel_dir is not None else DEFAULT_DIR
         self.hash_id = hash_id
 

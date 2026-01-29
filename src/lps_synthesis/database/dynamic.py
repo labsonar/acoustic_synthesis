@@ -31,12 +31,15 @@ class SimulationDynamic:
 
     @staticmethod
     def rand(min_dist: lps_qty.Distance = lps_qty.Distance.m(50),
-             max_dist: lps_qty.Distance = lps_qty.Distance.m(250)) -> "SimulationDynamic":
+             max_dist: lps_qty.Distance = lps_qty.Distance.m(250),
+             seed: int = 42) -> "SimulationDynamic":
         """Generate a random dynamic configuration."""
+
+        rng = random.Random(seed)
 
         dist = lps_qty.Distance.m(random.randint(int(min_dist.get_m()),
                                                  int(max_dist.get_m())))
-        dynamic_type = random.choice(list(DynamicType))
+        dynamic_type = rng.choice(list(DynamicType))
         return SimulationDynamic(dynamic_type, dist)
 
     def get_ship_initial_state(self, speed: lps_qty.Speed, interval: lps_qty.Time) -> lps_dyn.State:

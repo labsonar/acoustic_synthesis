@@ -11,7 +11,11 @@ import lps_synthesis.environment.acoustic_site as lps_as
 import lps_synthesis.propagation.models as lps_models
 
 
-def run_case(location: lps_db.Location, model_name: str, outdir: str):
+def run_case(location: lps_db.Location,
+             model_name: str,
+             season: lps_as.Season,
+             outdir: str,
+             plot_ir: bool = True):
 
     print(f"[RUN] Location={location.name}, Model={model_name}")
 
@@ -19,10 +23,14 @@ def run_case(location: lps_db.Location, model_name: str, outdir: str):
 
     acoustic_scenario = lps_db.AcousticScenario(
         location,
-        lps_as.Season.SPRING,
+        season,
     )
 
     channel = acoustic_scenario.get_channel(model=model)
+
+    if not plot_ir:
+        return
+
     ir = channel.get_ir()
 
     os.makedirs(outdir, exist_ok=True)
@@ -32,13 +40,21 @@ def run_case(location: lps_db.Location, model_name: str, outdir: str):
         f"ir_{location.name.lower()}_{model_name}.png"
     )
 
-    # ir.print_as_image(filename=filename)
+    ir.print_as_image(filename=filename)
     print(f"[OK] Saved {filename}")
 
 
 def _main():
     parser = argparse.ArgumentParser(
         description="Test channel impulse responses"
+    )
+
+    parser.add_argument(
+        "--season",
+        type=str,
+        choices=[season.name for season in lps_as.Season],
+        default=lps_as.Season.SPRING.name,
+        help="Season enum name",
     )
 
     parser.add_argument(
@@ -85,23 +101,39 @@ def _main():
 
             for loc in lps_db.Location:
                 for model_type in lps_models.Type:
-                    future = executor.submit(
-                        run_case,
-                        loc,
-                        model_type.name,
-                        args.outdir
-                    )
-                    tasks.append(future)
+                    for season in lps_as.Season:
+                        future = executor.submit(
+                            run_case,
+                            loc,
+                            model_type.name,
+                            season,
+                            args.outdir,
+                            False
+                        )
+                        tasks.append(future)
 
             for f in as_completed(tasks):
                 f.result()
+
+
+        for loc in lps_db.Location:
+            for model_type in lps_models.Type:
+                for season in lps_as.Season:
+                    run_case(
+                        loc,
+                        model_type.name,
+                        season,
+                        args.outdir,
+                        True
+                    )
 
     else:
         if args.location is None or args.model is None:
             parser.error("Either use --all or specify --location and --model")
 
         location = lps_db.Location[args.location]
-        run_case(location, args.model, args.outdir)
+        season = lps_as.Season[args.season]
+        run_case(location, args.model, season, args.outdir)
 
 
 if __name__ == "__main__":
