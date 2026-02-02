@@ -647,7 +647,7 @@ class AcousticSiteProspector:
                 description = desc,
                 sensor_depth = sensor_depth,
                 max_distance = lps_qty.Distance.km(0.5),
-                max_distance_points = 250
+                max_distance_points = 250,
         )
 
         return lps_channel.Channel(query=query,

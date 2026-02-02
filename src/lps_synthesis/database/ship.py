@@ -19,35 +19,44 @@ class ShipInfo(syndb_core.CatalogEntry):
 
     def __init__(
         self,
-        ship_id: int,
+        seed: int,
         ship_type: lps_ns.ShipType,
-        iara_ship_id: str,
-        ship_name: str,
-        max_speed: lps_qty.Speed,
+        mcr_percent: float,
         cruising_speed: lps_qty.Speed,
         rotacional_frequency: lps_qty.Frequency,
         length: lps_qty.Distance,
         draft: lps_qty.Distance,
         n_blades: int,
         n_shafts: int,
+        nb_lower: float,
+        nb_medium: float,
+        nb_greater: float,
+        nb_isolated: float,
+        nb_oscillating: float,
+        nb_concentrated: float,
     ):
-        self.ship_id = ship_id
+        self.seed = seed
         self.ship_type = ship_type
-        self.iara_ship_id = iara_ship_id
-        self.ship_name = ship_name
-        self.mcr_percent = int(cruising_speed/max_speed * 100) / 100
+        self.mcr_percent = mcr_percent
         self.cruising_speed = cruising_speed
-        self.max_speed = max_speed
+        self.max_speed = lps_qty.Speed.kt(round(cruising_speed.get_kt() / mcr_percent, 1))
         self.rotacional_frequency = rotacional_frequency
         self.length = length
         self.draft = draft
         self.n_blades = n_blades
         self.n_shafts = n_shafts
-        self.rng = random.Random(self.ship_id)
-        self.sigma_factor = self.rng.randint(10, 1000)/1000
+        self.nb_lower = nb_lower
+        self.nb_medium = nb_medium
+        self.nb_greater = nb_greater
+        self.nb_isolated = nb_isolated
+        self.nb_oscillating = nb_oscillating
+        self.nb_concentrated = nb_concentrated
+
+        self.rng = random.Random(self.seed)
+        self.sigma_factor = self.rng.uniform(0.01, 1.0)
 
     def __repr__(self):
-        return f"Ship {self.iara_ship_id} <{self.ship_name}>"
+        return f"Ship[{self.seed}]: {self.ship_type}"
 
     def random_speed(self) -> lps_qty.Speed:
         """ Generate a randomized speed. """
@@ -60,8 +69,8 @@ class ShipInfo(syndb_core.CatalogEntry):
                   interval: lps_qty.Time) -> lps_ns.Ship:
         """ Allocate the lps_ns.Ship based on ShipInfo. """
 
-        return lps_ns.Ship(
-            ship_id=f"{self.ship_id}",
+        ship = lps_ns.Ship(
+            ship_id=f"{self.seed}",
             propulsion=lps_ns.CavitationNoise(
                 ship_type=self.ship_type,
                 n_blades=self.n_blades,
@@ -70,29 +79,33 @@ class ShipInfo(syndb_core.CatalogEntry):
                 cruise_speed=self.cruising_speed,
                 cruise_rotacional_frequency=self.rotacional_frequency,
                 max_speed=self.max_speed,
-                seed=self.ship_id
+                seed=self.seed
             ),
             draft=self.draft,
             initial_state=dynamic.get_ship_initial_state(speed=self.random_speed(),
                                                     interval=interval),
-            seed=self.ship_id
+            seed=self.seed
         )
+
+        return ship
 
     def as_dict(self):
         return {
-            "SHIP_ID": self.ship_id,
-            "SHIP_TYPE": self.ship_type.name,
-            "IARA_SHIP_ID": self.iara_ship_id,
-            "SHIP_NAME": self.ship_name,
+            "SEED": self.seed,
+            "SHIP_TYPE": self.ship_type,
             "MCR_PERCENT": self.mcr_percent,
-            "MAX_SPEED_KT": self.max_speed.get_kt(),
             "CRUISING_SPEED_KT": self.cruising_speed.get_kt(),
-            "RPM": self.rotacional_frequency.get_rpm(),
+            "ROTACIONAL_FREQUENCY": self.rotacional_frequency.get_rpm(),
             "LENGTH_M": self.length.get_m(),
             "DRAFT_M": self.draft.get_m(),
             "N_BLADES": self.n_blades,
             "N_SHAFTS": self.n_shafts,
-            "SIGMA_FACTOR": self.sigma_factor,
+            "NB_LOWER": self.nb_lower,
+            "NB_MEDIUM": self.nb_medium,
+            "NB_GREATER": self.nb_greater,
+            "NB_ISOLATED": self.nb_isolated,
+            "NB_OSCILLATING": self.nb_oscillating,
+            "NB_concentrated": self.nb_concentrated,
         }
 
 class ShipCatalog(syndb_core.Catalog[ShipInfo]):
@@ -100,14 +113,20 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
 
     NUMERIC_FIELDS = [
         "mcr_percent",
-        "max_speed_kt",
         "cruising_speed_kt",
         "rpm",
         "length_m",
         "draft_m",
         "n_blades",
         "n_shafts",
+        "lower",
+        "medium",
+        "greater",
+        "isolated",
+        "oscillating",
+        "concentrated",
     ]
+
 
     def __init__(self, n_samples: typing.Optional[int] = None, seed: int = 42):
 
@@ -119,7 +138,7 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
         else:
             rows = df.sample(n=n_samples, replace=True, random_state=seed)
 
-        ships = [self._make_shipinfo(row, i, seed) for i, (_, row) in enumerate(rows.iterrows())]
+        ships = [self._make_shipinfo(row, i + seed) for i, (_, row) in enumerate(rows.iterrows())]
 
         super().__init__(entries=ships)
         self.df = df
@@ -206,27 +225,61 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
         except KeyError:
             return lps_ns.ShipType.OTHER
 
-    def _make_shipinfo(self, row: pd.Series, ship_id: int, seed: int) -> ShipInfo:
+    def _make_shipinfo(self, row: pd.Series, seed: int) -> ShipInfo:
         """Build a ShipInfo object from a dataframe row."""
         data = {}
 
         for col in row.index:
             val = row[col]
             if col in self.NUMERIC_FIELDS:
-                data[col] = self._parse_value(val, seed + ship_id)
+                data[col] = self._parse_value(val, seed)
             else:
                 data[col] = val
 
         return ShipInfo(
-            ship_id = ship_id,
+            seed = seed,
             ship_type = ShipCatalog.parse_ship_type(data["ship_type"]),
-            iara_ship_id = data["iara_ship_id"],
-            ship_name = data["ship_name"],
-            max_speed = lps_qty.Speed.kt(data["max_speed_kt"]),
+            mcr_percent = data["mcr_percent"],
             cruising_speed = lps_qty.Speed.kt(data["cruising_speed_kt"]),
             rotacional_frequency = lps_qty.Frequency.rpm(data["rpm"]),
             length = lps_qty.Distance.m(data["length_m"]),
             draft = lps_qty.Distance.m(data["draft_m"]),
             n_blades = data["n_blades"],
             n_shafts = data["n_shafts"],
+            nb_lower = data["lower"],
+            nb_medium = data["medium"],
+            nb_greater = data["greater"],
+            nb_isolated = data["isolated"],
+            nb_oscillating = data["oscillating"],
+            nb_concentrated = data["concentrated"],
         )
+
+    @classmethod
+    def load(cls, csv_path: str) -> "ShipCatalog":
+        df = pd.read_csv(csv_path)
+        ships = []
+
+        for _, row in df.iterrows():
+            ships.append(
+                ShipInfo(
+                    seed=int(row["SEED"]),
+                    ship_type=lps_ns.ShipType[row["SHIP_TYPE"].upper()],
+                    mcr_percent=float(row["MCR_PERCENT"]),
+                    cruising_speed=lps_qty.Speed.kt(row["CRUISING_SPEED_KT"]),
+                    rotacional_frequency=lps_qty.Frequency.rpm(row["ROTACIONAL_FREQUENCY"]),
+                    length=lps_qty.Distance.m(row["LENGTH_M"]),
+                    draft=lps_qty.Distance.m(row["DRAFT_M"]),
+                    n_blades=int(row["N_BLADES"]),
+                    n_shafts=int(row["N_SHAFTS"]),
+                    nb_lower=float(row["NB_LOWER"]),
+                    nb_medium=float(row["NB_MEDIUM"]),
+                    nb_greater=float(row["NB_GREATER"]),
+                    nb_isolated=float(row["NB_ISOLATED"]),
+                    nb_oscillating=float(row["NB_OSCILLATING"]),
+                    nb_concentrated=float(row["NB_concentrated"]),
+                )
+            )
+
+        catalog = cls.__new__(cls)
+        super(ShipCatalog, catalog).__init__(entries=ships)
+        return catalog

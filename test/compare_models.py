@@ -34,7 +34,7 @@ def _run_comparison(
         sensor_depth=sensor_depth,
         max_distance=max_distance,
         max_distance_points=1,
-        frequency_range=None,
+        frequency_range = (lps_qty.Frequency.khz(7), lps_qty.Frequency.khz(8)) #TODO remover
     )
 
     responses = {}

@@ -7,6 +7,8 @@ import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.database as syndb
 
+import memory_profiler
+
 def _main():
     parser = argparse.ArgumentParser(
         description="Synthetic database generator for underwater acoustic scenarios."
@@ -34,10 +36,16 @@ def _main():
     )
 
     parser.add_argument(
+        "--only-info",
+        action="store_true",
+        help="Only print database info",
+    )
+
+    parser.add_argument(
         "--sensitivity",
         type=float,
-        default=-165.0,
-        help="Hydrophone sensitivity in dB re V/μPa (default: -165)",
+        default=-180.0,
+        help="Hydrophone sensitivity in dB re V/μPa (default: -180)",
     )
 
     parser.add_argument(
@@ -62,6 +70,12 @@ def _main():
     )
 
     parser.add_argument(
+        "--load",
+        action="store_true",
+        help="Load previolsy computed info",
+    )
+
+    parser.add_argument(
         "--output-dir",
         default="./result",
         help="Directory to save results (default: ./result)",
@@ -69,31 +83,49 @@ def _main():
 
     args = parser.parse_args()
 
-    sonar = lps_sonar.Sonar.hydrophone(sensitivity=lps_qty.Sensitivity.db_v_p_upa(args.sensitivity))
-    sample_frequency = lps_qty.Frequency.khz(args.sample_frequency)
-    step_interval = lps_qty.Time.s(args.step_interval)
-    simulation_steps = args.simulation_steps
-
-    # if args.dataset == "toy":
-    #     dataset = syndb.ToyDatabase(n_samples=1)
-    # else:
-    #     dataset = syndb.OlocumDatabase(n_ships=1, n_scenarios=1, n_samples=1)
-
-    if args.dataset == "toy":
-        dataset = syndb.ToyDatabase(n_samples=args.n_samples)
-    else:
-        dataset = syndb.OlocumDatabase(n_samples=args.n_samples, seed=args.seed)
-
     output_dir = os.path.join(args.output_dir, args.dataset)
 
-    wav_dir = os.path.join(output_dir, "data")
+    if args.load:
+        dataset = syndb.Database.load(output_dir)
 
-    dataset.export(output_dir=output_dir)
-    dataset.synthesize(output_dir=wav_dir,
-                       sonar=sonar,
-                       sample_frequency=sample_frequency,
-                       step_interval=step_interval,
-                       simulation_steps=simulation_steps)
+    else:
+
+        if args.dataset == "toy":
+            dataset = syndb.ToyDatabase(n_samples=args.n_samples)
+        else:
+            dataset = syndb.OlocumDatabase(n_samples=args.n_samples, seed=args.seed)
+
+        dataset.export(output_dir=output_dir)
+
+    if args.only_info:
+        print("############## Dataset ###############")
+        print(dataset.to_df())
+        print("############## Ship Catalog ###############")
+        print(dataset.ship_catalog.to_df())
+        print("############## Acoustic Scenario ###############")
+        print(dataset.acoutic_scenario_catalog.to_df())
+
+    else:
+        wav_dir = os.path.join(output_dir, "data")
+
+
+        sonar = lps_sonar.Sonar.hydrophone(
+            sensitivity=lps_qty.Sensitivity.db_v_p_upa(args.sensitivity)
+        )
+        sample_frequency = lps_qty.Frequency.khz(args.sample_frequency)
+        step_interval = lps_qty.Time.s(args.step_interval)
+        simulation_steps = args.simulation_steps
+
+        dataset.synthesize(output_dir=wav_dir,
+                        sonar=sonar,
+                        sample_frequency=sample_frequency,
+                        step_interval=step_interval,
+                        simulation_steps=simulation_steps)
+
+
+@memory_profiler.profile
+def _run():
+    _main()
 
 if __name__ == "__main__":
-    _main()
+    _run()

@@ -165,7 +165,7 @@ class QueryConfig(lps_hash.Hashable):
             n_steps = n_steps  + 1
         )
 
-    def get_frequency_sweep(self, range_margin: float = 1.5) -> typing.Tuple[
+    def get_frequency_sweep(self, range_margin: float = 3) -> typing.Tuple[
         typing.List[lps_qty.Frequency],
         int
     ]:
@@ -179,13 +179,14 @@ class QueryConfig(lps_hash.Hashable):
             n_fft       : total FFT size
         """
 
-        base_speed = self.description.get_base_speed()
+        # base_speed = self.description.get_base_speed()
+        base_speed = lps_qty.Speed.m_s(1500)
 
         n_samples = int(
             np.ceil((range_margin * self.max_distance / base_speed) * self.sample_frequency)
         )
 
-        n_fft = 2 ** math.ceil(math.log2(n_samples) - 1)
+        n_fft = 2 ** math.ceil(math.log2(n_samples))
 
         df = self.sample_frequency / n_fft
         freqs_hz = np.arange(1, n_fft//2) * df.get_hz()

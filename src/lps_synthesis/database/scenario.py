@@ -166,12 +166,12 @@ class Location(enum.Enum):
         """ Return Local as dict to save local description. """
         p = self.get_point()
         return {
-                "Local_ID": self.value,
-                "Name_(us)": self.to_string(),
-                "Latitude_(deg)": p.latitude.get_deg(),
-                "Longitude_(deg)": p.longitude.get_deg(),
-                "Latitude_(dms)": str(p.latitude),
-                "Longitude_(dms)": str(p.longitude),
+                "LOCAL_ID": self.value,
+                "NAME_(US)": self.to_string(),
+                "LATITUDE_(DEG)": p.latitude.get_deg(),
+                "LONGITUDE_(DEG)": p.longitude.get_deg(),
+                "LATITUDE_(DMS)": str(p.latitude),
+                "LONGITUDE_(DMS)": str(p.longitude),
             }
 
     def is_shallow_water(self, etopo_file: str | None = None) -> bool:
@@ -233,7 +233,7 @@ class AcousticScenario(syndb_core.CatalogEntry):
                  prospector: lps_site.AcousticSiteProspector | None = None):
         self.local = local or Location.rand()
         self.season = season or lps_site.Season.rand()
-        self.prospector = prospector or lps_site.AcousticSiteProspector()
+        self._prospector = prospector
 
     def __str__(self):
         return f"{self.local} [{self.season.name.capitalize()}]"
@@ -244,6 +244,12 @@ class AcousticScenario(syndb_core.CatalogEntry):
             **self.local.as_dict(),
             "Season": self.season.name.capitalize(),
         }
+
+    @property
+    def prospector(self) -> lps_site.AcousticSiteProspector:
+        if self._prospector is None:
+            self._prospector = lps_site.AcousticSiteProspector()
+        return self._prospector
 
     def get_env(self, seed: int | None = None) -> lps_env.Environment:
         """ Return the lps_env.Environment to the AcousticScenario. """
@@ -259,3 +265,21 @@ class AcousticScenario(syndb_core.CatalogEntry):
                                        season = self.season,
                                        model = model,
                                        hash_id=self.local.name.lower())
+
+    @classmethod
+    def load_catalog(cls, filename: str) -> syndb_core.Catalog["AcousticScenario"]:
+        df = pd.read_csv(filename)
+        scenarios = []
+
+        for _, row in df.iterrows():
+            local = Location(row["LOCAL_ID"])
+            season = lps_site.Season[row["Season"].upper()]
+
+            scenarios.append(
+                AcousticScenario(
+                    local=local,
+                    season=season
+                )
+            )
+
+        return syndb_core.Catalog[AcousticScenario](entries=scenarios)

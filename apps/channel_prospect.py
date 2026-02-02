@@ -53,15 +53,19 @@ def _main():
         "--season",
         type=str,
         choices=[season.name for season in lps_as.Season],
-        default=lps_as.Season.SPRING.name,
         help="Season enum name",
     )
+
+    loc_names = ", ".join(loc.name for loc in lps_db.Location)
 
     parser.add_argument(
         "--location",
         type=str,
-        choices=[loc.name for loc in lps_db.Location],
-        help="Location enum name",
+        metavar="{" + loc_names + "}[,{...}]",
+        help=(
+            "Location enum name or comma-separated list. "
+            f"Valid values: {loc_names}"
+        ),
     )
 
     parser.add_argument(
@@ -69,12 +73,6 @@ def _main():
         type=str,
         choices=[loc.name for loc in lps_models.Type],
         help="Propagation model",
-    )
-
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Run all Location x Model combinations",
     )
 
     parser.add_argument(
@@ -92,48 +90,67 @@ def _main():
 
     args = parser.parse_args()
 
-    if args.all:
+    _ = lps_as.AcousticSiteProspector()
 
-        _ = lps_as.AcousticSiteProspector()
-
-        tasks = []
-        with ThreadPoolExecutor(max_workers=args.nproc) as executor:
-
-            for loc in lps_db.Location:
-                for model_type in lps_models.Type:
-                    for season in lps_as.Season:
-                        future = executor.submit(
-                            run_case,
-                            loc,
-                            model_type.name,
-                            season,
-                            args.outdir,
-                            False
-                        )
-                        tasks.append(future)
-
-            for f in as_completed(tasks):
-                f.result()
+    if args.location is None:
+        locations = list(lps_db.Location)
+    else:
+        try:
+            locations = [
+                lps_db.Location[name.strip()]
+                for name in args.location.split(",")
+            ]
+        except KeyError as e:
+            valid = ", ".join(loc.name for loc in lps_db.Location)
+            raise ValueError(
+                f"Invalid location '{e.args[0]}'. "
+                f"Valid options are: {valid}"
+            ) from e
 
 
-        for loc in lps_db.Location:
-            for model_type in lps_models.Type:
-                for season in lps_as.Season:
-                    run_case(
+    seasons = (
+        [lps_as.Season[args.season]]
+        if args.season is not None
+        else list(lps_as.Season)
+    )
+
+    models = (
+        [lps_models.Type[args.model]]
+        if args.model is not None
+        else list(lps_models.Type)
+    )
+
+    tasks = []
+    with ThreadPoolExecutor(max_workers=args.nproc) as executor:
+
+        for season in seasons:
+            for loc in locations:
+                for model_type in models:
+                    future = executor.submit(
+                        run_case,
                         loc,
                         model_type.name,
                         season,
                         args.outdir,
-                        True
+                        False
                     )
+                    tasks.append(future)
 
-    else:
-        if args.location is None or args.model is None:
-            parser.error("Either use --all or specify --location and --model")
+        for f in as_completed(tasks):
+            f.result()
 
-        location = lps_db.Location[args.location]
-        season = lps_as.Season[args.season]
-        run_case(location, args.model, season, args.outdir)
+
+    for loc in locations:
+        for model_type in models:
+            for season in seasons:
+                run_case(
+                    loc,
+                    model_type.name,
+                    season,
+                    args.outdir,
+                    True
+                )
+
 
 
 if __name__ == "__main__":
