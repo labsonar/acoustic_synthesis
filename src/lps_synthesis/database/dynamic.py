@@ -4,11 +4,15 @@ Dynamic Module
 Define the dynamics and their implementations for the synthetic dataset.
 """
 import enum
+import typing
 import random
+
+import pandas as pd
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.noise_source as lps_noise
 import lps_synthesis.scenario.dynamic as lps_dyn
+import lps_synthesis.database.catalog as syndb_core
 
 class DynamicType(enum.Enum):
     """Defines the motion type of the simulated event."""
@@ -19,28 +23,69 @@ class DynamicType(enum.Enum):
     def __str__(self):
         return self.name.lower()
 
-class SimulationDynamic:
+class SimulationDynamic(syndb_core.CatalogEntry):
     """ Describes the dynamic behavior of the acoustic simulation. """
 
-    def __init__(self, dynamic_type: DynamicType, shortest: lps_qty.Distance):
+    def __init__(self, dynamic_type: DynamicType, shortest: lps_qty.Distance, approaching: bool):
         self.dynamic_type = dynamic_type
         self.shortest = shortest
+        self.approaching = approaching
 
     def __str__(self):
         return f"{self.dynamic_type.name} (d_min={self.shortest})"
 
+    def as_dict(self) -> dict[str, typing.Any]:
+        """ Converts the entry into a dictionary suitable for tabular representation. """
+        return {
+            "DYNAMIC_TYPE": str(self.dynamic_type),
+            "SHORTEST_DIST_M": self.shortest.get_m(),
+            "APPROACHING": self.approaching
+        }
+
+    @classmethod
+    def load_catalog(cls, filename: str) -> syndb_core.Catalog["SimulationDynamic"]:
+        df = pd.read_csv(filename)
+        dynamics = []
+
+        for _, row in df.iterrows():
+            dynamic_type = DynamicType(row["DYNAMIC_TYPE"])
+            shortest = lps_qty.Distance.m(row["SHORTEST_DIST_M"].upper())
+            approaching = bool(row["APPROACHING"])
+
+            dynamics.append(
+                SimulationDynamic(
+                    dynamic_type = dynamic_type,
+                    shortest = shortest,
+                    approaching = approaching,
+                )
+            )
+
+        return syndb_core.Catalog[SimulationDynamic](entries=dynamics)
+
     @staticmethod
-    def rand(min_dist: lps_qty.Distance = lps_qty.Distance.m(50),
-             max_dist: lps_qty.Distance = lps_qty.Distance.m(250),
-             seed: int = 42) -> "SimulationDynamic":
-        """Generate a random dynamic configuration."""
+    def rand_catalog(n_samples: int,
+                    min_dist: lps_qty.Distance = lps_qty.Distance.m(50),
+                    max_dist: lps_qty.Distance = lps_qty.Distance.m(250),
+                    seed: int = 42
+                    ) -> syndb_core.Catalog["SimulationDynamic"]:
+        """Generate a catalog with random dynamic configurations."""
 
         rng = random.Random(seed)
+        dynamics: list[SimulationDynamic] = []
 
-        dist = lps_qty.Distance.m(random.randint(int(min_dist.get_m()),
-                                                 int(max_dist.get_m())))
-        dynamic_type = rng.choice(list(DynamicType))
-        return SimulationDynamic(dynamic_type, dist)
+        for i in range(n_samples):
+
+            dist = lps_qty.Distance.m(random.randint(int(min_dist.get_m()),
+                                                    int(max_dist.get_m())))
+            dynamic_type = rng.choice(list(DynamicType))
+            approaching = rng.random() < 0.5
+
+            dynamics.append(
+                SimulationDynamic(dynamic_type, dist, approaching)
+            )
+
+        return syndb_core.Catalog[SimulationDynamic](entries=dynamics)
+
 
     def get_ship_initial_state(self, speed: lps_qty.Speed, interval: lps_qty.Time) -> lps_dyn.State:
         """ Define the initial state to fulfill the dynamics. """

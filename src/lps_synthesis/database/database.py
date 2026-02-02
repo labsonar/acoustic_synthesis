@@ -30,21 +30,20 @@ class DatabaseEntry(syndb_core.CatalogEntry):
     def __init__(self,
                  ship_id: int,
                  scenario_id: int,
-                 dynamic: syndb_dynamic.SimulationDynamic | None = None):
+                 dynamic_id: int):
         self.ship_id = ship_id
         self.scenario_id = scenario_id
-        self.dynamic = dynamic or syndb_dynamic.SimulationDynamic.rand()
+        self.dynamic_id = dynamic_id
 
     def __str__(self):
-        return f"[{self.ship_id}] {self.scenario_id} | {self.dynamic}"
+        return f"[{self.ship_id}] {self.scenario_id} | {self.dynamic_id}"
 
     def as_dict(self) -> dict[str, typing.Any]:
         """ Converts the entry into a dictionary suitable for tabular representation. """
         return {
                 "SHIP_CATALOG_ID": self.ship_id,
                 "SCENARIO_CATALOG_ID": self.scenario_id,
-                "DYNAMIC": str(self.dynamic.dynamic_type),
-                "SHORTEST_DIST_(M)": self.dynamic.shortest.get_m()
+                "DYNAMIC_CATALOG_ID": self.dynamic_id,
             }
 
     @staticmethod
@@ -53,16 +52,11 @@ class DatabaseEntry(syndb_core.CatalogEntry):
         entries = []
 
         for _, row in df.iterrows():
-            dynamic = syndb_dynamic.SimulationDynamic(
-                dynamic_type=syndb_dynamic.DynamicType[row["DYNAMIC"].upper()],
-                shortest=lps_qty.Distance.m(row["SHORTEST_DIST_(M)"])
-            )
-
             entries.append(
                 DatabaseEntry(
                     ship_id=int(row["SHIP_CATALOG_ID"]),
                     scenario_id=int(row["SCENARIO_CATALOG_ID"]),
-                    dynamic=dynamic
+                    dynamic_id=int(row["DYNAMIC_CATALOG_ID"]),
                 )
             )
 
@@ -83,11 +77,12 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         n_ships = len(ship_catalog)
         n_scenarios = len(acoutic_scenario_catalog)
 
-        for _ in range(n_samples):
+        dynamic_catalog = syndb_dynamic.SimulationDynamic.rand_catalog(n_samples=n_samples)
+
+        for i in range(n_samples):
 
             ship_ids = rng.sample(range(n_ships), 2)
             scenario_ids = rng.sample(range(n_scenarios), 2)
-            dynamic = syndb_dynamic.SimulationDynamic.rand(seed=seed)
 
             for ship_id in ship_ids:
                 for scenario_id in scenario_ids:
@@ -95,13 +90,14 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                         DatabaseEntry(
                             ship_id=ship_id,
                             scenario_id=scenario_id,
-                            dynamic=dynamic
+                            dynamic_id=i
                         )
                     )
 
         super().__init__(entries=entries)
         self.ship_catalog = ship_catalog
         self.acoutic_scenario_catalog = acoutic_scenario_catalog
+        self.dynamic_catalog = dynamic_catalog
 
     def export(self, output_dir: str) -> None:
         """ Exports the catalog and associated tables to CSV files. """
@@ -118,6 +114,9 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                   index=False,
                   encoding="utf-8")
 
+        df = self.dynamic_catalog.to_df()
+        df.to_csv(os.path.join(output_dir, "dynamic_catalog.csv"), index=False, encoding="utf-8")
+
 
     @classmethod
     def load(cls, output_dir: str) -> "Database":
@@ -130,6 +129,10 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
             os.path.join(output_dir, "acoutic_scenario_catalog.csv")
         )
 
+        dynamic_catalog = syndb_dynamic.SimulationDynamic.load_catalog(
+            os.path.join(output_dir, "dynamic_catalog.csv")
+        )
+
         entries = DatabaseEntry.load_entries(os.path.join(output_dir, "database.csv"))
 
         db = cls.__new__(cls)
@@ -137,6 +140,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
         db.ship_catalog = ship_catalog
         db.acoutic_scenario_catalog = scenario_catalog
+        db.dynamic_catalog = dynamic_catalog
 
         return db
 
@@ -145,17 +149,19 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                    sonar: lps_sonar.Sonar,
                    sample_frequency: lps_qty.Frequency,
                    step_interval: lps_qty.Time =lps_qty.Time.s(1),
-                   simulation_steps: int = 10) -> None:
+                   simulation_steps: int = 10,
+                   global_attenuation_dB = 20) -> None:
 
         os.makedirs(output_dir, exist_ok=True)
 
         for i, entry in enumerate(tqdm.tqdm(self, desc="Synthesizing", leave=False, ncols=120)):
             acoustic_scenario = self.acoutic_scenario_catalog[entry.scenario_id]
             ship_info = self.ship_catalog[entry.ship_id]
+            dynamic = self.dynamic_catalog[entry.dynamic_id]
 
             channel = acoustic_scenario.get_channel()
             environment = acoustic_scenario.get_env()
-            environment.global_attenuation_dB = 20
+            environment.global_attenuation_dB = global_attenuation_dB
 
             scenario = lps_scenario.Scenario(
                 step_interval=step_interval,
@@ -167,12 +173,12 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
             scenario.add_sonar("main", sonar_i)
 
-            ship = ship_info.make_ship(dynamic=entry.dynamic,
+            ship = ship_info.make_ship(dynamic=dynamic,
                                        interval=simulation_steps * step_interval)
 
             scenario.add_noise_container(ship)
 
-            sonar_i.ref_state = entry.dynamic.get_sonar_initial_state(ship)
+            sonar_i.ref_state = dynamic.get_sonar_initial_state(ship)
 
             scenario.simulate(simulation_steps)
 

@@ -70,6 +70,13 @@ def _main():
     )
 
     parser.add_argument(
+        "--env-att",
+        type=float,
+        default=0,
+        help="Glocabal db attenuation of enviroment noise (default: 0)",
+    )
+
+    parser.add_argument(
         "--load",
         action="store_true",
         help="Load previolsy computed info",
@@ -120,7 +127,8 @@ def _main():
                         sonar=sonar,
                         sample_frequency=sample_frequency,
                         step_interval=step_interval,
-                        simulation_steps=simulation_steps)
+                        simulation_steps=simulation_steps,
+                        global_attenuation_dB=args.env_att)
 
 
 @memory_profiler.profile
