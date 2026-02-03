@@ -48,8 +48,8 @@ class SimulationDynamic(syndb_core.CatalogEntry):
         dynamics = []
 
         for _, row in df.iterrows():
-            dynamic_type = DynamicType(row["DYNAMIC_TYPE"])
-            shortest = lps_qty.Distance.m(row["SHORTEST_DIST_M"].upper())
+            dynamic_type = DynamicType[row["DYNAMIC_TYPE"].upper()]
+            shortest = lps_qty.Distance.m(row["SHORTEST_DIST_M"])
             approaching = bool(row["APPROACHING"])
 
             dynamics.append(
@@ -73,7 +73,7 @@ class SimulationDynamic(syndb_core.CatalogEntry):
         rng = random.Random(seed)
         dynamics: list[SimulationDynamic] = []
 
-        for i in range(n_samples):
+        for _ in range(n_samples):
 
             dist = lps_qty.Distance.m(random.randint(int(min_dist.get_m()),
                                                     int(max_dist.get_m())))
@@ -87,18 +87,26 @@ class SimulationDynamic(syndb_core.CatalogEntry):
         return syndb_core.Catalog[SimulationDynamic](entries=dynamics)
 
 
-    def get_ship_initial_state(self, speed: lps_qty.Speed, interval: lps_qty.Time) -> lps_dyn.State:
+    def get_ship_initial_state(self,
+                               speed: lps_qty.Speed,
+                               step_interval: lps_qty.Time,
+                               simulation_steps: int) -> lps_dyn.State:
         """ Define the initial state to fulfill the dynamics. """
 
         y_offset = self.shortest if self.dynamic_type != DynamicType.CPA_OUT \
                                  else lps_qty.Distance.m(0)
 
+        displacement = speed * (step_interval * (simulation_steps-1))
+
         if self.dynamic_type == DynamicType.FIXED_DISTANCE:
             x_offset = lps_qty.Distance.m(0)
         elif self.dynamic_type == DynamicType.CPA_IN:
-            x_offset = -0.5 * speed * interval
+            x_offset = -0.5 * displacement
         elif self.dynamic_type == DynamicType.CPA_OUT:
-            x_offset = (self.shortest + speed * interval) * -1
+            if self.approaching:
+                x_offset = (self.shortest + displacement) * -1
+            else:
+                x_offset = self.shortest
         else:
             raise UnboundLocalError("get_initial_state not handling {self.dynamic_type} dynamic")
 

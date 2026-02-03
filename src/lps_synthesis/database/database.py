@@ -6,11 +6,14 @@ Define Collections and their generation process.
 import os
 import typing
 import random
-import tqdm
 import copy
+import tqdm
 
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 import scipy.io.wavfile as sci_wave
+import scipy.signal as sci_sig
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.scenario as lps_scenario
@@ -150,42 +153,99 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                    sample_frequency: lps_qty.Frequency,
                    step_interval: lps_qty.Time =lps_qty.Time.s(1),
                    simulation_steps: int = 10,
-                   global_attenuation_dB = 20) -> None:
+                   global_attenuation_dB: float = 20,
+                   only_plot: bool = False,
+                   force_override: bool = False) -> None:
+
+        for i in tqdm.tqdm(range(len(self)), desc="Synthesizing", leave=False, ncols=120):
+            self.synthesize_sample(
+                sample_index=i,
+                output_dir=output_dir,
+                sonar=sonar,
+                sample_frequency=sample_frequency,
+                step_interval=step_interval,
+                simulation_steps=simulation_steps,
+                global_attenuation_dB=global_attenuation_dB,
+                only_plot = only_plot,
+                force_override = force_override
+            )
+
+    def synthesize_sample(self,
+                   sample_index: int,
+                   output_dir: str,
+                   sonar: lps_sonar.Sonar,
+                   sample_frequency: lps_qty.Frequency,
+                   step_interval: lps_qty.Time,
+                   simulation_steps: int,
+                   global_attenuation_dB: float,
+                   only_plot: bool,
+                   force_override: bool) -> None:
 
         os.makedirs(output_dir, exist_ok=True)
 
-        for i, entry in enumerate(tqdm.tqdm(self, desc="Synthesizing", leave=False, ncols=120)):
-            acoustic_scenario = self.acoutic_scenario_catalog[entry.scenario_id]
-            ship_info = self.ship_catalog[entry.ship_id]
-            dynamic = self.dynamic_catalog[entry.dynamic_id]
+        filename = os.path.join(output_dir, f"{sample_index}.wav")
+        dynamic_geo_spec = os.path.join(output_dir, f"{sample_index}_spec.png")
+        dynamic_geo_file = os.path.join(output_dir, f"{sample_index}_geo.png")
+        dynamic_dist_file = os.path.join(output_dir, f"{sample_index}_dist.png")
 
-            channel = acoustic_scenario.get_channel()
-            environment = acoustic_scenario.get_env()
-            environment.global_attenuation_dB = global_attenuation_dB
+        if os.path.exists(filename) and not force_override:
+            return
 
-            scenario = lps_scenario.Scenario(
-                step_interval=step_interval,
-                channel = channel,
-                environment = environment
-            )
+        entry = self[sample_index]
+        acoustic_scenario = self.acoutic_scenario_catalog[entry.scenario_id]
+        ship_info = self.ship_catalog[entry.ship_id]
+        dynamic = self.dynamic_catalog[entry.dynamic_id]
 
-            sonar_i = copy.deepcopy(sonar)
+        channel = acoustic_scenario.get_channel()
+        environment = acoustic_scenario.get_env()
+        environment.global_attenuation_dB = global_attenuation_dB
 
-            scenario.add_sonar("main", sonar_i)
+        scenario = lps_scenario.Scenario(
+            step_interval=step_interval,
+            channel = channel,
+            environment = environment
+        )
 
-            ship = ship_info.make_ship(dynamic=dynamic,
-                                       interval=simulation_steps * step_interval)
+        sonar_i = copy.deepcopy(sonar)
 
-            scenario.add_noise_container(ship)
+        scenario.add_sonar("main", sonar_i)
 
-            sonar_i.ref_state = dynamic.get_sonar_initial_state(ship)
+        ship = ship_info.make_ship(
+            dynamic=dynamic,
+            step_interval=step_interval,
+            simulation_steps=simulation_steps
+        )
 
-            scenario.simulate(simulation_steps)
+        scenario.add_noise_container(ship)
+
+        sonar_i.ref_state = dynamic.get_sonar_initial_state(ship)
+
+        scenario.simulate(simulation_steps)
+
+        scenario.geographic_plot(dynamic_geo_file)
+        scenario.relative_distance_plot(dynamic_dist_file)
+
+        if not only_plot:
 
             signal = scenario.get_sonar_audio("main", fs=sample_frequency)
 
-            filename = os.path.join(output_dir, f"{i}.wav")
             sci_wave.write(filename, int(sample_frequency.get_hz()), signal)
+
+
+            float_signal = signal.astype(np.float32) / (2**15 -1)
+            f, t, s = sci_sig.spectrogram(float_signal[:,0],
+                                            fs=sample_frequency.get_hz(),
+                                            nperseg=2048)
+
+            plt.figure(figsize=(10, 6))
+            plt.pcolormesh(t, f, 20 * np.log10(np.clip(s, 1e-10, None)), shading='gouraud')
+            plt.ylabel('Frequência [Hz]')
+            plt.xlabel('Tempo [s]')
+            plt.colorbar(label='Intensidade [dB]')
+            plt.savefig(dynamic_geo_spec)
+            plt.close()
+
+
 
 class ToyDatabase(Database):
     """Small-scale catalog for demonstration or testing purposes."""

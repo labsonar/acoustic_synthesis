@@ -52,21 +52,19 @@ class ShipInfo(syndb_core.CatalogEntry):
         self.nb_oscillating = nb_oscillating
         self.nb_concentrated = nb_concentrated
 
-        self.rng = random.Random(self.seed)
-        self.sigma_factor = self.rng.uniform(0.01, 1.0)
+        rng = random.Random(self.seed)
+        self.sigma_factor = rng.uniform(0.01, 1.0)
+        sigma = self.sigma_factor * self.cruising_speed.get_kt()
+        current_speed_kt = round(rng.gauss(self.cruising_speed.get_kt(), sigma),1)
+        self.current_speed = lps_qty.Speed.kt(max(0, min(current_speed_kt, self.max_speed.get_kt())))
 
     def __repr__(self):
         return f"Ship[{self.seed}]: {self.ship_type}"
 
-    def random_speed(self) -> lps_qty.Speed:
-        """ Generate a randomized speed. """
-        sigma = self.sigma_factor * self.cruising_speed.get_kt()
-        value = self.rng.gauss(self.cruising_speed.get_kt(), sigma)
-        return lps_qty.Speed.kt(max(0, min(value, self.max_speed.get_kt())))
-
     def make_ship(self,
                   dynamic: syndb_dynamic.SimulationDynamic,
-                  interval: lps_qty.Time) -> lps_ns.Ship:
+                  step_interval: lps_qty.Time,
+                  simulation_steps: int) -> lps_ns.Ship:
         """ Allocate the lps_ns.Ship based on ShipInfo. """
 
         ship = lps_ns.Ship(
@@ -82,8 +80,11 @@ class ShipInfo(syndb_core.CatalogEntry):
                 seed=self.seed
             ),
             draft=self.draft,
-            initial_state=dynamic.get_ship_initial_state(speed=self.random_speed(),
-                                                    interval=interval),
+            initial_state=dynamic.get_ship_initial_state(
+                    speed=self.current_speed,
+                    step_interval=step_interval,
+                    simulation_steps=simulation_steps,
+                ),
             seed=self.seed
         )
 

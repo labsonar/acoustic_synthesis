@@ -42,6 +42,12 @@ def _main():
     )
 
     parser.add_argument(
+        "--only-plot",
+        action="store_true",
+        help="Only plot sample dynamics",
+    )
+
+    parser.add_argument(
         "--sensitivity",
         type=float,
         default=-180.0,
@@ -80,6 +86,12 @@ def _main():
         "--load",
         action="store_true",
         help="Load previolsy computed info",
+    )
+
+    parser.add_argument(
+        "--force_override",
+        action="store_true",
+        help="Override wav files if they exists",
     )
 
     parser.add_argument(
@@ -128,7 +140,9 @@ def _main():
                         sample_frequency=sample_frequency,
                         step_interval=step_interval,
                         simulation_steps=simulation_steps,
-                        global_attenuation_dB=args.env_att)
+                        global_attenuation_dB=args.env_att,
+                        only_plot=args.only_plot,
+                        force_override=args.force_override)
 
 
 @memory_profiler.profile
