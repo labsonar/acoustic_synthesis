@@ -198,7 +198,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
         channel = acoustic_scenario.get_channel()
         environment = acoustic_scenario.get_env()
-        environment.global_attenuation_dB = global_attenuation_dB
+        environment.global_attenuation_db = global_attenuation_dB
 
         scenario = lps_scenario.Scenario(
             step_interval=step_interval,

@@ -5,10 +5,12 @@ environments.
 Classes:
     Description: Handles the layers of an acoustic channel and their properties.
 """
+import os
 import typing
 import random
 import json
 
+import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -203,39 +205,72 @@ class Description(lps_hash.Hashable):
 
     def save(self, file_path: str) -> None:
         """Saves the description to a JSON file."""
-        local_dict = {}
 
-        for depth, layer in self.layers.items():
-            local_dict[depth.get_m()] = {
-                'type': layer.__class__.__name__,
-                'speed': layer.get_compressional_speed().get_m_s(),
-                'value': layer.value if isinstance(layer, lps_layer.BottomType) else "None"
+        _, ext = os.path.splitext(file_path)
+
+        if ext.lower() == ".json":
+            data = {
+                "air_sea": True,
+                "layers": {}
             }
 
-        with open(file_path, 'w', encoding="utf-8") as file:
-            json.dump(local_dict, file, indent=4)
+            if self.air_sea is None:
+                data["air_sea"] = False
+
+            local_dict = {}
+
+            for depth, layer in self.layers.items():
+                local_dict[depth.get_m()] = {
+                    'type': layer.__class__.__name__,
+                    'speed': layer.get_compressional_speed().get_m_s(),
+                    'value': layer.seabed_type.name if isinstance(layer, lps_layer.Seabed) else "None"
+                }
+
+            data["layers"] = local_dict
+
+            with open(file_path, 'w', encoding="utf-8") as file:
+                json.dump(data, file, indent=4)
+
+        else:
+            with open(file_path, "wb") as file:
+                pickle.dump(self, file)
 
     @staticmethod
     def load(file_path: str) -> 'Description':
         """ Load Channel description from a file. """
 
-        with open(file_path, 'r', encoding="utf-8") as f:
-            data = json.load(f)
+        _, ext = os.path.splitext(file_path)
 
-        desc = Description()
+        if ext.lower() == ".json":
 
-        for depth, layer in data.items():
-            d = lps_qty.Distance.m(float(depth))
+            with open(file_path, 'r', encoding="utf-8") as f:
+                data = json.load(f)
 
-            if layer['type'] == lps_layer.BottomType.CLAY.__class__.__name__:
-                desc.add(d, lps_layer.BottomType(int(layer['value'])))
+            desc = Description()
 
-            elif layer['type'] == lps_layer.Water().__class__.__name__:
-                desc.add(d, lps_layer.Water(lps_qty.Speed.m_s(float(layer['speed']))))
+            air = data.get("air_sea", None)
+            if not air:
+                desc.remove_air_sea_interface()
 
-            else:
-                raise NotImplementedError(f"load for {layer['type']} not implemented")
 
-        return desc
+            for depth, layer in data["layers"].items():
+                d = lps_qty.Distance.m(float(depth))
+                layer_type = layer["type"]
+
+                if layer['type'] == lps_layer.Seabed.__name__:
+                    desc.add(d, lps_layer.SeabedType[layer['value']])
+
+                elif layer_type == lps_layer.Water.__name__:
+                    desc.add(d, lps_layer.Water(lps_qty.Speed.m_s(float(layer['speed']))))
+
+                else:
+                    raise NotImplementedError(f"load for {layer['type']} not implemented")
+
+            return desc
+
+        else:
+
+            with open(file_path, "rb") as f:
+                return pickle.load(f)
 
 ChannelDescription = Description

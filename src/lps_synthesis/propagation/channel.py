@@ -48,6 +48,7 @@ class Channel():
         return os.path.join(self.channel_dir, f"{self._get_hash()}{ext}")
 
     def _load(self) -> bool:
+        print("loading: ", self._filename())
         self.response = lps_propag.TemporalResponse.load(self._filename())
         return self.response is not None
 

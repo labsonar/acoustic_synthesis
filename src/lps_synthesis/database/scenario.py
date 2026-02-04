@@ -3,6 +3,7 @@ Scenario Module
 
 Define AcousticScenario and its components.
 """
+import os
 import enum
 import random
 import typing
@@ -19,6 +20,8 @@ import lps_synthesis.scenario.dynamic as lps_sce_dyn
 import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.environment.acoustic_site as lps_site
 import lps_synthesis.propagation.channel as lps_channel
+import lps_synthesis.propagation.channel_description as lps_channel_desc
+import lps_synthesis.propagation.channel_response as lps_channel_rsp
 import lps_synthesis.propagation.models as lps_propag_model
 
 import lps_synthesis.database.catalog as syndb_core
@@ -234,6 +237,11 @@ class AcousticScenario(syndb_core.CatalogEntry):
         self.local = local or Location.rand()
         self.season = season or lps_site.Season.rand()
         self._prospector = prospector
+        self._df = None
+
+        csv_path = os.path.join(os.path.dirname(__file__), "data", "acoustic_scenario_info.csv")
+        if os.path.exists(csv_path):
+            self._df = pd.read_csv(csv_path)
 
     def __str__(self):
         return f"{self.local} [{self.season.name.capitalize()}]"
@@ -245,15 +253,51 @@ class AcousticScenario(syndb_core.CatalogEntry):
             "Season": self.season.name.capitalize(),
         }
 
-    @property
-    def prospector(self) -> lps_site.AcousticSiteProspector:
+    def get_prospector(self) -> lps_site.AcousticSiteProspector:
         if self._prospector is None:
             self._prospector = lps_site.AcousticSiteProspector()
         return self._prospector
 
+    def _query_df(self, model_name: str | None):
+        if self._df is None:
+            raise KeyError("Acoustic Scenario info not found")
+
+        if model_name is None:
+            row = self._df.query(
+                "LOCAL == @self.local.name and "
+                "SEASON == @self.season.name"
+            )
+        else:
+            row = self._df.query(
+                "LOCAL == @self.local.name and "
+                "SEASON == @self.season.name and "
+                "MODEL == @model_name"
+            )
+
+        if row.empty:
+            raise KeyError(
+                f"Scenario not found in CSV: "
+                f"{self.local.name} / {self.season.name} / {model_name}"
+            )
+
+        return row.iloc[0]
+
+
     def get_env(self, seed: int | None = None) -> lps_env.Environment:
         """ Return the lps_env.Environment to the AcousticScenario. """
-        return self.prospector.get_env(point = self.local.get_point(),
+        try:
+            row = self._query_df(model_name=None)
+
+            return lps_env.Environment(
+                rain_value=row["RAIN_VALUE"],
+                sea_value=row["SEA_VALUE"],
+                shipping_value=row["SHIPPING_VALUE"],
+                seed=int(row["SEED"]),
+            )
+        except KeyError:
+            pass
+
+        return self.get_prospector().get_env(point = self.local.get_point(),
                                        season = self.season,
                                        shipping_value = self.local.get_shipping_level(),
                                        seed = seed)
@@ -261,10 +305,42 @@ class AcousticScenario(syndb_core.CatalogEntry):
     def get_channel(self,
                     model: lps_propag_model.PropagationModel | None = None) -> lps_channel.Channel:
         """ Return the lps_channel.Channel to the AcousticScenario. """
-        return self.prospector.get_channel(point = self.local.get_point(),
+
+        hash_id=f"{self.local.name.lower()}"
+        # hash_id=f"{self.local.name.lower()}_{self.season.name.lower()}"
+
+        if self._df is not None:
+            row = self._query_df(model_name=str(model) if model is not None else None)
+
+            desc_filename = f'{row["LOCAL"].lower()}_{row["SEASON"].lower()}.pkl'
+            desc_filename = os.path.join(lps_channel.DEFAULT_DIR, desc_filename)
+
+            if os.path.exists(desc_filename):
+
+                sensor_depth = lps_qty.Distance.m(row["SENSOR_DEPTH"])
+                desc = lps_channel_desc.Description.load(desc_filename)
+
+                query = lps_site.AcousticSiteProspector.get_default_query(desc, sensor_depth)
+
+                channel_filname = os.path.join(lps_channel.DEFAULT_DIR, row["CHANNEL_FILENAME"])
+
+                response = lps_channel_rsp.TemporalResponse.load(channel_filname)
+
+                ch = lps_channel.Channel.__new__(lps_channel.Channel)
+
+                ch.query = query
+                ch.model = lps_propag_model.Type[row["MODEL"].upper()].build_model()
+                ch.hash_id = hash_id
+                ch.response = response
+                ch.channel_dir = lps_channel.DEFAULT_DIR
+
+                return ch
+
+
+        return self.get_prospector().get_channel(point = self.local.get_point(),
                                        season = self.season,
                                        model = model,
-                                       hash_id=self.local.name.lower())
+                                       hash_id=hash_id)
 
     @classmethod
     def load_catalog(cls, filename: str) -> syndb_core.Catalog["AcousticScenario"]:

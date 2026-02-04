@@ -308,7 +308,7 @@ class Environment():
                  sea_value: typing.Union[float, Sea],
                  shipping_value: typing.Union[float, Shipping],
                  seed: int | None = None,
-                 global_attenuation_dB: float = 0.0) -> None:
+                 global_attenuation_db: float = 0.0) -> None:
         """
         Args:
             rain_value (typing.Union[float, Rain]): Rain level value between 0 and 4.
@@ -320,7 +320,7 @@ class Environment():
         self.shipping_value = shipping_value
         self.seed = seed if seed is not None else id(self)
         self.rng = np.random.default_rng(seed = self.seed)
-        self.global_attenuation_dB = global_attenuation_dB
+        self.global_attenuation_db = global_attenuation_db
 
     @staticmethod
     def _format_value(value) -> str:
@@ -385,7 +385,7 @@ class Environment():
 
         combined_linear = linear0 + linear1 + linear2 + linear3
         combined_psd = 20 * np.log10(combined_linear)
-        combined_psd -= self.global_attenuation_dB
+        combined_psd -= self.global_attenuation_db
 
         return all_frequencies, combined_psd
 
@@ -416,7 +416,7 @@ class Environment():
 
         noise = turb_noise + rain_noise + sea_noise + shipping_noise
 
-        attenuation_linear = 10 ** (-self.global_attenuation_dB / 20)
+        attenuation_linear = 10 ** (-self.global_attenuation_db / 20)
         noise *= attenuation_linear
 
         return noise

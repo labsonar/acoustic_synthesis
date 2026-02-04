@@ -1,13 +1,15 @@
-import argparse
 import os
+import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import pandas as pd
 import multiprocessing as mp
 import matplotlib
 matplotlib.use("Agg")
 
 import lps_synthesis.database as lps_db
 import lps_synthesis.environment.acoustic_site as lps_as
+import lps_synthesis.environment.environment as lps_env
 import lps_synthesis.propagation.models as lps_models
 
 
@@ -37,11 +39,47 @@ def run_case(location: lps_db.Location,
 
     filename = os.path.join(
         outdir,
-        f"ir_{location.name.lower()}_{model_name}.png"
+        f"ir_{location.name.lower()}_{model_name}_{season.name.lower()}.png"
     )
 
     ir.print_as_image(filename=filename)
     print(f"[OK] Saved {filename}")
+
+
+def build_as_row(location, season, model_type, output_dir):
+
+    acoustic_scenario = lps_db.AcousticScenario(
+        location,
+        season,
+    )
+
+    model = model_type.build_model()
+
+    channel = acoustic_scenario.get_channel(model=model)
+    env = acoustic_scenario.get_env()
+
+    channel_filename = os.path.basename(channel._filename())
+
+    desc = channel.query.description
+    desc_filename = f"{location.name.lower()}_{season.name.lower()}.pkl"
+    desc_path = os.path.join(output_dir, desc_filename)
+    desc.save(desc_path)
+
+    return {
+        "LOCAL": location.name,
+        "SEASON": season.name,
+        "MODEL": model_type.name.lower(),
+        "CHANNEL_FILENAME": channel_filename,
+        "SENSOR_DEPTH": channel.query.sensor_depth.get_m(),
+        "RAIN_VALUE": env.rain_value.value if isinstance(env.rain_value, lps_env.Rain) \
+                                           else env.rain_value,
+        "SEA_VALUE": env.sea_value.value if isinstance(env.sea_value, lps_env.Sea) \
+                                         else env.sea_value,
+        "SHIPPING_VALUE": env.shipping_value.value \
+                                        if isinstance(env.shipping_value, lps_env.Shipping) \
+                                        else env.shipping_value,
+        "SEED": int(env.seed),
+    }
 
 
 def _main():
@@ -76,6 +114,12 @@ def _main():
     )
 
     parser.add_argument(
+        "--export-df",
+        action="store_true",
+        help="Export CSV with channel and environment metadata",
+    )
+
+    parser.add_argument(
         "--outdir",
         type=str,
         default="./result/channel_ir",
@@ -89,8 +133,6 @@ def _main():
     )
 
     args = parser.parse_args()
-
-    _ = lps_as.AcousticSiteProspector()
 
     if args.location is None:
         locations = list(lps_db.Location)
@@ -120,24 +162,43 @@ def _main():
         else list(lps_models.Type)
     )
 
-    tasks = []
-    with ThreadPoolExecutor(max_workers=args.nproc) as executor:
+    if args.export_df:
+        rows = []
+
+        output_dir = os.path.join(args.outdir, "acoustic_scenario")
+        os.makedirs(output_dir, exist_ok=True)
 
         for season in seasons:
             for loc in locations:
                 for model_type in models:
-                    future = executor.submit(
-                        run_case,
-                        loc,
-                        model_type.name,
-                        season,
-                        args.outdir,
-                        False
-                    )
-                    tasks.append(future)
+                    rows.append(build_as_row(loc, season, model_type, output_dir))
 
-        for f in as_completed(tasks):
-            f.result()
+        df = pd.DataFrame(rows)
+
+        csv_path = os.path.join(output_dir, "acoustic_scenario_info.csv")
+        df.to_csv(csv_path, index=False)
+
+        return
+
+    # _ = lps_as.AcousticSiteProspector()
+    # tasks = []
+    # with ThreadPoolExecutor(max_workers=args.nproc) as executor:
+
+    #     for season in seasons:
+    #         for loc in locations:
+    #             for model_type in models:
+    #                 future = executor.submit(
+    #                     run_case,
+    #                     loc,
+    #                     model_type.name,
+    #                     season,
+    #                     args.outdir,
+    #                     False
+    #                 )
+    #                 tasks.append(future)
+
+    #     for f in as_completed(tasks):
+    #         f.result()
 
 
     for loc in locations:

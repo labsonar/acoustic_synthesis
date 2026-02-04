@@ -39,7 +39,7 @@ def main():
     environment = lps_env.Environment(rain_value=lps_env.Rain.NONE,
                                     sea_value=lps_env.Sea.STATE_2,
                                     shipping_value=lps_env.Shipping.LEVEL_1,
-                                    global_attenuation_dB=20)
+                                    global_attenuation_db=20)
     environment = None
 
     ship_is = dynamic.get_ship_initial_state(speed=ship_speed, interval=simulation_time)

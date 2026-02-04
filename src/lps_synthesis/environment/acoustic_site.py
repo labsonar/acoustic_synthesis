@@ -643,12 +643,11 @@ class AcousticSiteProspector:
             desc.add(depth, speed)
         desc.add(local_depth, seabed_type)
 
-        query = lps_propag_model.QueryConfig(
-                description = desc,
-                sensor_depth = sensor_depth,
-                max_distance = lps_qty.Distance.km(0.5),
-                max_distance_points = 250,
-        )
+        query = AcousticSiteProspector.get_default_query(desc, sensor_depth)
+
+        print("acoustic site query: ", hash(query))
+        print("sensor_depth: ", sensor_depth)
+        print("desc: ", hash(str(desc)))
 
         return lps_channel.Channel(query=query,
                                    model=model,
@@ -738,6 +737,17 @@ class AcousticSiteProspector:
             **rain_states,
             **sea_states,
         }
+
+    @staticmethod
+    def get_default_query(desc: lps_desc.Description, sensor_depth: lps_qty.Distance) -> \
+            lps_propag_model.QueryConfig:
+        return lps_propag_model.QueryConfig(
+                description = desc,
+                sensor_depth = sensor_depth,
+                max_distance = lps_qty.Distance.km(0.5),
+                max_distance_points = 250,
+        )
+
 
 def _aligned_coords(min_v: float, max_v: float, fractions):
     """Generate aligned coordinates following .125 .375 .675 .875 rule."""
