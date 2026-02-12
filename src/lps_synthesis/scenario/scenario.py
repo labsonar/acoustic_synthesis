@@ -3,6 +3,7 @@ Module for representing the scenario and their elements
 """
 import concurrent.futures as future_lib
 import tqdm
+import typing
 import tikzplotlib as tikz
 
 import numpy as np
@@ -356,3 +357,29 @@ class Scenario():
         sonar = self.sonars[sonar_id]
         compiler = lps_noise.NoiseCompiler(self.noise_containers, fs=fs)
         return sonar.get_data(compiler, self.channel, self.environment)
+
+    def get_speed_history(self) -> typing.List[lps_qty.Speed]:
+        """
+        Returns the speed record for the scene.
+        """
+        speeds = []
+
+        for container in self.noise_containers:
+            for step_i in range(self.n_steps):
+                speeds.append(container[step_i].velocity.get_magnitude_xy())
+
+        return speeds
+
+    def get_distance_history(self, sonar_id: str) -> typing.List[lps_qty.Distance]:
+        """
+        Returns the distance record for the scene.
+        """
+        distance = []
+        sonar = self.sonars[sonar_id]
+
+        for container in self.noise_containers:
+            for step_i in range(self.n_steps):
+                diff = container[step_i].position - sonar[step_i].position
+                distance.append(diff.get_magnitude_xy())
+
+        return distance

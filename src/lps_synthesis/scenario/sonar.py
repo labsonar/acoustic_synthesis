@@ -307,7 +307,9 @@ class Sonar(lps_dynamic.Element):
     def get_data(self,
                  noise_compiler: lps_noise.NoiseCompiler,
                  channel: lps_channel.Channel,
-                 environment: lps_env.Environment) -> np.array:
+                 environment: lps_env.Environment,
+                 without_digitalization : bool = False,
+                 parallel: bool = False) -> np.array:
         """
         Computes the received signals for each sensor using multithreading.
         Each sensor’s received signal is computed taking into account the noise sources,
@@ -325,18 +327,27 @@ class Sonar(lps_dynamic.Element):
         """
 
         sonar_signals = [None] * len(self.sensors)
-        with future_lib.ThreadPoolExecutor(max_workers=len(self.sensors)) as executor:
-            futures = {
-                executor.submit(
-                    self._calculate_sensor_signal,
-                    sensor, noise_compiler, channel, environment): idx
-                for idx, sensor in enumerate(self.sensors)
-            }
 
-            for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
-                                    desc="Estimating signal for sensors", leave=False, ncols=120):
-                idx = futures[future]
-                sonar_signals[idx] = future.result()
+        if parallel and len(self.sensors) > 1:
+            with future_lib.ThreadPoolExecutor(max_workers=len(self.sensors)) as executor:
+                futures = {
+                    executor.submit(
+                        self._calculate_sensor_signal,
+                        sensor, noise_compiler, channel, environment, without_digitalization, parallel): idx
+                    for idx, sensor in enumerate(self.sensors)
+                }
+
+                for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
+                                        desc="Estimating signal for sensors", leave=False, ncols=120):
+                    idx = futures[future]
+                    sonar_signals[idx] = future.result()
+
+        else:
+            for idx, sensor in enumerate(tqdm.tqdm(self.sensors, total=len(self.sensors),
+                                desc="Estimating signal for sensors", leave=False, ncols=120)):
+                sonar_signals[idx] = self._calculate_sensor_signal(
+                    sensor, noise_compiler, channel, environment, without_digitalization, parallel
+                )
 
         min_size = min(signal.shape[0] for signal in sonar_signals)
         signals = [signal[:min_size] for signal in sonar_signals]
@@ -379,13 +390,13 @@ class Sonar(lps_dynamic.Element):
             sample_frequency=noise_fs
         )
 
-        doppler_noise = lps_channel_rsp.apply_doppler_by_block(
+        doppler_noise2 = lps_channel_rsp.apply_doppler_by_block(
             input_data=propag_noise,
             speeds=sensor_doppler_list,
             sound_speed=sensor_ss,
         )
 
-        return sensor.transduce(input_data=doppler_noise,
+        return sensor.transduce(input_data=doppler_noise2,
                                 noise_source=noise_source,
                                 fs=noise_fs)
 
@@ -394,22 +405,37 @@ class Sonar(lps_dynamic.Element):
                                  noise_compiler: lps_noise.NoiseCompiler,
                                  channel: lps_channel.Channel,
                                  environment: lps_env.Environment,
-                                 without_digitalization : bool = False):
+                                 without_digitalization : bool = False,
+                                 parallel: bool = False):
 
-        with future_lib.ThreadPoolExecutor(max_workers=len(noise_compiler)) as executor:
-            futures = [
-                executor.submit(
-                    self._process_source_for_sensor,
-                    signal, depth, source_list[0], sensor, channel, noise_compiler.fs
+        if parallel and len(noise_compiler) > 1:
+            with future_lib.ThreadPoolExecutor(max_workers=len(noise_compiler)) as executor:
+                futures = [
+                    executor.submit(
+                        self._process_source_for_sensor,
+                        signal, depth, source_list[0], sensor, channel, noise_compiler.fs
+                    )
+                    for signal, depth, source_list in noise_compiler
+                ]
+
+            noises = [f.result() for f in tqdm.tqdm(future_lib.as_completed(futures),
+                                                    total=len(futures),
+                                                    desc="Propagating noises",
+                                                    leave=False,
+                                                    ncols=120)]
+        else:
+            noises = []
+            for signal, depth, source_list in noise_compiler:
+                noises.append(
+                    self._process_source_for_sensor(
+                        signal=signal,
+                        depth=depth,
+                        noise_source=source_list[0],
+                        sensor=sensor,
+                        channel=channel,
+                        noise_fs=noise_compiler.fs
+                    )
                 )
-                for signal, depth, source_list in noise_compiler
-            ]
-
-        noises = [f.result() for f in tqdm.tqdm(future_lib.as_completed(futures),
-                                                total=len(futures),
-                                                desc="Propagating noises",
-                                                leave=False,
-                                                ncols=120)]
 
         min_size = min(signal.shape[0] for signal in noises)
         signals = [signal[:min_size] for signal in noises]

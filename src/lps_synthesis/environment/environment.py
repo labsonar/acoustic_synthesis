@@ -255,7 +255,7 @@ class Sea(enum.Enum):
             return value.get_psd()
 
         if not 0 <= value <= 6:
-            raise ValueError("Sea state must be between 0 and 6.")
+            raise ValueError(f"Sea state must be between 0 and 6 --- desired value {value}")
 
         lower_state = Sea(int(np.floor(value)))
         upper_state = Sea(int(np.ceil(value)))

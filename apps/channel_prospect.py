@@ -37,13 +37,18 @@ def run_case(location: lps_db.Location,
 
     os.makedirs(outdir, exist_ok=True)
 
-    filename = os.path.join(
+    filename_min = os.path.join(
         outdir,
-        f"ir_{location.name.lower()}_{model_name}_{season.name.lower()}.png"
+        f"ir_{location.name.lower()}_{model_name}_{season.name.lower()}_min_depth.png"
+    )
+    filename_max = os.path.join(
+        outdir,
+        f"ir_{location.name.lower()}_{model_name}_{season.name.lower()}_max_depth.png"
     )
 
-    ir.print_as_image(filename=filename)
-    print(f"[OK] Saved {filename}")
+    ir.print_as_image(filename=filename_min, depth_index=0)
+    ir.print_as_image(filename=filename_max, depth_index=-1)
+    print(f"[OK] Saved {filename_min}")
 
 
 def build_as_row(location, season, model_type, output_dir):
@@ -58,8 +63,6 @@ def build_as_row(location, season, model_type, output_dir):
     channel = acoustic_scenario.get_channel(model=model)
     env = acoustic_scenario.get_env()
 
-    channel_filename = os.path.basename(channel._filename())
-
     desc = channel.query.description
     desc_filename = f"{location.name.lower()}_{season.name.lower()}.pkl"
     desc_path = os.path.join(output_dir, desc_filename)
@@ -69,7 +72,6 @@ def build_as_row(location, season, model_type, output_dir):
         "LOCAL": location.name,
         "SEASON": season.name,
         "MODEL": model_type.name.lower(),
-        "CHANNEL_FILENAME": channel_filename,
         "SENSOR_DEPTH": channel.query.sensor_depth.get_m(),
         "RAIN_VALUE": env.rain_value.value if isinstance(env.rain_value, lps_env.Rain) \
                                            else env.rain_value,
@@ -180,25 +182,26 @@ def _main():
 
         return
 
-    # _ = lps_as.AcousticSiteProspector()
-    # tasks = []
-    # with ThreadPoolExecutor(max_workers=args.nproc) as executor:
 
-    #     for season in seasons:
-    #         for loc in locations:
-    #             for model_type in models:
-    #                 future = executor.submit(
-    #                     run_case,
-    #                     loc,
-    #                     model_type.name,
-    #                     season,
-    #                     args.outdir,
-    #                     False
-    #                 )
-    #                 tasks.append(future)
+    _ = lps_as.AcousticSiteProspector()
+    tasks = []
+    with ThreadPoolExecutor(max_workers=args.nproc) as executor:
 
-    #     for f in as_completed(tasks):
-    #         f.result()
+        for season in seasons:
+            for loc in locations:
+                for model_type in models:
+                    future = executor.submit(
+                        run_case,
+                        loc,
+                        model_type.name,
+                        season,
+                        args.outdir,
+                        False
+                    )
+                    tasks.append(future)
+
+        for f in as_completed(tasks):
+            f.result()
 
 
     for loc in locations:
@@ -211,8 +214,6 @@ def _main():
                     args.outdir,
                     True
                 )
-
-
 
 if __name__ == "__main__":
     _main()

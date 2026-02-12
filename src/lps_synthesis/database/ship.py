@@ -20,6 +20,7 @@ class ShipInfo(syndb_core.CatalogEntry):
     def __init__(
         self,
         seed: int,
+        major_class: str,
         ship_type: lps_ns.ShipType,
         mcr_percent: float,
         cruising_speed: lps_qty.Speed,
@@ -36,6 +37,7 @@ class ShipInfo(syndb_core.CatalogEntry):
         nb_concentrated: float,
     ):
         self.seed = seed
+        self.major_class = major_class
         self.ship_type = ship_type
         self.mcr_percent = mcr_percent
         self.cruising_speed = cruising_speed
@@ -53,10 +55,18 @@ class ShipInfo(syndb_core.CatalogEntry):
         self.nb_concentrated = nb_concentrated
 
         rng = random.Random(self.seed)
-        self.sigma_factor = rng.uniform(0.01, 1.0)
-        sigma = self.sigma_factor * self.cruising_speed.get_kt()
-        current_speed_kt = round(rng.gauss(self.cruising_speed.get_kt(), sigma),1)
-        self.current_speed = lps_qty.Speed.kt(max(0, min(current_speed_kt, self.max_speed.get_kt())))
+        self.sigma_factor = rng.uniform(0.01, 0.2)
+        sigma_mcr = self.sigma_factor * self.mcr_percent
+
+        mcr_current = rng.gauss(self.mcr_percent, sigma_mcr)
+
+        mcr_min = 0.5 * self.mcr_percent
+        mcr_max = 1.0
+
+        self.current_mcr_percent = max(mcr_min, min(mcr_current, mcr_max))
+        current_speed_kt = self.max_speed.get_kt() * self.current_mcr_percent
+        self.current_speed = lps_qty.Speed.kt(round(current_speed_kt, 1))
+
 
     def __repr__(self):
         return f"Ship[{self.seed}]: {self.ship_type}"
@@ -93,6 +103,7 @@ class ShipInfo(syndb_core.CatalogEntry):
     def as_dict(self):
         return {
             "SEED": self.seed,
+            "CLASS": self.major_class,
             "SHIP_TYPE": self.ship_type,
             "MCR_PERCENT": self.mcr_percent,
             "CRUISING_SPEED_KT": self.cruising_speed.get_kt(),
@@ -232,6 +243,7 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
 
         for col in row.index:
             val = row[col]
+
             if col in self.NUMERIC_FIELDS:
                 data[col] = self._parse_value(val, seed)
             else:
@@ -239,6 +251,7 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
 
         return ShipInfo(
             seed = seed,
+            major_class = row["class"],
             ship_type = ShipCatalog.parse_ship_type(data["ship_type"]),
             mcr_percent = data["mcr_percent"],
             cruising_speed = lps_qty.Speed.kt(data["cruising_speed_kt"]),
@@ -264,6 +277,7 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
             ships.append(
                 ShipInfo(
                     seed=int(row["SEED"]),
+                    major_class=row["CLASS"],
                     ship_type=lps_ns.ShipType[row["SHIP_TYPE"].upper()],
                     mcr_percent=float(row["MCR_PERCENT"]),
                     cruising_speed=lps_qty.Speed.kt(row["CRUISING_SPEED_KT"]),

@@ -106,9 +106,9 @@ class SeabedType(enum.Enum):
     def __str__(self) -> str:
         return self.name.title()
 
-    def get_acoustical_layer(self) -> 'Seabed':
+    def get_acoustical_layer(self, seed: int = None) -> 'Seabed':
         """ Get a valid acoustical layer for this SeabedType. """
-        return Seabed(self)
+        return Seabed(self, seed)
 
 
 class Seabed(AcousticalLayer):

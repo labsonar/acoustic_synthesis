@@ -192,6 +192,7 @@ class TemporalResponse:
         filename: str | None = None,
         db: bool = True,
         cmap: str = "viridis",
+        depth_index = -1,
     ):
         """
         Plot h_t_tau[-1, :, :] as an imagesc-like image.
@@ -204,7 +205,7 @@ class TemporalResponse:
             raise RuntimeError("TemporalResponse.h_t_tau is None")
 
         # Select last depth
-        h = self.h_t_tau[-1, :, :]  # (range, time)
+        h = self.h_t_tau[depth_index, :, :]  # (range, time)
 
         if db:
             h_plot = 20 * np.log10(np.clip(np.abs(h), 1e-12, None))

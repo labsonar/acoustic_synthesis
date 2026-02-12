@@ -56,7 +56,7 @@ class Description(lps_hash.Hashable):
         elif isinstance(layer, lps_layer.AcousticalLayer):
             self.layers[depth] = layer
         elif isinstance(layer, lps_layer.SeabedType):
-            self.layers[depth] = layer.get_acoustical_layer()
+            self.layers[depth] = layer.get_acoustical_layer(len(self.layers))
         else:
             raise ValueError(("For add in AcousticalChannel, use lps_qty.Speed"
                              f" or lps_layer.AcousticalLayer: using {type(layer)}"))
@@ -117,6 +117,9 @@ class Description(lps_hash.Hashable):
                 continue
 
             if depth > desired_depth:
+                if last_depths is None:
+                    return layer.get_compressional_speed()
+
                 factor = (desired_depth - last_depths)/(depth - last_depths)
                 return (1 - factor) * last_speed + factor * layer.get_compressional_speed()
 

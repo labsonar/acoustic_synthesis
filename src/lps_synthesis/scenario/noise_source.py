@@ -71,32 +71,62 @@ class NoiseCompiler():
             Iterates over compiled noise groups, yielding (signal, depth, source list) tuples.
     """
 
-    def __init__(self, noise_containers: typing.List[NoiseContainer], fs: lps_qty.Frequency):
+    def __init__(self,
+                 noise_containers: typing.List[NoiseContainer],
+                 fs: lps_qty.Frequency,
+                 parallel: bool = False):
         self.keys = []
         self.signal_dict = {}
         self.depth_dict = {}
         self.source_list_dict = {}
         self.fs = fs
 
-        with future_lib.ThreadPoolExecutor(max_workers=None) as executor:
-            futures = [
-                executor.submit(NoiseCompiler._process_noise_source, noise_source, fs)
-                for container in noise_containers
-                for noise_source in container.noise_sources
+        tasks = [
+            (noise_source, fs)
+            for container in noise_containers
+            for noise_source in container.noise_sources
+        ]
+
+        if parallel and len(tasks) > 1:
+
+            with future_lib.ThreadPoolExecutor(max_workers=None) as executor:
+                futures = [
+                    executor.submit(NoiseCompiler._process_noise_source, ns, fs)
+                    for ns, fs in tasks
+                ]
+
+                results = [
+                    future.result()
+                    for future in tqdm.tqdm(
+                        future_lib.as_completed(futures),
+                        total=len(futures),
+                        desc="Compiling noise sources",
+                        leave=False,
+                        ncols=120
+                    )
+                ]
+
+        else:
+            results = [
+                NoiseCompiler._process_noise_source(ns, fs)
+                for ns, fs in tqdm.tqdm(
+                    tasks,
+                    desc="Compiling noise sources",
+                    leave=False,
+                    ncols=120
+                )
             ]
 
-            for future in tqdm.tqdm(future_lib.as_completed(futures), total=len(futures),
-                                    desc="Compiling noise sources", leave=False, ncols=120):
-                noise, depth, noise_source, key = future.result()
+        for noise, depth, noise_source, key in results:
 
-                if key not in self.keys:
-                    self.keys.append(key)
-                    self.signal_dict[key] = noise
-                    self.depth_dict[key] = depth
-                    self.source_list_dict[key] = [noise_source]
-                else:
-                    self.signal_dict[key] += noise
-                    self.source_list_dict[key].append(noise_source)
+            if key not in self.keys:
+                self.keys.append(key)
+                self.signal_dict[key] = noise
+                self.depth_dict[key] = depth
+                self.source_list_dict[key] = [noise_source]
+            else:
+                self.signal_dict[key] += noise
+                self.source_list_dict[key].append(noise_source)
 
     def __iter__(self) -> typing.Iterator[typing.Tuple[np.ndarray,
                                                        lps_qty.Distance,

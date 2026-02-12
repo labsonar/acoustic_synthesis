@@ -16,6 +16,7 @@ import scipy.io.wavfile as sci_wave
 import scipy.signal as sci_sig
 
 import lps_utils.quantities as lps_qty
+import lps_sp.signal as lps_sig
 import lps_synthesis.scenario.scenario as lps_scenario
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.environment.acoustic_site as lps_as
@@ -84,8 +85,16 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
         for i in range(n_samples):
 
-            ship_ids = rng.sample(range(n_ships), 2)
-            scenario_ids = rng.sample(range(n_scenarios), 2)
+            ship_ids = rng.sample(range(n_ships), 1)
+
+            while True:
+                scenario_ids = rng.sample(range(n_scenarios), 2)
+
+                s1 = acoutic_scenario_catalog[scenario_ids[0]]
+                s2 = acoutic_scenario_catalog[scenario_ids[1]]
+
+                if s1.local != s2.local:
+                    break
 
             for ship_id in ship_ids:
                 for scenario_id in scenario_ids:
@@ -153,7 +162,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                    sample_frequency: lps_qty.Frequency,
                    step_interval: lps_qty.Time =lps_qty.Time.s(1),
                    simulation_steps: int = 10,
-                   global_attenuation_dB: float = 20,
+                   global_attenuation_db: float = 20,
                    only_plot: bool = False,
                    force_override: bool = False) -> None:
 
@@ -165,7 +174,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                 sample_frequency=sample_frequency,
                 step_interval=step_interval,
                 simulation_steps=simulation_steps,
-                global_attenuation_dB=global_attenuation_dB,
+                global_attenuation_db=global_attenuation_db,
                 only_plot = only_plot,
                 force_override = force_override
             )
@@ -177,7 +186,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                    sample_frequency: lps_qty.Frequency,
                    step_interval: lps_qty.Time,
                    simulation_steps: int,
-                   global_attenuation_dB: float,
+                   global_attenuation_db: float,
                    only_plot: bool,
                    force_override: bool) -> None:
 
@@ -198,7 +207,10 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
         channel = acoustic_scenario.get_channel()
         environment = acoustic_scenario.get_env()
-        environment.global_attenuation_db = global_attenuation_dB
+        environment.global_attenuation_db = global_attenuation_db
+
+        desired_simulation_steps = simulation_steps
+        simulation_steps = simulation_steps  + 2
 
         scenario = lps_scenario.Scenario(
             step_interval=step_interval,
@@ -218,7 +230,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
         scenario.add_noise_container(ship)
 
-        sonar_i.ref_state = dynamic.get_sonar_initial_state(ship)
+        sonar_i.reset(dynamic.get_sonar_initial_state(ship))
 
         scenario.simulate(simulation_steps)
 
@@ -229,8 +241,13 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
             signal = scenario.get_sonar_audio("main", fs=sample_frequency)
 
-            sci_wave.write(filename, int(sample_frequency.get_hz()), signal)
+            final_n_samples = int((desired_simulation_steps * step_interval) * sample_frequency)
 
+            center = len(signal) // 2
+            half = final_n_samples // 2
+            signal = signal[center - half : center + half]
+
+            lps_sig.save_wav(signal, sample_frequency, filename)
 
             float_signal = signal.astype(np.float32) / (2**15 -1)
             f, t, s = sci_sig.spectrogram(float_signal[:,0],
@@ -245,6 +262,66 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
             plt.savefig(dynamic_geo_spec)
             plt.close()
 
+    def compute_limits(self,
+                    sonar: lps_sonar.Sonar,
+                    step_interval: lps_qty.Time,
+                    simulation_steps: int,
+                    global_attenuation_db: float) -> None:
+
+        global_min_dist = float("inf")
+        global_max_dist = 0.0
+        global_min_speed = float("inf")
+        global_max_speed = 0.0
+        global_min_depth = float("inf")
+        global_max_depth = 0.0
+
+        for i in tqdm.tqdm(range(len(self)), desc="Computing limits", ncols=120):
+
+            entry = self[i]
+            ship_info = self.ship_catalog[entry.ship_id]
+            dynamic = self.dynamic_catalog[entry.dynamic_id]
+
+            scenario = lps_scenario.Scenario(
+                step_interval=step_interval,
+                channel=None,
+                environment=None
+            )
+
+            sonar_i = copy.deepcopy(sonar)
+            scenario.add_sonar("main", sonar_i)
+
+            ship = ship_info.make_ship(
+                dynamic=dynamic,
+                step_interval=step_interval,
+                simulation_steps=simulation_steps
+            )
+
+            scenario.add_noise_container(ship)
+
+            sonar_i.ref_state = dynamic.get_sonar_initial_state(ship)
+
+            scenario.simulate(simulation_steps)
+
+            distances = np.array([dist.get_km() for dist in scenario.get_distance_history("main")])
+            speeds = np.array([speed.get_kt() for speed in scenario.get_speed_history()])
+
+            local_min_dist = np.min(distances)
+            local_max_dist = np.max(distances)
+            local_min_speed = np.min(speeds)
+            local_max_speed = np.max(speeds)
+
+            global_min_dist = min(global_min_dist, local_min_dist)
+            global_max_dist = max(global_max_dist, local_max_dist)
+            global_min_speed = min(global_min_speed, local_min_speed)
+            global_max_speed = max(global_max_speed, local_max_speed)
+            global_min_depth = min(global_min_depth, ship.get_depth().get_m())
+            global_max_depth = max(global_max_depth, ship.get_depth().get_m())
+
+        print("\n========== GLOBAL LIMITS ==========")
+        print(f"Distance  : {global_min_dist:.2f} m  ->  {global_max_dist:.2f} m")
+        print(f"Speed     : {global_min_speed:.2f} m/s -> {global_max_speed:.2f} m/s")
+        print(f"Depth     : {global_min_depth:.2f} m -> {global_max_depth:.2f} m")
+        print("====================================\n")
 
 
 class ToyDatabase(Database):
@@ -272,20 +349,20 @@ class ToyDatabase(Database):
 class OlocumDatabase(Database):
     """Comprehensive simulated catalog inspired by the OLOCUM dataset."""
 
-    def __init__(self, n_scenarios = 100, n_ships = 50, n_samples = 1000, seed: int = 42):
+    def __init__(self, n_ships = 50, n_samples = 1000, seed: int = 42):
 
-        rng = random.Random(seed)
-        all_scenarios = [
+        scenarios = [
             syndb_scenario.AcousticScenario(local, season)
             for local in syndb_scenario.Location
             for season in lps_as.Season
         ]
-        n_scenarios = min(n_scenarios, len(all_scenarios))
-        scenarios = rng.sample(all_scenarios, n_scenarios)
+
+        acoutic_scenario_catalog = \
+                syndb_core.Catalog[syndb_scenario.AcousticScenario](entries=scenarios)
 
         super().__init__(
             ship_catalog=syndb_ship.ShipCatalog(n_samples=n_ships, seed=seed),
-            acoutic_scenario_catalog=syndb_core.Catalog[syndb_scenario.AcousticScenario](entries=scenarios),
+            acoutic_scenario_catalog=acoutic_scenario_catalog,
             n_samples=n_samples,
             seed=seed
         )

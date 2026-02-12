@@ -4,6 +4,7 @@ import os
 import argparse
 
 import lps_utils.quantities as lps_qty
+import lps_utils.utils as lps_utils
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.database as syndb
 
@@ -95,6 +96,19 @@ def _main():
     )
 
     parser.add_argument(
+        "--sample-index",
+        type=str,
+        default=None,
+        help="Accepts single value, ranges and compositions (e.g. 3, 1-5, 1/3-6/10)",
+    )
+
+    parser.add_argument(
+        "--limits",
+        action="store_true",
+        help="Compute global operational limits (distance and speed) without audio synthesis",
+    )
+
+    parser.add_argument(
         "--output-dir",
         default="./result",
         help="Directory to save results (default: ./result)",
@@ -124,9 +138,24 @@ def _main():
         print("############## Acoustic Scenario ###############")
         print(dataset.acoutic_scenario_catalog.to_df())
 
+    elif args.limits:
+
+        sonar = lps_sonar.Sonar.hydrophone(
+            sensitivity=lps_qty.Sensitivity.db_v_p_upa(args.sensitivity)
+        )
+
+        sample_frequency = lps_qty.Frequency.khz(args.sample_frequency)
+        step_interval = lps_qty.Time.s(args.step_interval)
+
+        dataset.compute_limits(
+            sonar=sonar,
+            step_interval=step_interval,
+            simulation_steps=args.simulation_steps,
+            global_attenuation_db=args.env_att,
+        )
+
     else:
         wav_dir = os.path.join(output_dir, "data")
-
 
         sonar = lps_sonar.Sonar.hydrophone(
             sensitivity=lps_qty.Sensitivity.db_v_p_upa(args.sensitivity)
@@ -135,14 +164,37 @@ def _main():
         step_interval = lps_qty.Time.s(args.step_interval)
         simulation_steps = args.simulation_steps
 
-        dataset.synthesize(output_dir=wav_dir,
-                        sonar=sonar,
-                        sample_frequency=sample_frequency,
-                        step_interval=step_interval,
-                        simulation_steps=simulation_steps,
-                        global_attenuation_dB=args.env_att,
-                        only_plot=args.only_plot,
-                        force_override=args.force_override)
+        if args.sample_index is not None:
+
+            indices = lps_utils.parse_indices(args.sample_index)
+
+            if not indices:
+                raise ValueError("Invalid --sample-index format")
+
+            for idx in indices:
+                dataset.synthesize_sample(
+                    sample_index=idx,
+                    output_dir=wav_dir,
+                    sonar=sonar,
+                    sample_frequency=sample_frequency,
+                    step_interval=step_interval,
+                    simulation_steps=simulation_steps,
+                    global_attenuation_db=args.env_att,
+                    only_plot=args.only_plot,
+                    force_override=args.force_override
+                )
+        else:
+            dataset.synthesize(
+                output_dir=wav_dir,
+                sonar=sonar,
+                sample_frequency=sample_frequency,
+                step_interval=step_interval,
+                simulation_steps=simulation_steps,
+                global_attenuation_db=args.env_att,
+                only_plot=args.only_plot,
+                force_override=args.force_override
+            )
+
 
 
 @memory_profiler.profile

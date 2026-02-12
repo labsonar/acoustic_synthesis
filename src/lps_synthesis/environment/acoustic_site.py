@@ -474,6 +474,12 @@ class SSPProspector:
                 tmp = np.append(tmp, tmp[-1])
 
         # Convert positive depth axis to negative z for GSW
+        if depths[0] != 0:
+            depths = np.insert(depths, 0, 0.0)
+            sal = np.insert(sal, 0, sal[0])
+            tmp = np.insert(tmp, 0, tmp[0])
+
+        # Convert positive depth axis to negative z for GSW
         pres = gsw.p_from_z(-depths, lat)
 
         # Compute sound speed
@@ -544,9 +550,7 @@ class EnvironmentProspector:
             (1.25, 2.5, 3),
             (2.5, 4.0, 4),
             (4.0, 6.0, 5),
-            (6.0, 9.0, 6),
-            (9.0, 14.0, 7),
-            (14.0, 20.0, 8),
+            (6.0, 20.0, 6),
         ]
 
         for low, high, douglas in boundaries:
@@ -645,10 +649,6 @@ class AcousticSiteProspector:
 
         query = AcousticSiteProspector.get_default_query(desc, sensor_depth)
 
-        print("acoustic site query: ", hash(query))
-        print("sensor_depth: ", sensor_depth)
-        print("desc: ", hash(str(desc)))
-
         return lps_channel.Channel(query=query,
                                    model=model,
                                    hash_id=hash_id)
@@ -745,7 +745,8 @@ class AcousticSiteProspector:
                 description = desc,
                 sensor_depth = sensor_depth,
                 max_distance = lps_qty.Distance.km(0.5),
-                max_distance_points = 250,
+                source_depths = [lps_qty.Distance.m(d) for d in np.arange(2, 16, 2)],
+                max_distance_points = 1000,
         )
 
 
