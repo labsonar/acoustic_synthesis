@@ -6,6 +6,7 @@ Define ShipInfo and ShipCatalog.
 import os
 import typing
 import random
+import math
 
 import pandas as pd
 
@@ -67,9 +68,211 @@ class ShipInfo(syndb_core.CatalogEntry):
         current_speed_kt = self.max_speed.get_kt() * self.current_mcr_percent
         self.current_speed = lps_qty.Speed.kt(round(current_speed_kt, 1))
 
+        self.narrowband_configs = []
+        self.brownian_configs = []
+        self.nb_metadata = {
+            "lower": {},
+            "medium": {},
+            "greater": {},
+            "isolated": {},
+            "oscillating": {},
+            "concentrated": {},
+        }
+        self._draw_narrowband_components()
 
     def __repr__(self):
         return f"Ship[{self.seed}]: {self.ship_type}"
+
+    def _draw_narrowband_components(self):
+
+        rng = random.Random(self.seed)
+        max_nb_dp_p_upa = rng.uniform(100, 125)
+
+        def is_active(prob):
+            return rng.random() < prob
+
+        def random_amplitude(freq, min = 0.7):
+            pink_atten_db = 3 * math.log10(freq / 10)
+            return rng.uniform(min, 1) * (max_nb_dp_p_upa - pink_atten_db)
+
+        def add_harmonic_set(f_min, f_max) -> typing.Dict:
+            f_ref = rng.uniform(f_min, f_max)
+            n_harm = rng.randint(5, 10)
+
+            for k in range(1, n_harm + 1):
+                amp = random_amplitude(f_ref)
+                f = f_ref/n_harm * k
+                self.narrowband_configs.append(
+                    (lps_qty.Frequency.hz(f), amp)
+                )
+
+            return {
+                "f_max": f_ref,
+                "n_harmonics": n_harm,
+            }
+
+        # ---------------------------------------
+        # LOWER  (f_max < 200 Hz)
+        # ---------------------------------------
+        if is_active(self.nb_lower):
+            meta = add_harmonic_set(100, 200)
+            self.nb_metadata["lower"] = {
+                "presence": True,
+                **meta,
+            }
+        else:
+            self.nb_metadata["lower"] = {
+                "presence": False,
+                "f_max": None,
+                "n_harmonics": None,
+            }
+
+        # ---------------------------------------
+        # MEDIUM (f_max < 1 kHz)
+        # ---------------------------------------
+        if is_active(self.nb_medium):
+            meta = add_harmonic_set(250, 1000)
+            self.nb_metadata["medium"] = {
+                "presence": True,
+                **meta,
+            }
+        else:
+            self.nb_metadata["medium"] = {
+                "presence": False,
+                "f_max": None,
+                "n_harmonics": None,
+            }
+
+        # ---------------------------------------
+        # GREATER (f_max < 3 kHz)
+        # ---------------------------------------
+        if is_active(self.nb_greater):
+            meta = add_harmonic_set(1500, 3000)
+            self.nb_metadata["greater"] = {
+                "presence": True,
+                **meta,
+            }
+        else:
+            self.nb_metadata["greater"] = {
+                "presence": False,
+                "f_max": None,
+                "n_harmonics": None,
+            }
+
+        # ---------------------------------------
+        # ISOLATED (0.5–8 kHz)
+        # ---------------------------------------
+        if is_active(self.nb_isolated):
+
+            f_ref = rng.uniform(500, 8000)
+            amp = random_amplitude(f_ref)
+
+            self.nb_metadata["isolated"] = {
+                "presence": True,
+                "f_ref": f_ref,
+                "amp": amp,
+            }
+
+            self.narrowband_configs.append(
+                (lps_qty.Frequency.hz(f_ref), amp)
+            )
+        else:
+            self.nb_metadata["isolated"] = {
+                "presence": False,
+                "f_ref": None,
+                "amp": None,
+            }
+
+
+        # ---------------------------------------
+        # OSCILLATING (0.5–8 kHz)
+        # ---------------------------------------
+        if is_active(self.nb_oscillating):
+            f_ref = rng.uniform(500, 4000)
+            amp = random_amplitude(f_ref, 0.85)
+            amp_std = rng.uniform(0.5, 1) * 0.025
+            freq_step = rng.uniform(0.1, 1)
+            n_harm = rng.randint(1, 3)
+
+            self.nb_metadata["oscillating"] = {
+                "presence": True,
+                "f_ref": f_ref,
+                "amp": amp,
+                "amp_std": amp_std,
+                "freq_step": freq_step,
+                "n_harm": n_harm,
+            }
+
+            for h in range(1, n_harm + 1):
+                f = f_ref * h
+                if f > 8000:
+                    break
+
+                self.brownian_configs.append([
+                    lps_qty.Frequency.hz(f),
+                    amp,
+                    amp_std,
+                    lps_qty.Frequency.hz(freq_step)
+                ])
+        else:
+            self.nb_metadata["oscillating"] = {
+                "presence": False,
+                "f_ref": None,
+                "amp": None,
+                "amp_std": None,
+                "phase_std": None,
+                "n_harm": None,
+            }
+
+        # ---------------------------------------
+        # CONCENTRATED
+        # ---------------------------------------
+        if is_active(self.nb_concentrated):
+
+            f_central = rng.uniform(500, 3500)
+            f_spacing = rng.uniform(50, 100)
+            n_side = rng.randint(2, 5)
+
+            self.nb_metadata["concentrated"] = {
+                "presence": True,
+                "f_central": f_central,
+                "f_spacing": f_spacing,
+                "n_side": n_side,
+            }
+
+            for k in range(-n_side, n_side + 1):
+                f = f_central + k * f_spacing
+                amp = random_amplitude(f_central)
+
+                if f > 8000:
+                    break
+
+                self.narrowband_configs.append(
+                    (lps_qty.Frequency.hz(f), amp)
+                )
+
+        else:
+            self.nb_metadata["concentrated"] = {
+                "presence": False,
+                "f_central": None,
+                "f_spacing": None,
+                "n_side": None,
+            }
+
+    def as_narrowband_dict(self, catalog_id: int) -> dict:
+
+        base = {
+            "catalog_id": catalog_id,
+            "ship_type": self.ship_type.name,
+        }
+
+        for key, meta in self.nb_metadata.items():
+            prefix = f"nb_{key}"
+
+            for param, value in meta.items():
+                base[f"{prefix}_{param}"] = value
+
+        return base
 
     def make_ship(self,
                   dynamic: syndb_dynamic.SimulationDynamic,
@@ -97,6 +300,27 @@ class ShipInfo(syndb_core.CatalogEntry):
                 ),
             seed=self.seed
         )
+
+        for freq, amp in self.narrowband_configs:
+
+            nb = lps_ns.NarrowBandNoise(
+                frequency=freq,
+                amp_db_p_upa=amp
+            )
+
+            ship.add_source(nb)
+
+
+        for freq, amp, amp_std, freq_step in self.brownian_configs:
+
+            nb = lps_ns.NarrowBandNoise.with_brownian_fm_modulation(
+                    frequency = freq,
+                    amp_db_p_upa = amp,
+                    freq_std = freq_step,
+                    amp_std=amp_std,
+                    seed = self.seed)
+
+            ship.add_source(nb)
 
         return ship
 
@@ -154,7 +378,6 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
 
         super().__init__(entries=ships)
         self.df = df
-
 
     @staticmethod
     def _parse_value(value: typing.Union[str, float, int], seed: int) -> \
@@ -298,3 +521,19 @@ class ShipCatalog(syndb_core.Catalog[ShipInfo]):
         catalog = cls.__new__(cls)
         super(ShipCatalog, catalog).__init__(entries=ships)
         return catalog
+
+    def export_narrowband_dataframe(self, save_path: str | None = None):
+
+        rows = []
+
+        for idx, ship in enumerate(self.entries):
+            rows.append(ship.as_narrowband_dict(idx))
+
+        df = pd.DataFrame(rows)
+
+        print(df)
+
+        if save_path is not None:
+            df.to_csv(save_path, index=False)
+
+        return df

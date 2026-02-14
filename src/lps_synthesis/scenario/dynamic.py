@@ -381,7 +381,7 @@ class Element():
         self.state_list.append(initial_state)
         self.step_interval = []
 
-    def move(self, step_interval: lps_qty.Speed, n_steps: int = 1) -> typing.List[State]:
+    def move(self, step_interval: lps_qty.Time, n_steps: int = 1) -> typing.List[State]:
         """ Calculates the state of this element throughout a simulation."""
 
         for _ in range(n_steps):

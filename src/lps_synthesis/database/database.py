@@ -160,9 +160,9 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                    output_dir: str,
                    sonar: lps_sonar.Sonar,
                    sample_frequency: lps_qty.Frequency,
-                   step_interval: lps_qty.Time =lps_qty.Time.s(1),
-                   simulation_steps: int = 10,
-                   global_attenuation_db: float = 20,
+                   step_interval: lps_qty.Time,
+                   simulation_steps: int,
+                   global_attenuation_db: float,
                    only_plot: bool = False,
                    force_override: bool = False) -> None:
 

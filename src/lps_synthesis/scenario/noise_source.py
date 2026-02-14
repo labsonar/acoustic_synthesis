@@ -14,6 +14,7 @@ import overrides
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io.wavfile as wavfile
+import scipy.signal as sci_sig
 
 import lps_utils.quantities as lps_qty
 import lps_sp.signal as lps_signal
@@ -187,6 +188,19 @@ class NoiseCompiler():
                                            self.fs,
                                            os.path.join(base_dir, f"source_{i}.wav"))
 
+
+            float_signal = signal.astype(np.float32) / (2**15 -1)
+            f, t, s = sci_sig.spectrogram(float_signal,
+                                            fs=self.fs.get_hz(),
+                                            nperseg=2048)
+
+            plt.figure(figsize=(10, 6))
+            plt.pcolormesh(t, f, 20 * np.log10(np.clip(s, 1e-10, None)), shading='gouraud')
+            plt.ylabel('Frequência [Hz]')
+            plt.xlabel('Tempo [s]')
+            plt.colorbar(label='Intensidade [dB]')
+            plt.savefig(os.path.join(base_dir, f"source_{i}.png"))
+            plt.close()
 
 
 class ShipType(enum.Enum):
@@ -883,6 +897,61 @@ class NarrowBandNoise(NoiseSource):
         phi_fn = make_brownian(phase_std)
 
         return cls(frequency, amp_db_p_upa, epsilon_fn, phi_fn, rel_position)
+
+    @classmethod
+    def with_brownian_fm_modulation(
+            cls,
+            frequency: lps_qty.Frequency,
+            amp_db_p_upa: float,
+            freq_std: lps_qty.Frequency = lps_qty.Frequency.hz(0.1),
+            amp_std: float = 0.02,
+            seed: int = None,
+            rel_position: lps_dynamic.Displacement =
+                lps_dynamic.Displacement(
+                    lps_qty.Distance.m(0),
+                    lps_qty.Distance.m(0))
+    ):
+        """
+        Creates a NarrowBandNoise source with slow Brownian frequency drift.
+
+        Signal model:
+            f(t) = f_c + Δf(t)
+
+        Where:
+            Δf(t) = cumulative Gaussian noise (slow drift)
+
+        Phase is computed by integrating instantaneous frequency:
+            φ(t) = 2π ∫ f(t) dt
+        """
+
+        rng = np.random.default_rng(seed)
+
+        f_c = frequency.get_hz()
+
+        def phase_fn(t: np.ndarray) -> np.ndarray:
+
+            dt = np.mean(np.diff(t))
+
+            freq_steps = rng.normal(scale=freq_std.get_hz(), size=len(t))
+            freq_drift = np.cumsum(freq_steps)
+
+            f_inst = freq_drift
+
+            phase = 2 * np.pi * np.cumsum(f_inst) * dt
+
+            return phase
+
+        def brownian_am(t: np.ndarray) -> np.ndarray:
+            steps = rng.normal(scale=amp_std, size=len(t))
+            return np.cumsum(steps)
+
+        return cls(
+            frequency,
+            amp_db_p_upa,
+            brownian_am,
+            phase_fn,
+            rel_position
+        )
 
 class Ship(NoiseContainer):
     """ Class to represent a Ship in the scenario"""
