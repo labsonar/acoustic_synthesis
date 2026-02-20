@@ -210,17 +210,6 @@ class QueryConfig(lps_hash.Hashable):
 
         return frequencies, n_fft
 
-    def _get_params(self):
-        return {
-            "sample_frequency": self.sample_frequency,
-            "description": self.description,
-            "source_depths": self.source_depths,
-            "sensor_depth": self.sensor_depth,
-            "max_distance": self.max_distance,
-            "max_distance_points": self.max_distance_points,
-            "frequency_range": self.frequency_range,
-        }
-
 
 class PropagationModel(abc.ABC):
     """ Basic abstraction to implement propagation models. """

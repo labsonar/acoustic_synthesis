@@ -7,14 +7,16 @@ import scipy.signal as scipy
 
 import lps_utils.quantities as lps_qty
 import lps_sp.signal as lps_signal
+import lps_sp.acoustical.broadband as lps_bb
+import lps_sp.acoustical.analysis as lps_analysis
 import lps_synthesis.scenario.noise_source as lps_ns
 import lps_synthesis.scenario.dynamic as lps_dyn
 import lps_synthesis.database.ship as syndb_ship
 import lps_synthesis.database.dynamic as syndb_dyn
 
 
-def _plot_spectrogram(signal, fs, filename: str):
-    f, t, Sxx = scipy.spectrogram(signal, fs=fs.get_hz(), nperseg=4096, noverlap=2048)
+def _plot_spectrogram(signal, fs, filename: str, n_points):
+    f, t, Sxx = scipy.spectrogram(signal, fs=fs.get_hz(), nperseg=n_points, noverlap=n_points/2)
     Sxx_dB = 10 * np.log10(Sxx + 1e-10)
 
     plt.figure()
@@ -34,14 +36,13 @@ def _plot_spectrogram(signal, fs, filename: str):
         plt.savefig(filename)
     plt.close()
 
-
 def main():
 
     seed = 42
     fs = lps_qty.Frequency.hz(16000)
 
-    step_interval = lps_qty.Time.s(0.1)
-    simulation_steps = 200
+    step_interval = lps_qty.Time.s(0.2)
+    simulation_steps = 150
 
     output_dir = "./result/test_noise_output"
     os.makedirs(output_dir, exist_ok=True)
@@ -59,10 +60,10 @@ def main():
         n_shafts=1,
         nb_lower=0,
         nb_medium=0,
-        nb_greater=0,
+        nb_greater=1,
         nb_isolated=0,
         nb_oscillating=0,
-        nb_concentrated=1,
+        nb_concentrated=0,
     )
 
     print(f"Generated narrowband configs: {ship_info.narrowband_configs}")
@@ -70,7 +71,7 @@ def main():
 
     dynamic = syndb_dyn.SimulationDynamic(
         dynamic_type=syndb_dyn.DynamicType.FIXED_DISTANCE,
-        shortest=lps_qty.Distance.m(1000),
+        shortest=lps_qty.Distance.m(200),
         approaching=False
     )
 
@@ -80,19 +81,22 @@ def main():
         simulation_steps=simulation_steps
     )
 
-    # nb = lps_ns.NarrowBandNoise(
-    #     frequency=lps_qty.Frequency.khz(0.06),
-    #     amp_db_p_upa=100
-    # )
-    # ship.add_source(nb)
+    # for i in range(200):
+    #     nb = lps_ns.NarrowBandNoise(
+    #         frequency=lps_qty.Frequency.khz(0.04 * i),
+    #         amp_db_p_upa=150
+    #     )
+    #     ship.add_source(nb)
 
-    ship.move(step_interval=lps_qty.Time.s(1), n_steps=30)
+    ship.move(step_interval=step_interval, n_steps=simulation_steps)
 
     compiler = lps_ns.NoiseCompiler(
         noise_containers=[ship],
         fs=fs,
         parallel=False
     )
+
+    n_points = 1024*16
 
     for i, (signal, _, _) in enumerate(compiler):
         lps_signal.save_normalized_wav(signal,
@@ -101,7 +105,20 @@ def main():
 
         _plot_spectrogram(signal,
                           fs,
-                          os.path.join(output_dir, f"source_{i}.png"))
+                          os.path.join(output_dir, f"source_{i}.png"),
+                          n_points)
+
+        lps_bb.plot_psd(filename=os.path.join(output_dir, f"source_{i}_mean.png"),
+                        noise=signal,
+                        fs=fs,
+                        window_size=n_points)
+
+        lps_analysis.SpectralAnalysis.LOFAR.plot(
+                filename=os.path.join(output_dir, f"source_{i}_lofar.png"),
+                data=signal,
+                fs=fs,
+                params=lps_analysis.Parameters(n_spectral_pts=n_points),
+            )
 
 
     print(f"WAV files saved in: {output_dir}")

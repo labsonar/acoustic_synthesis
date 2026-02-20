@@ -92,11 +92,12 @@ class AcousticSensor(lps_dynamic.RelativeElement):
         """ Convert input data in micro Pascal (µPa) to signal in Volts (V)
                 using the sensor's sensitivity and directivity.
         """
-        if self.ref_element is None:
-            raise UnboundLocalError("Applying an acoustic sensor without an reference element")
 
         if noise_source is None:
             return self.sensitivity.convert(input_data=input_data, fs=fs)
+
+        if self.ref_element is None:
+            raise UnboundLocalError("Applying an acoustic sensor without an reference element")
 
         return self.sensitivity.convert(input_data=input_data, fs=fs) * \
                 self._get_directivity(len(input_data), noise_source=noise_source)
@@ -237,9 +238,10 @@ class Sonar(lps_dynamic.Element):
                  adc: ADConverter | None = None,
                  initial_state: lps_dynamic.State | None = None) -> None:
         super().__init__(initial_state=initial_state or lps_dynamic.State())
-        self.sensors = sensors or IdealAmplifier(40)
+        self.sensors = sensors or \
+                [AcousticSensor(sensitivity=FlatBand(lps_qty.Sensitivity.db_v_p_upa(-180)))]
         self.adc = adc or ADConverter()
-        self.signal_conditioner = signal_conditioner or lps_dynamic.State()
+        self.signal_conditioner = signal_conditioner or IdealAmplifier(40)
 
         for sensor in sensors:
             sensor.set_base_element(self)
@@ -437,9 +439,13 @@ class Sonar(lps_dynamic.Element):
                     )
                 )
 
-        min_size = min(signal.shape[0] for signal in noises)
-        signals = [signal[:min_size] for signal in noises]
-        signal = np.sum(np.column_stack(signals), axis=1)
+        if len(noises) != 0:
+            min_size = min(signal.shape[0] for signal in noises)
+            signals = [signal[:min_size] for signal in noises]
+            signal = np.sum(np.column_stack(signals), axis=1)
+        else:
+            sim_time = (self.get_n_steps() - 1) * self.step_interval[-1]
+            min_size = int(sim_time * noise_compiler.fs)
 
         if environment is not None:
             env_noise = environment.generate_bg_noise(min_size,
@@ -447,7 +453,11 @@ class Sonar(lps_dynamic.Element):
             env_noise = sensor.transduce(input_data=env_noise,
                                         noise_source=None,
                                         fs=noise_compiler.fs)
-            signal = signal + env_noise
+
+            if len(noises) != 0:
+                signal = signal + env_noise
+            else:
+                signal = env_noise
 
         cond_signal = self.signal_conditioner.convert(signal,
                                                       fs = noise_compiler.fs)

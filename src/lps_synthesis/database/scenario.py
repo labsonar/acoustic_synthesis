@@ -282,7 +282,6 @@ class AcousticScenario(syndb_core.CatalogEntry):
 
         return row.iloc[0]
 
-
     def get_env(self, seed: int | None = None) -> lps_env.Environment:
         """ Return the lps_env.Environment to the AcousticScenario. """
         try:
@@ -306,26 +305,25 @@ class AcousticScenario(syndb_core.CatalogEntry):
                     model: lps_propag_model.PropagationModel | None = None) -> lps_channel.Channel:
         """ Return the lps_channel.Channel to the AcousticScenario. """
 
-        hash_id=f"{self.local.name.lower()}"
-        # hash_id=f"{self.local.name.lower()}_{self.season.name.lower()}"
+        hash_id=f"{self.local.name.lower()}_{self.season.name.lower()}"
 
-        # if self._df is not None:
-        #     row = self._query_df(model_name=str(model) if model is not None else None)
+        if self._df is not None:
+            row = self._query_df(model_name=str(model) if model is not None else None)
 
-        #     desc_filename = f'{row["LOCAL"].lower()}_{row["SEASON"].lower()}.pkl'
-        #     desc_filename = os.path.join(lps_channel.DEFAULT_DIR, desc_filename)
+            desc_filename = f'{row["LOCAL"].lower()}_{row["SEASON"].lower()}.pkl'
+            desc_filename = os.path.join(lps_channel.DEFAULT_DIR, desc_filename)
 
-        #     if os.path.exists(desc_filename):
+            if os.path.exists(desc_filename):
 
-        #         sensor_depth = lps_qty.Distance.m(row["SENSOR_DEPTH"])
-        #         desc = lps_channel_desc.Description.load(desc_filename)
-        #         model = lps_propag_model.Type[row["MODEL"].upper()].build_model()
+                sensor_depth = lps_qty.Distance.m(row["SENSOR_DEPTH"])
+                desc = lps_channel_desc.Description.load(desc_filename)
+                model = lps_propag_model.Type[row["MODEL"].upper()].build_model()
 
-        #         query = lps_site.AcousticSiteProspector.get_default_query(desc, sensor_depth)
+                query = lps_site.AcousticSiteProspector.get_default_query(desc, sensor_depth)
 
-        #         return lps_channel.Channel(query=query,
-        #                             model=model,
-        #                             hash_id=hash_id)
+                return lps_channel.Channel(query=query,
+                                    model=model,
+                                    hash_id=hash_id)
 
 
         return self.get_prospector().get_channel(point = self.local.get_point(),

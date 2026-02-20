@@ -12,6 +12,8 @@ import lps_synthesis.propagation.channel_response as lps_channel_rsp
 import lps_synthesis.propagation.models as lps_models
 import lps_synthesis.scenario.dynamic as lps_dyn
 import lps_synthesis.scenario.noise_source as lps_ns
+import lps_synthesis.environment.acoustic_site as lps_as
+import lps_synthesis.database as lps_db
 
 
 def main():
@@ -26,10 +28,13 @@ def main():
     r_start = 50.0
     r_end = 100.0
 
-    channel = lps_propag.PredefinedChannel.SPHERICAL.get_channel(lps_models.Oases())
+
+    acoustic_scenario = lps_db.AcousticScenario(lps_db.Location.GUANABARA_BAY,
+                                                lps_as.Season.SPRING)
+    channel = acoustic_scenario.get_channel(lps_models.Oases())
 
     # source_depth = channel.query.source_depths[-1]
-    source_depth = lps_qty.Distance.m(20)
+    source_depth = lps_qty.Distance.m(10)
 
     # rng = np.random.default_rng(1234)
     # x = rng.standard_normal(n_samples) * 1800000/5
@@ -92,11 +97,12 @@ def main():
     mag_db_y = 20 * np.log10(np.abs(spec_y) + 1e-12)
 
     plt.figure(figsize=(10, 4))
-    plt.plot(freq, mag_db_x)
-    plt.plot(freq, mag_db_y)
+    plt.plot(freq, mag_db_x, label="Entrada")
+    plt.plot(freq, mag_db_y, label="Saída")
     plt.xlabel("Frequency (Hz)")
     plt.ylabel("Magnitude (dB)")
     plt.grid(True)
+    plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "spectrum.png"), dpi=300)
     plt.close()

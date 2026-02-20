@@ -3,6 +3,7 @@ import os
 import lps_utils.quantities as lps_qty
 import lps_synthesis.propagation.channel_description as lps_channel_desc
 import lps_synthesis.propagation.models as lps_models
+import lps_synthesis.environment.acoustic_site as lps_as
 
 def _main():
     output_dir = "./result/desc_test/"
@@ -48,6 +49,28 @@ def _main():
         print("✅ QueryConfig iguais: independente da description")
     else:
         print("❌ QueryConfig diferentes: dependente da description")
+
+
+    config = lps_as.AcousticSiteProspector.get_default_query(desc=desc,
+                                                             sensor_depth=lps_qty.Distance.m(30))
+    config2 = lps_as.AcousticSiteProspector.get_default_query(desc=desc2,
+                                                              sensor_depth=lps_qty.Distance.m(30))
+    config3 = lps_as.AcousticSiteProspector.get_default_query(desc=desc2,
+                                                              sensor_depth=lps_qty.Distance.m(30.0))
+
+    print("config:", hash(config))
+    print("config2:", hash(config2))
+    print("config3:", hash(config3))
+
+    if config == config2:
+        print("✅ AcousticSiteProspector.get_default_query iguais: independente da description")
+    else:
+        print("❌ AcousticSiteProspector.get_default_query diferentes: dependente da description")
+
+    if config == config3:
+        print("✅ AcousticSiteProspector.get_default_query iguais: independente da description")
+    else:
+        print("❌ AcousticSiteProspector.get_default_query diferentes: dependente da description")
 
 if __name__ == "__main__":
     _main()

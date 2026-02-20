@@ -215,7 +215,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         scenario = lps_scenario.Scenario(
             step_interval=step_interval,
             channel = channel,
-            environment = environment
+            environment = None#environment
         )
 
         sonar_i = copy.deepcopy(sonar)

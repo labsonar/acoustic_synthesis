@@ -9,6 +9,7 @@ import random
 import math
 
 import pandas as pd
+import numpy as np
 
 import lps_utils.quantities as lps_qty
 import lps_synthesis.scenario.noise_source as lps_ns
@@ -86,22 +87,34 @@ class ShipInfo(syndb_core.CatalogEntry):
     def _draw_narrowband_components(self):
 
         rng = random.Random(self.seed)
-        max_nb_dp_p_upa = rng.uniform(100, 125)
+
+        freqs, psd = self.ship_type.to_psd(
+            fs=lps_qty.Frequency.khz(16),
+            lenght=self.length,
+            speed=self.current_speed
+        )
+        freqs = [f.get_hz() for f in freqs]
 
         def is_active(prob):
             return rng.random() < prob
 
-        def random_amplitude(freq, min = 0.7):
-            pink_atten_db = 3 * math.log10(freq / 10)
-            return rng.uniform(min, 1) * (max_nb_dp_p_upa - pink_atten_db)
+        def random_amplitude(freq):
 
-        def add_harmonic_set(f_min, f_max) -> typing.Dict:
+            local_psd = np.interp(
+                freq,
+                freqs,
+                psd,
+            )
+
+            return local_psd + rng.uniform(10, 20)
+
+        def add_harmonic_set(f_min, f_max, har_min, har_max) -> typing.Dict:
             f_ref = rng.uniform(f_min, f_max)
-            n_harm = rng.randint(5, 10)
+            n_harm = rng.randint(har_min, har_max)
 
             for k in range(1, n_harm + 1):
-                amp = random_amplitude(f_ref)
                 f = f_ref/n_harm * k
+                amp = random_amplitude(f)
                 self.narrowband_configs.append(
                     (lps_qty.Frequency.hz(f), amp)
                 )
@@ -115,7 +128,7 @@ class ShipInfo(syndb_core.CatalogEntry):
         # LOWER  (f_max < 200 Hz)
         # ---------------------------------------
         if is_active(self.nb_lower):
-            meta = add_harmonic_set(100, 200)
+            meta = add_harmonic_set(120, 200, 3, 4)
             self.nb_metadata["lower"] = {
                 "presence": True,
                 **meta,
@@ -131,7 +144,7 @@ class ShipInfo(syndb_core.CatalogEntry):
         # MEDIUM (f_max < 1 kHz)
         # ---------------------------------------
         if is_active(self.nb_medium):
-            meta = add_harmonic_set(250, 1000)
+            meta = add_harmonic_set(250, 1000, 5, 10)
             self.nb_metadata["medium"] = {
                 "presence": True,
                 **meta,
@@ -147,7 +160,7 @@ class ShipInfo(syndb_core.CatalogEntry):
         # GREATER (f_max < 3 kHz)
         # ---------------------------------------
         if is_active(self.nb_greater):
-            meta = add_harmonic_set(1500, 3000)
+            meta = add_harmonic_set(1500, 3000, 3, 15)
             self.nb_metadata["greater"] = {
                 "presence": True,
                 **meta,
@@ -189,7 +202,7 @@ class ShipInfo(syndb_core.CatalogEntry):
         # ---------------------------------------
         if is_active(self.nb_oscillating):
             f_ref = rng.uniform(500, 4000)
-            amp = random_amplitude(f_ref, 0.85)
+            amp = random_amplitude(f_ref)
             amp_std = rng.uniform(0.5, 1) * 0.025
             freq_step = rng.uniform(0.1, 1)
             n_harm = rng.randint(1, 3)

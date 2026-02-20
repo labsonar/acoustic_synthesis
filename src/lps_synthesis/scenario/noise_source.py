@@ -707,6 +707,7 @@ class CavitationNoise(NoiseSource):
                                                  fs=fs.get_hz(),
                                                  filter_state=filter_state,
                                                  seed=rng)
+
             audio_signals.append(noise)
 
         return np.concatenate(audio_signals), speeds
@@ -741,14 +742,17 @@ class NarrowBandNoise(NoiseSource):
                                                                 lps_qty.Distance.m(0))
         super().__init__(source_id=f"NarrowBand [{frequency}]", rel_position=rel_position)
         self.frequency = frequency
-        self.amp = 10 ** (amp_db_p_upa / 20)
+        self.amp = 10 ** ((amp_db_p_upa/2) / 20)
         self.epsilon_fn = epsilon_fn
         self.phi_fn = phi_fn
 
     def generate_noise(self, fs: lps_qty.Frequency) -> np.ndarray:
-        accum_interval = lps_qty.Time.s(0)
-        for _, interval in self.ref_element.get_simulated_steps():
-            accum_interval = accum_interval + interval
+
+        accum_interval = (self.ref_element.get_n_steps() - 1) * self.ref_element.step_interval[-1]
+
+        # accum_interval = lps_qty.Time.s(0) *
+        # for _, interval in self.ref_element.get_simulated_steps():
+        #     accum_interval = accum_interval + interval
 
         n_samples = int(accum_interval * fs)
         t = np.linspace(0, accum_interval.get_s(), n_samples, endpoint=False)

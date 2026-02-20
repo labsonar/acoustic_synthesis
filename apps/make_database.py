@@ -2,6 +2,7 @@
 """
 import os
 import argparse
+import tqdm
 
 import lps_utils.quantities as lps_qty
 import lps_utils.utils as lps_utils
@@ -51,7 +52,7 @@ def _main():
     parser.add_argument(
         "--sensitivity",
         type=float,
-        default=-180.0,
+        default=-200.0,
         help="Hydrophone sensitivity in dB re V/μPa (default: -180)",
     )
 
@@ -65,15 +66,15 @@ def _main():
     parser.add_argument(
         "--step-interval",
         type=float,
-        default=1.0,
-        help="Step interval in seconds (default: 1)",
+        default=0.2,
+        help="Step interval in seconds (default: 0.2)",
     )
 
     parser.add_argument(
         "--simulation-steps",
         type=int,
-        default=10,
-        help="Number of simulation steps (default: 10)",
+        default=150,
+        help="Number of simulation steps (default: 150)",
     )
 
     parser.add_argument(
@@ -171,7 +172,7 @@ def _main():
             if not indices:
                 raise ValueError("Invalid --sample-index format")
 
-            for idx in indices:
+            for idx in tqdm.tqdm(indices, desc="Making samples", leave=False, ncols=120):
                 dataset.synthesize_sample(
                     sample_index=idx,
                     output_dir=wav_dir,

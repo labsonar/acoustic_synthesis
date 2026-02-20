@@ -1,4 +1,5 @@
 import os
+import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import tikzplotlib as tikz
@@ -6,6 +7,8 @@ import scipy.signal as scipy
 
 import lps_utils.quantities as lps_qty
 import lps_sp.signal as lps_signal
+import lps_sp.acoustical.broadband as lps_bb
+import lps_sp.acoustical.analysis as lps_analysis
 import lps_synthesis.database.ship as db_ship
 import lps_synthesis.database.dynamic as syndb_dyn
 import lps_synthesis.scenario.noise_source as lps_ns
@@ -45,8 +48,8 @@ def _main():
 
     catalog.export_narrowband_dataframe(nb_path)
 
-    step_interval = lps_qty.Time.s(0.1)
-    simulation_steps = 200
+    step_interval = lps_qty.Time.s(0.2)
+    simulation_steps = 150
     fs = lps_qty.Frequency.hz(16000)
 
     dynamic = syndb_dyn.SimulationDynamic(
@@ -55,10 +58,13 @@ def _main():
         approaching=False
     )
 
-    for i, ship_info in enumerate(catalog):
+    for i, ship_info in enumerate(tqdm.tqdm(catalog, desc="Ship", ncols=120, leave=False)):
 
         if len(ship_info.narrowband_configs) == 0 and len(ship_info.brownian_configs) == 0:
             continue
+
+        print(f"Generated narrowband configs: {ship_info.narrowband_configs}")
+        print(f"Generated narrowband configs: {ship_info.brownian_configs}")
 
         ship = ship_info.make_ship(
             dynamic=dynamic,
@@ -82,6 +88,17 @@ def _main():
             _plot_spectrogram(signal,
                             fs,
                             os.path.join(output_dir, f"ship_{i}_{j}.png"))
+
+            lps_bb.plot_psd(filename=os.path.join(output_dir, f"ship_{i}_{j}_mean.png"),
+                            noise=signal,
+                            fs=fs)
+
+            lps_analysis.SpectralAnalysis.LOFAR.plot(
+                    filename=os.path.join(output_dir, f"ship_{i}_{j}_lofar.png"),
+                    data=signal,
+                    fs=fs
+                )
+
 
 if __name__ == "__main__":
     _main()
