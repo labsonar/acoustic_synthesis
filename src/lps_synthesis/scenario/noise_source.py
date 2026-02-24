@@ -742,7 +742,8 @@ class NarrowBandNoise(NoiseSource):
                                                                 lps_qty.Distance.m(0))
         super().__init__(source_id=f"NarrowBand [{frequency}]", rel_position=rel_position)
         self.frequency = frequency
-        self.amp = 10 ** ((amp_db_p_upa/2) / 20)
+        p_rms = 10 ** (amp_db_p_upa / 20)
+        self.amp = np.sqrt(2) * p_rms
         self.epsilon_fn = epsilon_fn
         self.phi_fn = phi_fn
 

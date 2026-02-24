@@ -40,14 +40,14 @@ def one_third_octave_frequencies(lower_bound = -20, upper_bound = -20) -> np.arr
 
 def turbulence_psd() -> typing.Tuple[np.array, np.array]:
     """
-    Get the PSD (Power Spectral Density) of the rain noise.
+    Get the PSD (Power Spectral Density)
 
     Returns:
         Tuple[np.ndarray, np.ndarray]:
             - Frequencies in Hz.
             - PSD estimates in dB ref 1μPa @1m/Hz.
     """
-    frequencies = one_third_octave_frequencies(-30, 0)
+    frequencies = one_third_octave_frequencies(-35, 0)
     spectrum = np.array([107 - 30 * np.log10(f) for f in frequencies])
     return frequencies, spectrum
 
@@ -350,7 +350,7 @@ class Environment():
             seed = seed
         )
 
-    def to_psd(self) -> typing.Tuple[np.array, np.array]:
+    def to_psd(self, n_points: int = 1024) -> typing.Tuple[np.array, np.array]:
         """
         Calculate the background PSD.
 
@@ -359,23 +359,24 @@ class Environment():
                 - Frequencies in Hz.
                 - Combined PSD estimates in dB ref 1μPa @1m/Hz.
         """
-        frequencies0, spectrum0 = turbulence_psd()
-        frequencies1, spectrum1 = Rain.get_interpolated_psd(self.rain_value)
-        frequencies2, spectrum2 = Sea.get_interpolated_psd(self.sea_value)
-        frequencies3, spectrum3 = Shipping.get_interpolated_psd(self.shipping_value)
+        f0, psd0 = turbulence_psd()
+        f1, psd1 = Rain.get_interpolated_psd(self.rain_value)
+        f2, psd2 = Sea.get_interpolated_psd(self.sea_value)
+        f3, psd4 = Shipping.get_interpolated_psd(self.shipping_value)
 
-        all_frequencies = np.unique(np.concatenate([frequencies0,
-                                                    frequencies1,
-                                                    frequencies2,
-                                                    frequencies3]))
+        f_min = min(np.min(f0), np.min(f1), np.min(f2), np.min(f3))
+        f_max = max(np.max(f0), np.max(f1), np.max(f2), np.max(f3))
+        f_min = max(f_min, 1e-6)
 
-        interpolated_spectrum0 = np.interp(all_frequencies, frequencies0, spectrum0,
+        all_frequencies = np.logspace(np.log10(f_min), np.log10(f_max), n_points)
+
+        interpolated_spectrum0 = np.interp(all_frequencies, f0, psd0,
                                                 left=0, right=0)
-        interpolated_spectrum1 = np.interp(all_frequencies, frequencies1, spectrum1,
+        interpolated_spectrum1 = np.interp(all_frequencies, f1, psd1,
                                                 left=0, right=0)
-        interpolated_spectrum2 = np.interp(all_frequencies, frequencies2, spectrum2,
+        interpolated_spectrum2 = np.interp(all_frequencies, f2, psd2,
                                                 left=0, right=0)
-        interpolated_spectrum3 = np.interp(all_frequencies, frequencies3, spectrum3,
+        interpolated_spectrum3 = np.interp(all_frequencies, f3, psd4,
                                                 left=0, right=0)
 
         linear0 = 10**(interpolated_spectrum0 / 20)
@@ -400,24 +401,13 @@ class Environment():
         Returns:
             np.array: Generated broadband noise in μPa.
         """
-        freq_turb, psd_turb = turbulence_psd()
-        freq_rain, psd_rain = Rain.get_interpolated_psd(self.rain_value)
-        freq_sea, psd_sea = Sea.get_interpolated_psd(self.sea_value)
-        freq_shipping, psd_shipping = Shipping.get_interpolated_psd(self.shipping_value)
+        freq, psd = self.to_psd()
 
-        turb_noise, _ = lps.generate(frequencies = freq_turb, psd_db = psd_turb,
-                                    n_samples=n_samples, fs = fs, seed = self.rng)
-        rain_noise, _ = lps.generate(frequencies = freq_rain, psd_db = psd_rain,
-                                    n_samples=n_samples, fs = fs, seed = self.rng)
-        sea_noise, _ = lps.generate(frequencies = freq_sea, psd_db = psd_sea,
-                                    n_samples=n_samples, fs = fs, seed = self.rng)
-        shipping_noise, _ = lps.generate(frequencies = freq_shipping, psd_db = psd_shipping,
-                                    n_samples=n_samples, fs = fs, seed = self.rng)
+        # noise, _ = lps.generate(frequencies = freq, psd_db = psd,
+        #                             n_samples=n_samples, fs = fs, seed = self.rng)
 
-        noise = turb_noise + rain_noise + sea_noise + shipping_noise
-
-        attenuation_linear = 10 ** (-self.global_attenuation_db / 20)
-        noise *= attenuation_linear
+        noise, _ = lps.generate(frequencies = freq, psd_db = psd,
+                                    n_samples=n_samples, fs = fs, seed = self.rng)
 
         return noise
 
@@ -426,7 +416,7 @@ class Environment():
         f, p = self.to_psd()
 
         plt.figure(figsize=(10, 6))
-        plt.plot(f, p)
+        plt.plot(f, p, marker='o', linestyle='None')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel("Power Spectral Density (dB ref 1 µPa / √Hz)")
         plt.semilogx()
