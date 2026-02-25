@@ -162,19 +162,18 @@ class TemporalResponse:
 
         h_t_tau = np.zeros((n_depths, n_ranges, fft_samples), dtype=np.float64)
 
+        num_bins_posivos = fft_samples // 2 + 1
         for d in range(n_depths):
             for r in range(n_ranges):
+                h_f_positive = np.zeros(num_bins_posivos, dtype=np.complex128)
 
-                sub_h_f = h_f_tau[d, r, :] * window
+                end_idx = min(k0 + n_f, num_bins_posivos)
+                actual_n_f = end_idx - k0
+                h_f_positive[k0:end_idx] = h_f_tau[d, r, :actual_n_f] * window
 
-                h_f = np.zeros(fft_samples, dtype=np.complex128)
-                h_f[k0:k0 + n_f] = sub_h_f
-                h_f[fft_samples//2+1:] = np.flip(np.conj(h_f[1:fft_samples//2]))
-                h_f *= fft_samples / 2
+                h_t = np.fft.irfft(h_f_positive, n=fft_samples)
 
-                h_t = np.fft.ifft(h_f)
-
-                h_t_tau[d, r, :] = np.real(h_t)
+                h_t_tau[d, r, :] = h_t
 
         return TemporalResponse(
             h_t_tau=h_t_tau,

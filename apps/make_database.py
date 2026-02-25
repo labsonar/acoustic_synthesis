@@ -52,8 +52,15 @@ def _main():
     parser.add_argument(
         "--sensitivity",
         type=float,
-        default=-200.0,
+        default=-180.0,
         help="Hydrophone sensitivity in dB re V/μPa (default: -180)",
+    )
+
+    parser.add_argument(
+        "--gain",
+        type=float,
+        default=40.0,
+        help="Pre-amplifier gain in dB (default: -40)",
     )
 
     parser.add_argument(
@@ -142,7 +149,8 @@ def _main():
     elif args.limits:
 
         sonar = lps_sonar.Sonar.hydrophone(
-            sensitivity=lps_qty.Sensitivity.db_v_p_upa(args.sensitivity)
+            sensitivity=lps_qty.Sensitivity.db_v_p_upa(args.sensitivity),
+            signal_conditioner = lps_sonar.IdealAmplifier(args.gain)
         )
 
         sample_frequency = lps_qty.Frequency.khz(args.sample_frequency)
@@ -159,7 +167,8 @@ def _main():
         wav_dir = os.path.join(output_dir, "data")
 
         sonar = lps_sonar.Sonar.hydrophone(
-            sensitivity=lps_qty.Sensitivity.db_v_p_upa(args.sensitivity)
+            sensitivity = lps_qty.Sensitivity.db_v_p_upa(args.sensitivity),
+            signal_conditioner = lps_sonar.IdealAmplifier(args.gain)
         )
         sample_frequency = lps_qty.Frequency.khz(args.sample_frequency)
         step_interval = lps_qty.Time.s(args.step_interval)

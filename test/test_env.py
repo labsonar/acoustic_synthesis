@@ -215,67 +215,69 @@ def ship_test():
     print("### ship simulator ###")
     print("")
 
-    ship_info = syndb_ship.ShipInfo(
-        seed=42,
-        major_class="TestClass",
-        ship_type=lps_ns.ShipType.BULKER,
-        mcr_percent=0.8,
-        cruising_speed=lps_qty.Speed.kt(15),
-        rotacional_frequency=lps_qty.Frequency.rpm(80),
-        length=lps_qty.Distance.m(120),
-        draft=lps_qty.Distance.m(6),
-        n_blades=5,
-        n_shafts=1,
-        nb_lower=1,
-        nb_medium=1,
-        nb_greater=1,
-        nb_isolated=1,
-        nb_oscillating=1,
-        nb_concentrated=1,
-    )
+    for type in [lps_ns.ShipType.BULKER, lps_ns.ShipType.FISHING]:
 
-    dynamic = syndb_dyn.SimulationDynamic(
-        dynamic_type=syndb_dyn.DynamicType.FIXED_DISTANCE,
-        shortest=lps_qty.Distance.m(200),
-        approaching=False
-    )
+        ship_info = syndb_ship.ShipInfo(
+            seed=42,
+            major_class="TestClass",
+            ship_type=type,
+            mcr_percent=0.8,
+            cruising_speed=lps_qty.Speed.kt(15),
+            rotacional_frequency=lps_qty.Frequency.rpm(80),
+            length=lps_qty.Distance.m(120),
+            draft=lps_qty.Distance.m(6),
+            n_blades=5,
+            n_shafts=1,
+            nb_lower=1,
+            nb_medium=1,
+            nb_greater=1,
+            nb_isolated=1,
+            nb_oscillating=1,
+            nb_concentrated=1,
+        )
 
-    ship = ship_info.make_ship(
-        dynamic=dynamic,
-        step_interval=step_interval,
-        simulation_steps=simulation_steps
-    )
+        dynamic = syndb_dyn.SimulationDynamic(
+            dynamic_type=syndb_dyn.DynamicType.FIXED_DISTANCE,
+            shortest=lps_qty.Distance.m(200),
+            approaching=False
+        )
 
-    ship.move(step_interval=step_interval, n_steps=simulation_steps)
+        ship = ship_info.make_ship(
+            dynamic=dynamic,
+            step_interval=step_interval,
+            simulation_steps=simulation_steps
+        )
 
-    compiler = lps_ns.NoiseCompiler(
-        noise_containers=[ship],
-        fs=sample_frequency,
-        parallel=False
-    )
+        ship.move(step_interval=step_interval, n_steps=simulation_steps)
 
-    print(ship_info.narrowband_configs)
+        compiler = lps_ns.NoiseCompiler(
+            noise_containers=[ship],
+            fs=sample_frequency,
+            parallel=False
+        )
 
-    for signal, _, _ in compiler:
+        print(ship_info.narrowband_configs)
 
-        save(signal, "ship", sensor, signal_conditioner, adc, sample_frequency, base_dir)
+        for signal, _, _ in compiler:
 
-        freqs, intensity = ship_info.ship_type.to_psd(fs=sample_frequency,
-                                   lenght=ship_info.length,
-                                   speed=ship[0].velocity.get_magnitude_xy())
+            save(signal, str(type), sensor, signal_conditioner, adc, sample_frequency, base_dir)
 
-        freqs = [f.get_hz() for f in freqs]
-        plt.figure(figsize=(10, 6))
-        plt.plot(freqs, intensity)
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel("Power Spectral Density (dB ref 1 µPa / √Hz)")
-        plt.semilogx()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(os.path.join(base_dir, "ship.png"))
-        plt.close()
+            freqs, intensity = ship_info.ship_type.to_psd(fs=sample_frequency,
+                                    lenght=ship_info.length,
+                                    speed=ship[0].velocity.get_magnitude_xy())
 
-        break
+            freqs = [f.get_hz() for f in freqs]
+            plt.figure(figsize=(10, 6))
+            plt.plot(freqs, intensity)
+            plt.xlabel('Frequency (Hz)')
+            plt.ylabel("Power Spectral Density (dB ref 1 µPa / √Hz)")
+            plt.semilogx()
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(os.path.join(base_dir, f"{type}.png"))
+            plt.close()
+
+            break
 
 if __name__ == "__main__":
     # pamguide_test()

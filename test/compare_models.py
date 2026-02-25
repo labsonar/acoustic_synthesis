@@ -34,7 +34,7 @@ def _run_comparison(
         sensor_depth=sensor_depth,
         max_distance=max_distance,
         max_distance_points=1,
-        frequency_range = (lps_qty.Frequency.khz(7), lps_qty.Frequency.khz(8)) #TODO remover
+        # frequency_range = (lps_qty.Frequency.khz(7), lps_qty.Frequency.khz(8)) #TODO remover
     )
 
     responses = {}
@@ -65,15 +65,30 @@ def _run_comparison(
 
     i0, i1 = None, None
 
+    gains_db = {}
     for model_name, (rsp_f, rsp_t) in responses.items():
 
         h_f = rsp_f.h_f_tau[-1, -1, :]
         h_t = rsp_t.h_t_tau[-1, -1, :]
         t = [t.get_s() for t in rsp_t.get_time_axis()]
 
+        print("max hf: ", np.max(20 * np.log10(np.abs(h_f))))
+        h_f2 = np.fft.fft(h_t)
+        print("max h_f2: ", np.max(20 * np.log10(np.abs(h_f2))))
+
+        n_test = len(h_t) * 4  # sinal suficientemente longo
+        x = np.random.randn(n_test)
+        y = np.convolve(x, h_t, mode="same")
+
+        rms_x = np.sqrt(np.mean(x**2))
+        rms_y = np.sqrt(np.mean(y**2))
+
+        gain_db = 20 * np.log10(rms_y / rms_x + 1e-20)
+        gains_db[model_name] = gain_db
+
         axs[0].plot(freqs, np.real(h_f), label=model_name)
         axs[1].plot(freqs, np.imag(h_f), label=model_name)
-        axs[2].plot(freqs, -20 * np.log10(np.abs(h_f)), label=model_name)
+        axs[2].plot(freqs, 20 * np.log10(np.abs(h_f)), label=model_name)
         axs[3].plot(t, h_t, label=model_name)
 
         if i0 is None or i1 is None:
@@ -105,10 +120,13 @@ def _run_comparison(
     plt.savefig(os.path.join(output_dir, fname), dpi=150)
     plt.close(fig)
 
+    print("\nEstimated broadband gain (white noise test):")
+    for name, g in sorted(gains_db.items(), key=lambda x: x[1]):
+        print(f"{name:>12s}: {g:8.2f} dB")
+
     print("\nExecution time (compute_frequency_response):")
     for name, t in sorted(timings.items(), key=lambda x: x[1]):
         print(f"{name:>12s}: {t:8.3f} s")
-
 
 def _parse_args():
 
