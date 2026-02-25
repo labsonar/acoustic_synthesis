@@ -17,13 +17,6 @@ def _main():
     )
 
     parser.add_argument(
-        "--dataset",
-        choices=["toy", "olocum"],
-        default="toy",
-        help="Select the dataset type: 'toy' or 'olocum'. (default: toy)",
-    )
-
-    parser.add_argument(
         "--n_samples",
         type=int,
         default=1,
@@ -118,24 +111,19 @@ def _main():
 
     parser.add_argument(
         "--output-dir",
-        default="./result",
-        help="Directory to save results (default: ./result)",
+        default="./result/iemanja",
+        help="Directory to save results (default: ./result/iemanja)",
     )
 
     args = parser.parse_args()
 
-    output_dir = os.path.join(args.output_dir, args.dataset)
+    output_dir = args.output_dir
 
     if args.load:
         dataset = syndb.Database.load(output_dir)
 
     else:
-
-        if args.dataset == "toy":
-            dataset = syndb.ToyDatabase(n_samples=args.n_samples)
-        else:
-            dataset = syndb.OlocumDatabase(n_samples=args.n_samples, seed=args.seed)
-
+        dataset = syndb.IEMANJA(n_ships_conditions=args.n_samples, seed=args.seed)
         dataset.export(output_dir=output_dir)
 
     if args.only_info:

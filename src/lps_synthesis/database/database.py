@@ -46,8 +46,8 @@ class DatabaseEntry(syndb_core.CatalogEntry):
         """ Converts the entry into a dictionary suitable for tabular representation. """
         return {
                 "SHIP_CATALOG_ID": self.ship_id,
-                "SCENARIO_CATALOG_ID": self.scenario_id,
                 "DYNAMIC_CATALOG_ID": self.dynamic_id,
+                "SCENARIO_CATALOG_ID": self.scenario_id,
             }
 
     @staticmethod
@@ -59,8 +59,8 @@ class DatabaseEntry(syndb_core.CatalogEntry):
             entries.append(
                 DatabaseEntry(
                     ship_id=int(row["SHIP_CATALOG_ID"]),
-                    scenario_id=int(row["SCENARIO_CATALOG_ID"]),
                     dynamic_id=int(row["DYNAMIC_CATALOG_ID"]),
+                    scenario_id=int(row["SCENARIO_CATALOG_ID"]),
                 )
             )
 
@@ -72,7 +72,8 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
     def __init__(self,
                  ship_catalog: syndb_ship.ShipCatalog,
                  acoutic_scenario_catalog: syndb_core.Catalog[syndb_scenario.AcousticScenario],
-                 n_samples: int,
+                 n_fixed_scenarios: int,
+                 n_random_scenarios: int,
                  seed: int = 42):
 
         rng = random.Random(seed)
@@ -81,30 +82,41 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         n_ships = len(ship_catalog)
         n_scenarios = len(acoutic_scenario_catalog)
 
-        dynamic_catalog = syndb_dynamic.SimulationDynamic.rand_catalog(n_samples=n_samples)
+        dynamic_catalog = syndb_dynamic.SimulationDynamic.rand_catalog(n_samples=n_ships)
 
-        for i in range(n_samples):
+        def _find_n_scenarios(n_samples: int, forbidden_ids: typing.List[int] = []) -> \
+                typing.List[int]:
+            scenarios = []
+            locations = []
+            for _ in range(n_samples):
 
-            ship_ids = rng.sample(range(n_ships), 1)
+                while True:
+                    scenario_id = rng.randrange(n_scenarios)
 
-            while True:
-                scenario_ids = rng.sample(range(n_scenarios), 2)
+                    s = acoutic_scenario_catalog[scenario_id]
 
-                s1 = acoutic_scenario_catalog[scenario_ids[0]]
-                s2 = acoutic_scenario_catalog[scenario_ids[1]]
+                    if s.local not in locations and scenario_id not in forbidden_ids:
+                        locations.append(s.local)
+                        scenarios.append(scenario_id)
+                        break
 
-                if s1.local != s2.local:
-                    break
+            return scenarios
 
-            for ship_id in ship_ids:
-                for scenario_id in scenario_ids:
-                    entries.append(
-                        DatabaseEntry(
-                            ship_id=ship_id,
-                            scenario_id=scenario_id,
-                            dynamic_id=i
-                        )
+        fixed_scenarios = _find_n_scenarios(n_fixed_scenarios)
+
+        for ship_id in range(n_ships):
+
+            random_scenarios = _find_n_scenarios(n_random_scenarios, fixed_scenarios)
+
+            for scenario_id in fixed_scenarios + random_scenarios:
+
+                entries.append(
+                    DatabaseEntry(
+                        ship_id=ship_id,
+                        scenario_id=scenario_id,
+                        dynamic_id=ship_id
                     )
+                )
 
         super().__init__(entries=entries)
         self.ship_catalog = ship_catalog
@@ -323,33 +335,14 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         print(f"Depth     : {global_min_depth:.2f} m -> {global_max_depth:.2f} m")
         print("====================================\n")
 
-
-class ToyDatabase(Database):
-    """Small-scale catalog for demonstration or testing purposes."""
-
-    def __init__(self, n_samples = 100, seed: int = 42):
-        selected_locals = [
-            syndb_scenario.Location.GUANABARA_BAY
-        ]
-
-        rng = random.Random(seed)
-        scenarios = []
-        for local in selected_locals:
-            seasons = rng.sample(list(lps_as.Season), 2)
-            for season in seasons:
-                scenarios.append(syndb_scenario.AcousticScenario(local, season))
-
-        super().__init__(
-            ship_catalog=syndb_ship.ShipCatalog(),
-            acoutic_scenario_catalog=syndb_core.Catalog[syndb_scenario.AcousticScenario](entries=scenarios),
-            n_samples=n_samples,
-            seed=seed
-        )
-
-class OlocumDatabase(Database):
+class IEMANJA(Database):
     """Comprehensive simulated catalog inspired by the OLOCUM dataset."""
 
-    def __init__(self, n_ships = 50, n_samples = 1000, seed: int = 42):
+    def __init__(self,
+                 n_ships_conditions = 50,
+                 n_fixed_scenarios = 2,
+                 n_random_scenarios = 2,
+                 seed: int = 42):
 
         scenarios = [
             syndb_scenario.AcousticScenario(local, season)
@@ -361,8 +354,9 @@ class OlocumDatabase(Database):
                 syndb_core.Catalog[syndb_scenario.AcousticScenario](entries=scenarios)
 
         super().__init__(
-            ship_catalog=syndb_ship.ShipCatalog(n_samples=n_ships, seed=seed),
+            ship_catalog=syndb_ship.ShipCatalog(n_samples=n_ships_conditions, seed=seed),
             acoutic_scenario_catalog=acoutic_scenario_catalog,
-            n_samples=n_samples,
+            n_fixed_scenarios = n_fixed_scenarios,
+            n_random_scenarios = n_random_scenarios,
             seed=seed
         )

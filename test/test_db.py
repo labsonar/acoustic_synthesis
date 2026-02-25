@@ -12,7 +12,7 @@ def _main():
     toy_dataset_df = toy_dataset.to_df()
     toy_dataset.export(os.path.join(out_dir, "toy_dataset"))
 
-    olocum_dataset = syndb.OlocumDatabase()
+    olocum_dataset = syndb.IEMANJA()
     olocum_dataset_df = olocum_dataset.to_df()
     olocum_dataset.export(os.path.join(out_dir, "olocum_dataset"))
 
