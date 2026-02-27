@@ -82,7 +82,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         n_ships = len(ship_catalog)
         n_scenarios = len(acoutic_scenario_catalog)
 
-        dynamic_catalog = syndb_dynamic.SimulationDynamic.rand_catalog(n_samples=n_ships)
+        dynamic_catalog = syndb_dynamic.SimulationDynamic.rand_catalog(n_samples=n_ships, seed=seed)
 
         def _find_n_scenarios(n_samples: int, forbidden_ids: typing.List[int] = []) -> \
                 typing.List[int]:
@@ -278,7 +278,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                     sonar: lps_sonar.Sonar,
                     step_interval: lps_qty.Time,
                     simulation_steps: int,
-                    global_attenuation_db: float) -> None:
+                    valid_indexes: typing.List[int]) -> None:
 
         global_min_dist = float("inf")
         global_max_dist = 0.0
@@ -288,6 +288,9 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         global_max_depth = 0.0
 
         for i in tqdm.tqdm(range(len(self)), desc="Computing limits", ncols=120):
+
+            if valid_indexes is not None and i not in valid_indexes:
+                continue
 
             entry = self[i]
             ship_info = self.ship_catalog[entry.ship_id]
@@ -310,7 +313,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
 
             scenario.add_noise_container(ship)
 
-            sonar_i.ref_state = dynamic.get_sonar_initial_state(ship)
+            sonar_i.reset(dynamic.get_sonar_initial_state(ship))
 
             scenario.simulate(simulation_steps)
 
@@ -330,7 +333,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
             global_max_depth = max(global_max_depth, ship.get_depth().get_m())
 
         print("\n========== GLOBAL LIMITS ==========")
-        print(f"Distance  : {global_min_dist:.2f} m  ->  {global_max_dist:.2f} m")
+        print(f"Distance  : {global_min_dist:.2f} km  ->  {global_max_dist:.2f} km")
         print(f"Speed     : {global_min_speed:.2f} m/s -> {global_max_speed:.2f} m/s")
         print(f"Depth     : {global_min_depth:.2f} m -> {global_max_depth:.2f} m")
         print("====================================\n")

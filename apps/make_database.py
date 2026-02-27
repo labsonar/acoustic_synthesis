@@ -6,6 +6,7 @@ import tqdm
 
 import lps_utils.quantities as lps_qty
 import lps_utils.utils as lps_utils
+import lps_ml.datasets as ml_db
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.database as syndb
 
@@ -19,8 +20,8 @@ def _main():
     parser.add_argument(
         "--n_samples",
         type=int,
-        default=1,
-        help="Select the number of samples in dataset. (default: 1)",
+        default=250,
+        help="Select the number of samples in dataset. (default: 250)",
     )
 
     parser.add_argument(
@@ -73,8 +74,8 @@ def _main():
     parser.add_argument(
         "--simulation-steps",
         type=int,
-        default=150,
-        help="Number of simulation steps (default: 150)",
+        default=300,
+        help="Number of simulation steps (default: 300)",
     )
 
     parser.add_argument(
@@ -110,14 +111,40 @@ def _main():
     )
 
     parser.add_argument(
+        "--first_need_samples",
+        action="store_true",
+        help="Sample for the fixed channels with fixed_distance",
+    )
+
+    parser.add_argument(
         "--output-dir",
-        default="./result/iemanja",
-        help="Directory to save results (default: ./result/iemanja)",
+        default="/data/iemanja",
+        help="Directory to save results (default: /data/iemanja)",
     )
 
     args = parser.parse_args()
-
     output_dir = args.output_dir
+
+    indexes = None
+
+    if args.first_need_samples:
+
+        df = ml_db.Iemanja.load_df(output_dir)
+
+        mask = (
+            (df["DYNAMIC_TYPE"] == str(syndb.DynamicType.FIXED_DISTANCE).lower()) &
+            ((df.index % 4) < 2)
+        )
+
+        indexes = df.loc[mask, "CATALOG_ID"].tolist()
+
+    if args.sample_index is not None and indexes is None:
+
+        indexes = lps_utils.parse_indexes(args.sample_index)
+
+        if not indexes:
+            raise ValueError("Invalid --sample-index format")
+
 
     if args.load:
         dataset = syndb.Database.load(output_dir)
@@ -148,7 +175,7 @@ def _main():
             sonar=sonar,
             step_interval=step_interval,
             simulation_steps=args.simulation_steps,
-            global_attenuation_db=args.env_att,
+            valid_indexes=indexes
         )
 
     else:
@@ -162,14 +189,9 @@ def _main():
         step_interval = lps_qty.Time.s(args.step_interval)
         simulation_steps = args.simulation_steps
 
-        if args.sample_index is not None:
+        if indexes is not None:
 
-            indices = lps_utils.parse_indices(args.sample_index)
-
-            if not indices:
-                raise ValueError("Invalid --sample-index format")
-
-            for idx in tqdm.tqdm(indices, desc="Making samples", leave=False, ncols=120):
+            for idx in tqdm.tqdm(indexes, desc="Making samples", leave=False, ncols=120):
                 dataset.synthesize_sample(
                     sample_index=idx,
                     output_dir=wav_dir,

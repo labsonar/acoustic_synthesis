@@ -75,7 +75,7 @@ class SimulationDynamic(syndb_core.CatalogEntry):
 
         for _ in range(n_samples):
 
-            dist = lps_qty.Distance.m(random.randint(int(min_dist.get_m()),
+            dist = lps_qty.Distance.m(rng.randint(int(min_dist.get_m()),
                                                     int(max_dist.get_m())))
             dynamic_type = rng.choice(list(DynamicType))
             approaching = rng.random() < 0.5
