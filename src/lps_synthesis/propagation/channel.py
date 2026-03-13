@@ -19,7 +19,7 @@ import lps_synthesis.propagation.channel_description as lps_propag_desc
 import lps_synthesis.propagation.layers as lps_propag_layer
 
 # DEFAULT_DIR = os.path.join(os.path.expanduser("~"), ".lps", "channel")
-DEFAULT_DIR = os.path.join(".", "channel")
+DEFAULT_DIR = os.path.join("/data", "channel")
 
 class Channel():
     """

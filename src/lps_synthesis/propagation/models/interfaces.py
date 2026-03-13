@@ -12,7 +12,8 @@ import numpy as np
 
 import lps_utils.quantities as lps_qty
 import lps_utils.hashable as lps_hash
-import lps_synthesis.propagation.channel_description as lps_channel
+import lps_synthesis.propagation.channel as lps_ch
+import lps_synthesis.propagation.channel_description as lps_ch_desc
 import lps_synthesis.propagation.channel_response as lps_channel_rsp
 
 
@@ -90,7 +91,7 @@ class QueryConfig(lps_hash.Hashable):
     """
     Unified query for getting the channel response from propagation models.
     """
-    description: lps_channel.Description
+    description: lps_ch_desc.Description
 
     sensor_depth: lps_qty.Distance
     source_depths: typing.List[lps_qty.Distance] = dataclasses.field(
@@ -217,7 +218,7 @@ class PropagationModel(abc.ABC):
         super().__init__()
         self.files_to_clean = []
         self.new_dir = False
-        self.workdir = workdir or os.path.join("./channel/temps",
+        self.workdir = workdir or os.path.join(lps_ch.DEFAULT_DIR,"temps",
                             "".join(random.choice(string.ascii_lowercase) for _ in range(10)))
 
     def __str__(self) -> str:
