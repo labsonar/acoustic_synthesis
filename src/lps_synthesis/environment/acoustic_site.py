@@ -746,7 +746,7 @@ class AcousticSiteProspector:
                 sensor_depth = sensor_depth,
                 max_distance = lps_qty.Distance.km(1000),
                 source_depths = [lps_qty.Distance.m(d) for d in np.arange(2, 16, 1)],
-                max_distance_points = 2000,
+                max_distance_points = 1000,
         )
 
 

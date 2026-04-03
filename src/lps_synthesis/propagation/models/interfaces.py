@@ -166,7 +166,7 @@ class QueryConfig(lps_hash.Hashable):
             n_steps = n_steps  + 1
         )
 
-    def get_frequency_sweep(self, range_margin: float = 3) -> typing.Tuple[
+    def get_frequency_sweep(self, range_margin: float = 2) -> typing.Tuple[
         typing.List[lps_qty.Frequency],
         int
     ]:

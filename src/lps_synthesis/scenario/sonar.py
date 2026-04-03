@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 
 import lps_utils.quantities as lps_qty
 import lps_sp.signal as lps_sig
+import lps_sp.acoustical.debugger as lps_sp_debug
 import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_synthesis.scenario.noise_source as lps_noise
 import lps_synthesis.environment.environment as lps_env
@@ -450,6 +451,9 @@ class Sonar(lps_dynamic.Element):
         if environment is not None:
             env_noise = environment.generate_bg_noise(min_size,
                                                     fs=noise_compiler.fs.get_hz())
+
+            lps_sp_debug.AudioDebugger.register("env_noise", env_noise, noise_compiler.fs)
+
             env_noise = sensor.transduce(input_data=env_noise,
                                         noise_source=None,
                                         fs=noise_compiler.fs)

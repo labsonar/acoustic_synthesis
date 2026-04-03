@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import scipy
 
 import lps_utils.quantities as lps_qty
+import lps_sp.acoustical.debugger as lps_sp_debug
 
 @dataclasses.dataclass(slots=True)
 class SpectralResponse:
@@ -127,6 +128,8 @@ class TemporalResponse:
             if r_idx != last_r_idx:
 
                 ir = h_t_tau[:, r_idx]
+
+                lps_sp_debug.AudioDebugger.register("ir", ir, sample_frequency)
 
                 if resample_ir:
                     ir = scipy.signal.resample(ir, ir_samples)

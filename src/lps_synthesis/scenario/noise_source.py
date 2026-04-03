@@ -18,6 +18,7 @@ import scipy.signal as sci_sig
 
 import lps_utils.quantities as lps_qty
 import lps_sp.signal as lps_signal
+import lps_sp.acoustical.debugger as lps_sp_debug
 import lps_synthesis.scenario.dynamic as lps_dynamic
 import lps_sp.acoustical.broadband as lps_bb
 
@@ -664,6 +665,7 @@ class CavitationNoise(NoiseSource):
             for n, a in enumerate(an_i):
                 narrowband[i] += a * np.cos(phase_accum[i] * (1+n))
 
+        lps_sp_debug.AudioDebugger.register("bb_modulating", narrowband, fs)
         modulated_signal = narrowband * broadband
         return modulated_signal, narrowband
 
@@ -710,7 +712,9 @@ class CavitationNoise(NoiseSource):
 
             audio_signals.append(noise)
 
-        return np.concatenate(audio_signals), speeds
+        signal = np.concatenate(audio_signals)
+        lps_sp_debug.AudioDebugger.register("bb_noise", signal, fs)
+        return signal, speeds
 
     @overrides.overrides
     def generate_noise(self, fs: lps_qty.Frequency) -> np.array:
@@ -760,8 +764,10 @@ class NarrowBandNoise(NoiseSource):
 
         amplitude = self.amp * (1+self.epsilon_fn(t))
         phase = self.phi_fn(t)
+        signal = amplitude * np.cos(2 * np.pi * self.frequency.get_hz() * t + phase)
 
-        return amplitude * np.cos(2 * np.pi * self.frequency.get_hz() * t + phase)
+        lps_sp_debug.AudioDebugger.register(f"nb_noise_{id(self)}", signal, fs)
+        return signal
 
     @classmethod
     def with_sine_am_modulation(cls,

@@ -6,6 +6,7 @@ import tqdm
 
 import lps_utils.quantities as lps_qty
 import lps_utils.utils as lps_utils
+import lps_sp.acoustical.debugger as lps_sp_debug
 import lps_ml.datasets as ml_db
 import lps_synthesis.scenario.sonar as lps_sonar
 import lps_synthesis.database as syndb
@@ -140,7 +141,7 @@ def _main():
 
     if args.sample_index is not None and indexes is None:
 
-        indexes = lps_utils.parse_indexes(args.sample_index)
+        indexes = lps_utils.parse_indices(args.sample_index)
 
         if not indexes:
             raise ValueError("Invalid --sample-index format")
@@ -203,6 +204,7 @@ def _main():
                     only_plot=args.only_plot,
                     force_override=args.force_override
                 )
+                lps_sp_debug.AudioDebugger.save(output_dir=wav_dir)
         else:
             dataset.synthesize(
                 output_dir=wav_dir,
