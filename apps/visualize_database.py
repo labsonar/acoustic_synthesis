@@ -5,6 +5,10 @@ import argparse
 import tqdm
 
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 import lps_utils.quantities as lps_qty
 import lps_utils.quantities as lps_qty
@@ -15,11 +19,13 @@ import lps_ml.visualization.tsne as ml_vis
 import lps_ml.datasets as ml_db
 import lps_ml.core.cv as ml_cv
 import lps_ml.audio_processors as ml_procs
+import lps_ml.utils.separability as ml_sep
 
 import memory_profiler
 
 
 def feature_spectrogram(x, fs):
+    x = x.reshape(-1)
     power, _, _ = lps_analysis.SpectralAnalysis.SPECTROGRAM.apply(
         x, fs, lps_analysis.Parameters()
     )
@@ -27,6 +33,7 @@ def feature_spectrogram(x, fs):
 
 
 def feature_lofar(x, fs):
+    x = x.reshape(-1)
     power, _, _ = lps_analysis.SpectralAnalysis.LOFAR.apply(
         x, fs, lps_analysis.Parameters()
     )
@@ -34,6 +41,7 @@ def feature_lofar(x, fs):
 
 
 def feature_melgram(x, fs):
+    x = x.reshape(-1)
     power, _, _ = lps_analysis.SpectralAnalysis.MELGRAM.apply(
         x, fs, lps_analysis.Parameters()
     )
@@ -46,6 +54,7 @@ def feature_psd(x, fs):
 
 
 def feature_demon(x, fs):
+    x = x.reshape(-1)
 
     intensity, _, _ = lps_bb.demon(
         x,
@@ -57,15 +66,18 @@ def feature_demon(x, fs):
 
     return np.mean(intensity, axis=0)
 
+def feature_vae(x, fs, encoder):
 
-FEATURES = {
-    "spectrogram": feature_spectrogram,
-    "lofar": feature_lofar,
-    "melgram": feature_melgram,
-    "psd": feature_psd,
-    "demon": feature_demon
-}
+    _, z = encoder.process(
+        lps_qty.Frequency.hz(fs),
+        x
+    )
 
+    # opcional: reduzir dimensão (igual você faz nos outros)
+    if z.ndim > 1:
+        z = z.reshape(-1)
+
+    return z
 
 def compute_features(loader, fs, extractor, dm):
 
@@ -101,11 +113,95 @@ def combine_labels(labels_class, labels_name):
 
     return combined_str
 
+
+def compute_separability_table(data, labels):
+
+    unique_labels = np.unique(labels)
+    metrics = [m.get() for m in ml_sep.Separability]
+
+    results = {str(m): [] for m in metrics}
+
+    for i in range(len(unique_labels)):
+        for j in range(i + 1, len(unique_labels)):
+
+            la = unique_labels[i]
+            lb = unique_labels[j]
+
+            xa = data[labels == la]
+            xb = data[labels == lb]
+
+            for metric in metrics:
+                val = metric.apply(xa, xb)
+                results[str(metric)].append(val)
+
+    return {
+        k: float(np.mean(v)) for k, v in results.items()
+    }
+
+
+def print_table(title, table):
+
+    print(f"\n=== {title} ===")
+
+    metrics_names = list(next(iter(table.values())).keys())
+
+    header = "Metric".ljust(25)
+    for feat in table.keys():
+        header += feat.ljust(20)
+    print(header)
+
+    for metric in metrics_names:
+        row = metric.ljust(25)
+        for feat in table.keys():
+            val = table[feat][metric]
+            row += f"{val:.4f}".ljust(20)
+        print(row)
+
+def save_heatmap(df, title, filename):
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(df, annot=True, fmt=".3f", linewidths=0.5, cmap="viridis")
+    plt.title(title)
+    plt.ylabel("Feature")
+    plt.xlabel("Metric")
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300)
+    plt.close()
+
+def build_metric_tables(sep_tables):
+
+    metric_tables = {}
+
+    domains = ["class", "channel", "combined"]
+
+    sample_feature = next(iter(sep_tables["class"].values()))
+    metrics = sample_feature.keys()
+
+    for metric in metrics:
+
+        rows = []
+
+        for domain in domains:
+
+            row = {}
+
+            for feature in sep_tables[domain]:
+
+                val = sep_tables[domain][feature][metric]
+                row[feature] = val
+
+            rows.append(row)
+
+        df = pd.DataFrame(rows, index=["by_class", "by_channel", "combined"])
+
+        metric_tables[metric] = df
+
+    return metric_tables
+
 def _main():
     parser = argparse.ArgumentParser(
         description="Synthetic database generator for underwater acoustic scenarios."
     )
-
+    parser.add_argument("--model", type=str, default="/data/models/v0_4M6.ts")
     parser.add_argument(
         "--output-dir",
         default="/data/iemanja/visualization",
@@ -115,16 +211,17 @@ def _main():
     args = parser.parse_args()
     output_dir = args.output_dir
 
-    fs=lps_qty.Frequency.khz(16)
-    duration=lps_qty.Time.s(10)
-    overlap=lps_qty.Time.s(5)
+    fs = lps_qty.Frequency.khz(16)
+    n_samples = int(2**17)
+    overlap = int(2**16)
 
     dm = ml_db.Iemanja(
-            file_processor=ml_procs.TimeProcessor(
-                    fs_out=fs,
-                    duration=duration,
+            file_processor=ml_procs.SampleProcessor(
+                    n_samples=n_samples,
                     overlap=overlap,
-                    pipelines=[ml_procs.ToFloatConverter()]
+                    pipelines=[
+                        ml_procs.ToFloatConverter(),
+                    ]
                 ),
             cv = ml_cv.FiveByTwo(),
             simple_version=True,
@@ -142,13 +239,33 @@ def _main():
     id_to_class = dict(zip(df_meta["ID"], df_meta["CLASS"]))
     id_to_name = dict(zip(df_meta["ID"], df_meta["NAME_(US)"]))
 
+    vae_encoder = ml_procs.VAEEncoder(
+        args.model,
+        device="cpu"  # evitar problemas de device
+    )
 
+    features = {
+        "spectrogram": feature_spectrogram,
+        "lofar": feature_lofar,
+        "melgram": feature_melgram,
+        "psd": feature_psd,
+        "demon": feature_demon,
+        "vae": lambda x, fs: feature_vae(x, fs, vae_encoder),
+    }
 
-    for name, extractor in FEATURES.items():
+    sep_tables = {
+        "class": {},
+        "channel": {},
+        "combined": {}
+    }
+
+    for name, extractor in features.items():
 
         print(f"\nComputing features for {name}")
 
         data, file_ids = compute_features(loader, fs.get_hz(), extractor, dm)
+
+        print(f"\tData: {data.shape}")
 
         labels_class = np.array([id_to_class[i] for i in file_ids])
         labels_name = np.array([id_to_name[i] for i in file_ids])
@@ -158,17 +275,21 @@ def _main():
             labels_name
         )
 
-        # ml_vis.export_tsne(
-        #     data=data,
-        #     labels=labels_class,
-        #     filename=os.path.join(output_dir, f"tsne_{name}_ship_class.png")
-        # )
+        sep_tables["class"][name] = compute_separability_table(data, labels_class)
+        sep_tables["channel"][name] = compute_separability_table(data, labels_name)
+        sep_tables["combined"][name] = compute_separability_table(data, labels_combined_str)
 
-        # ml_vis.export_tsne(
-        #     data=data,
-        #     labels=labels_name,
-        #     filename=os.path.join(output_dir, f"tsne_{name}_channel.png")
-        # )
+        ml_vis.export_tsne(
+            data=data,
+            labels=labels_class,
+            filename=os.path.join(output_dir, f"tsne_{name}_ship_class.png")
+        )
+
+        ml_vis.export_tsne(
+            data=data,
+            labels=labels_name,
+            filename=os.path.join(output_dir, f"tsne_{name}_channel.png")
+        )
 
         ml_vis.export_tsne(
             data=data,
@@ -176,7 +297,25 @@ def _main():
             filename=os.path.join(output_dir, f"tsne_{name}_combined.png")
         )
 
+    metric_tables = build_metric_tables(sep_tables)
 
+    for metric, df in metric_tables.items():
+
+        # salvar CSV
+        csv_path = os.path.join(output_dir, f"separability_{metric}.csv")
+        df.to_csv(csv_path)
+
+        print(f"==== {metric} ===")
+        print(df)
+
+        # salvar heatmap
+        heatmap_path = os.path.join(output_dir, f"separability_{metric}.png")
+
+        save_heatmap(
+            df,
+            title=metric,
+            filename=heatmap_path
+        )
 
 @memory_profiler.profile
 def _run():
