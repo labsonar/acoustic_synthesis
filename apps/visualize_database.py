@@ -19,7 +19,7 @@ import lps_ml.visualization.tsne as ml_vis
 import lps_ml.datasets as ml_db
 import lps_ml.core.cv as ml_cv
 import lps_ml.audio_processors as ml_procs
-import lps_ml.utils.separability as ml_sep
+import lps_ml.visualization.separability as ml_sep
 
 import memory_profiler
 
@@ -223,8 +223,9 @@ def _main():
                         ml_procs.ToFloatConverter(),
                     ]
                 ),
+            dynamic_selection=ml_db.DynamicSelection.FIXED_ONLY,
+            channel_selection=ml_db.ChannelSelection.REFERENCE_ONLY,
             cv = ml_cv.FiveByTwo(),
-            simple_version=True,
             batch_size=16,
             num_workers=0
             )
