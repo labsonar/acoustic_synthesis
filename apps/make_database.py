@@ -20,7 +20,7 @@ def _main():
     parser.add_argument(
         "--n_samples",
         type=int,
-        default=250,
+        default=10000,
         help="Select the number of samples in dataset. (default: 250)",
     )
 
