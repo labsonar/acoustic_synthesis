@@ -82,11 +82,12 @@ def feature_vae(x, fs, encoder):
 def compute_features(loader, fs, extractor, dm):
 
     all_data = []
-    all_file_ids = []
+    all_targets = []
 
-    for x, _ in tqdm.tqdm(loader, desc="Loading fragments"):
+    for x, target in tqdm.tqdm(loader, desc="Loading fragments"):
 
         x = x.numpy()
+        target = target.numpy()
 
         for sample in x:
 
@@ -94,16 +95,11 @@ def compute_features(loader, fs, extractor, dm):
 
             all_data.append(feat)
 
-        batch_size = x.shape[0]
-
-        start_idx = len(all_file_ids)
-        ids = dm.dataframe.iloc[start_idx:start_idx + batch_size]["file_id"].values
-
-        all_file_ids.extend(ids)
+        all_targets.extend(target)
 
     data = np.vstack(all_data)
 
-    return data, all_file_ids
+    return data, all_targets
 
 def combine_labels(labels_class, labels_name):
 
@@ -171,7 +167,7 @@ def build_metric_tables(sep_tables):
 
     metric_tables = {}
 
-    domains = ["class", "channel", "combined"]
+    domains = ["class"]
 
     sample_feature = next(iter(sep_tables["class"].values()))
     metrics = sample_feature.keys()
@@ -191,43 +187,48 @@ def build_metric_tables(sep_tables):
 
             rows.append(row)
 
-        df = pd.DataFrame(rows, index=["by_class", "by_channel", "combined"])
+        df = pd.DataFrame(rows, index=domains)
 
         metric_tables[metric] = df
 
     return metric_tables
 
 def _main():
-
-    builder = ml_db.IemanjaBuilder()
-
     parser = argparse.ArgumentParser(
         description="Synthetic database generator for underwater acoustic scenarios."
     )
+    parser.add_argument("--model", type=str, default="/data/models/v0_4M6.ts")
     parser.add_argument(
         "--output-dir",
-        default="/data/iemanja/visualization",
-        help="Directory to save results (default: /data/iemanja/visualization)",
+        default="/data/4classes/visualization",
+        help="Directory to save results (default: /data/4classes/visualization)",
     )
-    builder.add_argparse_args(parser=parser)
 
     args = parser.parse_args()
     output_dir = args.output_dir
-
     os.makedirs(output_dir, exist_ok=True)
 
     fs = lps_qty.Frequency.khz(16)
+    n_samples = int(2**17)
+    overlap = int(2**16)
 
-    dm = builder.from_argparse_args(args)
+    dm = ml_db.FourClasses(
+            file_processor=ml_procs.SampleProcessor(
+                    n_samples=n_samples,
+                    overlap=overlap,
+                    pipelines=[
+                        ml_procs.ToFloatConverter(),
+                    ]
+                ),
+            cv = ml_cv.FiveByTwo(),
+            batch_size=16,
+            num_workers=0
+            )
+
     dm.setup()
 
     loader = dm.all_dataloader(shuffle=False)
     loader.num_workers = 0
-
-    df_meta = dm.to_df()
-
-    id_to_class = dict(zip(df_meta["ID"], df_meta["CLASS"]))
-    id_to_name = dict(zip(df_meta["ID"], df_meta["NAME_(US)"]))
 
     # vae_encoder = ml_procs.VAEEncoder(
     #     args.model,
@@ -245,46 +246,22 @@ def _main():
 
     sep_tables = {
         "class": {},
-        "channel": {},
-        "combined": {}
     }
 
     for name, extractor in features.items():
 
         print(f"\nComputing features for {name}")
 
-        data, file_ids = compute_features(loader, fs.get_hz(), extractor, dm)
+        data, labels = compute_features(loader, fs.get_hz(), extractor, dm)
 
         print(f"\tData: {data.shape}")
 
-        labels_class = np.array([id_to_class[i] for i in file_ids])
-        labels_name = np.array([id_to_name[i] for i in file_ids])
-
-        labels_combined_str = combine_labels(
-            labels_class,
-            labels_name
-        )
-
-        sep_tables["class"][name] = compute_separability_table(data, labels_class)
-        sep_tables["channel"][name] = compute_separability_table(data, labels_name)
-        sep_tables["combined"][name] = compute_separability_table(data, labels_combined_str)
+        sep_tables["class"][name] = compute_separability_table(data, labels)
 
         ml_vis.export_tsne(
             data=data,
-            labels=labels_class,
+            labels=labels,
             filename=os.path.join(output_dir, f"tsne_{name}_ship_class.png")
-        )
-
-        ml_vis.export_tsne(
-            data=data,
-            labels=labels_name,
-            filename=os.path.join(output_dir, f"tsne_{name}_channel.png")
-        )
-
-        ml_vis.export_tsne(
-            data=data,
-            labels=labels_combined_str,
-            filename=os.path.join(output_dir, f"tsne_{name}_combined.png")
         )
 
     metric_tables = build_metric_tables(sep_tables)

@@ -452,7 +452,7 @@ class Sonar(lps_dynamic.Element):
             env_noise = environment.generate_bg_noise(min_size,
                                                     fs=noise_compiler.fs.get_hz())
 
-            lps_sp_debug.AudioDebugger.register("env_noise", env_noise, noise_compiler.fs)
+            # lps_sp_debug.AudioDebugger.register("env_noise", env_noise, noise_compiler.fs)
 
             env_noise = sensor.transduce(input_data=env_noise,
                                         noise_source=None,

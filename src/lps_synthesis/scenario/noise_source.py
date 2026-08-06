@@ -665,7 +665,7 @@ class CavitationNoise(NoiseSource):
             for n, a in enumerate(an_i):
                 narrowband[i] += a * np.cos(phase_accum[i] * (1+n))
 
-        lps_sp_debug.AudioDebugger.register("bb_modulating", narrowband, fs)
+        # lps_sp_debug.AudioDebugger.register("bb_modulating", narrowband, fs)
         modulated_signal = narrowband * broadband
         return modulated_signal, narrowband
 
@@ -713,7 +713,7 @@ class CavitationNoise(NoiseSource):
             audio_signals.append(noise)
 
         signal = np.concatenate(audio_signals)
-        lps_sp_debug.AudioDebugger.register("bb_noise", signal, fs)
+        # lps_sp_debug.AudioDebugger.register("bb_noise", signal, fs)
         return signal, speeds
 
     @overrides.overrides
@@ -766,7 +766,7 @@ class NarrowBandNoise(NoiseSource):
         phase = self.phi_fn(t)
         signal = amplitude * np.cos(2 * np.pi * self.frequency.get_hz() * t + phase)
 
-        lps_sp_debug.AudioDebugger.register(f"nb_noise_{id(self)}", signal, fs)
+        # lps_sp_debug.AudioDebugger.register(f"nb_noise_{id(self)}", signal, fs)
         return signal
 
     @classmethod

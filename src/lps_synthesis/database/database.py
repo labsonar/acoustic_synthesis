@@ -74,6 +74,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
                  acoutic_scenario_catalog: syndb_core.Catalog[syndb_scenario.AcousticScenario],
                  n_fixed_scenarios: int,
                  n_random_scenarios: int,
+                 only_fixed: bool = False,
                  seed: int = 42):
 
         rng = random.Random(seed)
@@ -82,7 +83,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         n_ships = len(ship_catalog)
         n_scenarios = len(acoutic_scenario_catalog)
 
-        dynamic_catalog = syndb_dynamic.SimulationDynamic.rand_catalog(n_samples=n_ships, seed=seed)
+        dynamic_catalog = syndb_dynamic.SimulationDynamic.rand_catalog(n_samples=n_ships, seed=seed, only_fixed=only_fixed)
 
         def _find_n_scenarios(n_samples: int, forbidden_ids: typing.List[int] = []) -> \
                 typing.List[int]:
@@ -345,6 +346,7 @@ class IEMANJA(Database):
                  n_ships_conditions = 50,
                  n_fixed_scenarios = 2,
                  n_random_scenarios = 2,
+                 only_fixed_dynamics: bool = False,
                  seed: int = 42):
 
         scenarios = [
@@ -361,5 +363,6 @@ class IEMANJA(Database):
             acoutic_scenario_catalog=acoutic_scenario_catalog,
             n_fixed_scenarios = n_fixed_scenarios,
             n_random_scenarios = n_random_scenarios,
-            seed=seed
+            seed=seed,
+            only_fixed=only_fixed_dynamics
         )

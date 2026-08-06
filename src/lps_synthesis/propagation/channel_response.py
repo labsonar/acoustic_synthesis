@@ -129,7 +129,7 @@ class TemporalResponse:
 
                 ir = h_t_tau[:, r_idx]
 
-                lps_sp_debug.AudioDebugger.register("ir", ir, sample_frequency)
+                # lps_sp_debug.AudioDebugger.register("ir", ir, sample_frequency)
 
                 if resample_ir:
                     ir = scipy.signal.resample(ir, ir_samples)

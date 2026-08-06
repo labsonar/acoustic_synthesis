@@ -190,8 +190,10 @@ class Location(enum.Enum):
         # Hoboken, NJ: Wiley, 2010. doi: 10.1002/9780470665244.
 
     @staticmethod
-    def plot(filename: str):
+    def plot(filename: str, locations: typing.List["Location"] | None = None):
         """ Plot all defined locations on a world map. """
+
+        locations = locations or list(Location)
 
         plt.figure(figsize=(16, 9), dpi=600)
         ax = typing.cast(cgeo.GeoAxes, plt.axes(projection=ccrs.PlateCarree()))
@@ -200,7 +202,7 @@ class Location(enum.Enum):
         ax.add_feature(cfeature.LAND, zorder=0, facecolor='lightgray')
         ax.add_feature(cfeature.OCEAN, zorder=0, facecolor='lightblue')
 
-        for local in Location:
+        for local in locations:
             p = local.get_point()
             color='blue' if local.is_shallow_water() else 'red'
             offset=1.5 if local.is_shallow_water() else -4.5

@@ -21,8 +21,27 @@ def _main():
     parser.add_argument(
         "--n_samples",
         type=int,
-        default=10000,
+        default=250,
         help="Select the number of samples in dataset. (default: 250)",
+    )
+    parser.add_argument(
+        "--n-fixed-scenarios",
+        type=int,
+        default=2,
+        help="Number of fixed-distance scenarios per condition (default: 2)",
+    )
+
+    parser.add_argument(
+        "--n-random-scenarios",
+        type=int,
+        default=2,
+        help="Number of random scenarios per condition (default: 2)",
+    )
+
+    parser.add_argument(
+        "--only_fixed_dynamics",
+        action="store_true",
+        help="Only include fixed-distance dynamics in the dataset (default: False)",
     )
 
     parser.add_argument(
@@ -151,7 +170,13 @@ def _main():
         dataset = syndb.Database.load(output_dir)
 
     else:
-        dataset = syndb.IEMANJA(n_ships_conditions=args.n_samples, seed=args.seed)
+        dataset = syndb.IEMANJA(
+            n_ships_conditions=args.n_samples,
+            seed=args.seed,
+            n_fixed_scenarios = args.n_fixed_scenarios,
+            n_random_scenarios = args.n_random_scenarios,
+            only_fixed_dynamics = args.only_fixed_dynamics,
+        )
         dataset.export(output_dir=output_dir)
 
     if args.only_info:
@@ -204,7 +229,7 @@ def _main():
                     only_plot=args.only_plot,
                     force_override=args.force_override
                 )
-                lps_sp_debug.AudioDebugger.save(output_dir=wav_dir)
+                # lps_sp_debug.AudioDebugger.save(output_dir=wav_dir)
         else:
             dataset.synthesize(
                 output_dir=wav_dir,

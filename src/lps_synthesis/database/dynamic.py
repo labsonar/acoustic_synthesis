@@ -65,7 +65,8 @@ class SimulationDynamic(syndb_core.CatalogEntry):
     @staticmethod
     def rand_catalog(n_samples: int,
                     min_dist: lps_qty.Distance = lps_qty.Distance.m(50),
-                    max_dist: lps_qty.Distance = lps_qty.Distance.m(250),
+                    max_dist: lps_qty.Distance = lps_qty.Distance.m(150),
+                    only_fixed: bool = False,
                     seed: int = 42
                     ) -> syndb_core.Catalog["SimulationDynamic"]:
         """Generate a catalog with random dynamic configurations."""
@@ -77,12 +78,18 @@ class SimulationDynamic(syndb_core.CatalogEntry):
 
             dist = lps_qty.Distance.m(rng.randint(int(min_dist.get_m()),
                                                     int(max_dist.get_m())))
-            dynamic_type = rng.choice(list(DynamicType))
-            approaching = rng.random() < 0.5
 
-            dynamics.append(
-                SimulationDynamic(dynamic_type, dist, approaching)
-            )
+            if only_fixed:
+                dynamics.append(
+                    SimulationDynamic(DynamicType.FIXED_DISTANCE, dist, False)
+                )
+            else:
+                dynamic_type = rng.choice(list(DynamicType))
+                approaching = rng.random() < 0.5
+
+                dynamics.append(
+                    SimulationDynamic(dynamic_type, dist, approaching)
+                )
 
         return syndb_core.Catalog[SimulationDynamic](entries=dynamics)
 
