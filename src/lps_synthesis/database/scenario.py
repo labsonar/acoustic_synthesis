@@ -175,16 +175,21 @@ class Location(enum.Enum):
                 "LONGITUDE_(DEG)": p.longitude.get_deg(),
                 "LATITUDE_(DMS)": str(p.latitude),
                 "LONGITUDE_(DMS)": str(p.longitude),
+                "SHALLOW_WATER": "yes" if self.is_shallow_water() else "no",
             }
 
-    def is_shallow_water(self, etopo_file: str | None = None) -> bool:
+    def get_depth_deth(self, etopo_file: str | None = None) -> lps_qty.Distance:
         """ Indicates whether the location is classified as shallow water. """
         if etopo_file is None:
             prospector = lps_site.DepthProspector()
         else:
             prospector = lps_site.DepthProspector(etopo_file=etopo_file)
 
-        return prospector.get(self.get_point()) < lps_qty.Distance.ft(600)
+        return prospector.get(self.get_point())
+
+    def is_shallow_water(self, etopo_file: str | None = None) -> bool:
+        """ Indicates whether the location is classified as shallow water. """
+        return self.get_depth_deth(etopo_file) < lps_qty.Distance.ft(600)
         # deep water (> 600 ft)
         # R. P. Hodges, Underwater acoustics: analysis, design, and performance of sonar.
         # Hoboken, NJ: Wiley, 2010. doi: 10.1002/9780470665244.
@@ -249,10 +254,18 @@ class AcousticScenario(syndb_core.CatalogEntry):
         return f"{self.local} [{self.season.name.capitalize()}]"
 
     def as_dict(self):
+        row = self._query_df(model_name=None)
+        seabed, _ = self.get_prospector().seabed_prospector.get(self.local.get_point())
+
         """Return the scenario as a dictionary joining Local and Month information."""
         return {
             **self.local.as_dict(),
             "Season": self.season.name.capitalize(),
+            "SEABED": seabed,
+            "DEPTH_M": self.local.get_depth_deth().get_m(),
+            "RAIN": row["RAIN_VALUE"],
+            "SEA_STATE": row["SEA_VALUE"],
+            "SHIPPING": row["SHIPPING_VALUE"],
         }
 
     def get_prospector(self) -> lps_site.AcousticSiteProspector:
