@@ -223,7 +223,7 @@ class Database(syndb_core.Catalog[DatabaseEntry]):
         environment.global_attenuation_db = global_attenuation_db
 
         desired_simulation_steps = simulation_steps
-        simulation_steps = simulation_steps  + 2
+        simulation_steps = simulation_steps + 3
 
         scenario = lps_scenario.Scenario(
             step_interval=step_interval,
