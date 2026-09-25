@@ -204,17 +204,19 @@ class Location(enum.Enum):
         ax = typing.cast(cgeo.GeoAxes, plt.axes(projection=ccrs.PlateCarree()))
         ax.set_global()
         ax.coastlines(resolution='110m', linewidth=0.6)
-        ax.add_feature(cfeature.LAND, zorder=0, facecolor='lightgray')
-        ax.add_feature(cfeature.OCEAN, zorder=0, facecolor='lightblue')
+        # ax.add_feature(cfeature.LAND, zorder=0, facecolor='lightgray')
+        # ax.add_feature(cfeature.OCEAN, zorder=0, facecolor='lightblue')
 
         for local in locations:
             p = local.get_point()
             color='blue' if local.is_shallow_water() else 'red'
-            offset=1.5 if local.is_shallow_water() else -4.5
+            offset = 1.5 if local.is_shallow_water() else -1.5
+            ha = 'left' if local.is_shallow_water() else 'right'
+
             ax.plot(p.longitude.get_deg(), p.latitude.get_deg(), 'o',
-                    markersize=4, color=color, transform=ccrs.PlateCarree())
+                    markersize=6, color=color, transform=ccrs.PlateCarree())
             ax.text(p.longitude.get_deg() + offset, p.latitude.get_deg(), f"{local.value}",
-                    fontsize=6, color=color, transform=ccrs.PlateCarree())
+                    fontsize=12, color=color, ha=ha, transform=ccrs.PlateCarree())
 
         plt.savefig(filename, dpi=600, bbox_inches="tight")
 
